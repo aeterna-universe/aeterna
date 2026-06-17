@@ -11,8 +11,8 @@ namespace Aeterna {
     // ENTITY TYPES - Organizational Hierarchy
     // =========================================================================
     
-    // Company: Root of the organizational hierarchy (tenant)
-    entity Company = {
+    // Tenant: Root of the organizational hierarchy
+    entity Tenant = {
         // Display name
         "name": String,
         // URL-friendly identifier
@@ -23,11 +23,11 @@ namespace Aeterna {
         "approval_required": Bool,
     };
 
-    // Organization: Division within a company
-    entity Organization in [Company] = {
+    // Organization: Division within a tenant
+    entity Organization in [Tenant] = {
         "name": String,
         "slug": String,
-        // Inherits from company if not set
+        // Inherits from tenant if not set
         "governance_mode"?: String,
         "approval_required"?: Bool,
     };
@@ -97,8 +97,8 @@ namespace Aeterna {
     // =========================================================================
     
     // Memory: Stored memory entry
-    entity Memory in [Project, Team, Organization, Company] = {
-        // Layer: "agent", "user", "session", "project", "team", "org", "company"
+    entity Memory in [Project, Team, Organization, Tenant] = {
+        // Layer: "agent", "user", "session", "project", "team", "org", "tenant"
         "layer": String,
         // Content type hint
         "content_type"?: String,
@@ -108,7 +108,7 @@ namespace Aeterna {
     };
 
     // Knowledge: Knowledge repository item
-    entity Knowledge in [Project, Team, Organization, Company] = {
+    entity Knowledge in [Project, Team, Organization, Tenant] = {
         // Type: "adr", "pattern", "policy", "spec", "guide"
         "knowledge_type": String,
         // Status: "draft", "proposed", "approved", "deprecated"
@@ -118,7 +118,7 @@ namespace Aeterna {
     };
 
     // Policy: Governance policy
-    entity Policy in [Project, Team, Organization, Company] = {
+    entity Policy in [Project, Team, Organization, Tenant] = {
         // Mode: "mandatory", "recommended", "optional"
         "mode": String,
         // Status: "draft", "active", "deprecated"
@@ -128,7 +128,7 @@ namespace Aeterna {
     };
 
     // GovernanceRequest: Approval request
-    entity GovernanceRequest in [Project, Team, Organization, Company] = {
+    entity GovernanceRequest in [Project, Team, Organization, Tenant] = {
         // Type: "policy_change", "knowledge_proposal", "memory_promotion", "role_assignment"
         "request_type": String,
         // Status: "pending", "approved", "rejected", "expired"
@@ -162,12 +162,12 @@ namespace Aeterna {
     // Memory Actions
     action ViewMemory appliesTo {
         principal: [User, Agent],
-        resource: [Memory, Project, Team, Organization, Company],
+        resource: [Memory, Project, Team, Organization, Tenant],
     };
     
     action CreateMemory appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
     
     action UpdateMemory appliesTo {
@@ -188,12 +188,12 @@ namespace Aeterna {
     // Knowledge Actions
     action ViewKnowledge appliesTo {
         principal: [User, Agent],
-        resource: [Knowledge, Project, Team, Organization, Company],
+        resource: [Knowledge, Project, Team, Organization, Tenant],
     };
     
     action ProposeKnowledge appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
     
     action EditKnowledge appliesTo {
@@ -214,12 +214,12 @@ namespace Aeterna {
     // Policy Actions
     action ViewPolicy appliesTo {
         principal: [User, Agent],
-        resource: [Policy, Project, Team, Organization, Company],
+        resource: [Policy, Project, Team, Organization, Tenant],
     };
     
     action CreatePolicy appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
     
     action EditPolicy appliesTo {
@@ -234,18 +234,18 @@ namespace Aeterna {
     
     action SimulatePolicy appliesTo {
         principal: [User, Agent],
-        resource: [Policy, Project, Team, Organization, Company],
+        resource: [Policy, Project, Team, Organization, Tenant],
     };
 
     // Governance Actions
     action ViewGovernanceRequest appliesTo {
         principal: [User, Agent],
-        resource: [GovernanceRequest, Project, Team, Organization, Company],
+        resource: [GovernanceRequest, Project, Team, Organization, Tenant],
     };
     
     action SubmitGovernanceRequest appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
     
     action ApproveGovernanceRequest appliesTo {
@@ -261,12 +261,12 @@ namespace Aeterna {
     // Organization Management Actions
     action ViewOrganization appliesTo {
         principal: [User, Agent],
-        resource: [Company, Organization, Team, Project],
+        resource: [Tenant, Organization, Team, Project],
     };
     
     action CreateOrganization appliesTo {
         principal: [User],
-        resource: [Company],
+        resource: [Tenant],
     };
     
     action CreateTeam appliesTo {
@@ -286,7 +286,7 @@ namespace Aeterna {
     
     action AssignRoles appliesTo {
         principal: [User],
-        resource: [Team, Organization, Company, Project],
+        resource: [Team, Organization, Tenant, Project],
     };
 
     action ManageTeamAssignments appliesTo {
@@ -297,7 +297,7 @@ namespace Aeterna {
     // Agent Management Actions
     action RegisterAgent appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
     
     action RevokeAgent appliesTo {
@@ -313,22 +313,22 @@ namespace Aeterna {
     // Admin Actions
     action ViewAuditLog appliesTo {
         principal: [User],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
     
     action ExportData appliesTo {
         principal: [User],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
     
     action ImportData appliesTo {
         principal: [User],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
     
     action ConfigureGovernance appliesTo {
         principal: [User],
-        resource: [Team, Organization, Company],
+        resource: [Team, Organization, Tenant],
     };
 
     // Tenant Management Actions
@@ -376,12 +376,12 @@ namespace Aeterna {
     // Repository Binding Actions
     action ViewRepositoryBinding appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     action UpdateRepositoryBinding appliesTo {
         principal: [User],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     // Git Provider Actions
@@ -414,38 +414,38 @@ namespace Aeterna {
     // Sync Actions
     action TriggerSync appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     action ViewSyncStatus appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     action ResolveConflict appliesTo {
         principal: [User],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     // Extended Memory Actions
     action SearchMemory appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     action ListMemory appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     action OptimizeMemory appliesTo {
         principal: [User, Agent],
-        resource: [Memory, Project, Team, Organization, Company],
+        resource: [Memory, Project, Team, Organization, Tenant],
     };
 
     action ReasonMemory appliesTo {
         principal: [User, Agent],
-        resource: [Memory, Project, Team, Organization, Company],
+        resource: [Memory, Project, Team, Organization, Tenant],
     };
 
     action CloseMemory appliesTo {
@@ -461,67 +461,67 @@ namespace Aeterna {
     // Extended Knowledge Actions
     action ListKnowledge appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     action SearchKnowledge appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     action BatchKnowledge appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     // Graph Actions
     action QueryGraph appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     action ModifyGraph appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     // CCA Actions
     action InvokeCCA appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     // MCP Actions
     action InvokeMcpTool appliesTo {
         principal: [User, Agent],
-        resource: [Project, Team, Organization, Company],
+        resource: [Project, Team, Organization, Tenant],
     };
 
     // User Management Actions
     action ViewUser appliesTo {
         principal: [User],
-        resource: [Team, Organization, Company],
+        resource: [Team, Organization, Tenant],
     };
 
     action RegisterUser appliesTo {
         principal: [User],
-        resource: [Team, Organization, Company],
+        resource: [Team, Organization, Tenant],
     };
 
     action UpdateUser appliesTo {
         principal: [User],
-        resource: [Team, Organization, Company],
+        resource: [Team, Organization, Tenant],
     };
 
     action DeactivateUser appliesTo {
         principal: [User],
-        resource: [Team, Organization, Company],
+        resource: [Team, Organization, Tenant],
     };
 
     // Admin Actions
     action AdminSyncGitHub appliesTo {
         principal: [User],
-        resource: [Tenant, Company],
+        resource: [Tenant],
     };
 
     // =========================================================================

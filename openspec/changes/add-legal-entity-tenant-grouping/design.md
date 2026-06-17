@@ -8,8 +8,8 @@ group with subsidiaries, which is the typical shape of any treasury customer
 larger than a startup.
 
 The rc.9 architecture review surfaced this in the context of an admin-ui Create
-dialog. The narrow question was "should the dialog let me create a Company
-under another Company so I can model subsidiaries?". The answer turned out to
+dialog. The narrow question was "should the dialog let me create a Tenant
+under another Tenant so I can model subsidiaries?". The answer turned out to
 be no, but the *reason* required articulating the right model:
 
   - data isolation between subsidiaries is the *correct* default — different
@@ -58,7 +58,7 @@ The existing infrastructure that this proposal extends:
 
   - Any change to RLS policy or to what data lives at the tenant boundary.
     Tenants remain the data isolation unit; legal entities are *above* that.
-  - Recursive same-type parenting inside a tenant (Company → Company → …).
+  - Recursive same-type parenting inside a tenant (Tenant → Tenant → …).
     Explicitly rejected; documented in the proposal's "Why".
   - Many-to-many tenant ↔ legal entity. The FK is single-valued; a tenant
     has at most one legal entity.
@@ -88,7 +88,7 @@ with the standard tenant context set. RLS policies are *unchanged*.
     leak vector we don't want). Keeping the cross-tenant aggregation in
     handler code preserves the simple, well-understood RLS invariant.
   - **Trade-off**: Handler-level aggregation costs N queries instead of one
-    join. For the scale we expect (a holding company has tens of
+    join. For the scale we expect (a holding tenant has tens of
     subsidiaries, not thousands), this is fine; the queries can run in
     parallel via `tokio::join!` for the rollup endpoints, and the result is
     cached at the LE-summary cache layer (see decision 5).

@@ -27,6 +27,8 @@ use uuid::Uuid;
 use super::AppState;
 
 const DEFAULT_REFRESH_TOKEN_TTL_SECS: u64 = 30 * 24 * 3600;
+const DEFAULT_ADMIN_UI_ACCESS_TOKEN_TTL_SECS: u64 = 30 * 60;
+const DEFAULT_ADMIN_UI_REFRESH_TOKEN_TTL_SECS: u64 = 14 * 24 * 3600;
 const DEFAULT_GITHUB_API_BASE: &str = "https://api.github.com";
 
 // ---------------------------------------------------------------------------
@@ -40,6 +42,13 @@ pub(super) struct RefreshEntry {
     github_id: u64,
     email: Option<String>,
     expires_at: i64,
+    token_kind: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RefreshTokenTakeResult {
+    Missing,
+    WrongKind,
 }
 
 /// In-process refresh-token store (single-use, rotation on refresh).
@@ -62,6 +71,7 @@ impl RefreshTokenStore {
         github_login: String,
         github_id: u64,
         email: Option<String>,
+        token_kind: String,
         ttl_seconds: u64,
     ) {
         let expires_at = Utc::now().timestamp() + ttl_seconds as i64;
@@ -73,23 +83,47 @@ impl RefreshTokenStore {
                 github_id,
                 email,
                 expires_at,
+                token_kind,
             },
         );
     }
 
-    /// Consume a refresh token (single-use). Returns `None` if missing or
-    /// expired.
-    pub(super) async fn take(&self, token: &str) -> Option<RefreshEntry> {
-        let mut guard = self.tokens.write().await;
-        let entry = guard.remove(token)?;
-        if entry.expires_at <= Utc::now().timestamp() {
-            return None;
+    pub(super) async fn take_for_kind(
+        &self,
+        token: &str,
+        expected_kind: &str,
+    ) -> Result<RefreshEntry, RefreshTokenTakeResult> {
+        let now = Utc::now().timestamp();
+        let guard = self.tokens.read().await;
+        let Some(entry) = guard.get(token).cloned() else {
+            return Err(RefreshTokenTakeResult::Missing);
+        };
+        drop(guard);
+
+        if entry.expires_at <= now {
+            self.tokens.write().await.remove(token);
+            return Err(RefreshTokenTakeResult::Missing);
         }
-        Some(entry)
+        if entry.token_kind != expected_kind {
+            return Err(RefreshTokenTakeResult::WrongKind);
+        }
+
+        let mut guard = self.tokens.write().await;
+        match guard.remove(token) {
+            Some(entry) if entry.expires_at > now => Ok(entry),
+            _ => Err(RefreshTokenTakeResult::Missing),
+        }
     }
 
-    pub async fn revoke(&self, token: &str) {
-        self.tokens.write().await.remove(token);
+    pub async fn revoke_for_kind(&self, token: &str, expected_kind: &str) {
+        let mut guard = self.tokens.write().await;
+        let should_remove = guard
+            .get(token)
+            .map(|entry| entry.token_kind == expected_kind)
+            .unwrap_or(false);
+        if should_remove {
+            guard.remove(token);
+        }
     }
 }
 
@@ -115,6 +149,7 @@ impl RedisRefreshTokenStore {
         github_login: String,
         github_id: u64,
         email: Option<String>,
+        token_kind: String,
         ttl_seconds: u64,
     ) {
         let expires_at = Utc::now().timestamp() + ttl_seconds as i64;
@@ -124,34 +159,55 @@ impl RedisRefreshTokenStore {
             github_id,
             email,
             expires_at,
+            token_kind,
         };
         if let Err(e) = self.store.set(&token, &entry, Some(ttl_seconds)).await {
             tracing::error!("Failed to store refresh token in Redis: {e}");
         }
     }
 
-    /// Consume a refresh token (single-use). Returns `None` if missing or
-    /// expired.
-    pub(super) async fn take(&self, token: &str) -> Option<RefreshEntry> {
+    pub(super) async fn take_for_kind(
+        &self,
+        token: &str,
+        expected_kind: &str,
+    ) -> Result<RefreshEntry, RefreshTokenTakeResult> {
+        let Ok(entry) = self.store.get::<RefreshEntry>(token).await else {
+            tracing::error!("Failed to read refresh token from Redis");
+            return Err(RefreshTokenTakeResult::Missing);
+        };
+        let Some(entry) = entry else {
+            return Err(RefreshTokenTakeResult::Missing);
+        };
+        if entry.expires_at <= Utc::now().timestamp() {
+            let _ = self.store.delete(token).await;
+            return Err(RefreshTokenTakeResult::Missing);
+        }
+        if entry.token_kind != expected_kind {
+            return Err(RefreshTokenTakeResult::WrongKind);
+        }
+
         match self.store.take::<RefreshEntry>(token).await {
-            Ok(Some(entry)) => {
-                if entry.expires_at <= Utc::now().timestamp() {
-                    return None;
-                }
-                Some(entry)
-            }
-            Ok(None) => None,
+            Ok(Some(entry)) if entry.expires_at > Utc::now().timestamp() => Ok(entry),
+            Ok(_) => Err(RefreshTokenTakeResult::Missing),
             Err(e) => {
                 tracing::error!("Failed to take refresh token from Redis: {e}");
-                None
+                Err(RefreshTokenTakeResult::Missing)
             }
         }
     }
 
-    /// Revoke (delete) a refresh token.
-    pub async fn revoke(&self, token: &str) {
-        if let Err(e) = self.store.delete(token).await {
-            tracing::error!("Failed to revoke refresh token in Redis: {e}");
+    /// Revoke (delete) a refresh token if it matches the expected token kind.
+    pub async fn revoke_for_kind(&self, token: &str, expected_kind: &str) {
+        match self.store.get::<RefreshEntry>(token).await {
+            Ok(Some(entry)) if entry.token_kind == expected_kind => {
+                if let Err(e) = self.store.delete(token).await {
+                    tracing::error!("Failed to revoke refresh token in Redis: {e}");
+                }
+            }
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!("Failed to inspect refresh token in Redis: {e}");
+            }
         }
     }
 }
@@ -184,6 +240,7 @@ impl RefreshTokenStoreBackend {
         github_login: String,
         github_id: u64,
         email: Option<String>,
+        token_kind: String,
         ttl_seconds: u64,
     ) {
         match self {
@@ -194,6 +251,7 @@ impl RefreshTokenStoreBackend {
                     github_login,
                     github_id,
                     email,
+                    token_kind,
                     ttl_seconds,
                 )
                 .await;
@@ -205,6 +263,7 @@ impl RefreshTokenStoreBackend {
                     github_login,
                     github_id,
                     email,
+                    token_kind,
                     ttl_seconds,
                 )
                 .await;
@@ -212,19 +271,22 @@ impl RefreshTokenStoreBackend {
         }
     }
 
-    /// Consume a refresh token (single-use).
-    pub(super) async fn take(&self, token: &str) -> Option<RefreshEntry> {
+    pub(super) async fn take_for_kind(
+        &self,
+        token: &str,
+        expected_kind: &str,
+    ) -> Result<RefreshEntry, RefreshTokenTakeResult> {
         match self {
-            Self::InMemory(s) => s.take(token).await,
-            Self::Redis(s) => s.take(token).await,
+            Self::InMemory(s) => s.take_for_kind(token, expected_kind).await,
+            Self::Redis(s) => s.take_for_kind(token, expected_kind).await,
         }
     }
 
-    /// Revoke a refresh token.
-    pub async fn revoke(&self, token: &str) {
+    /// Revoke a refresh token if it matches the expected kind.
+    pub async fn revoke_for_kind(&self, token: &str, expected_kind: &str) {
         match self {
-            Self::InMemory(s) => s.revoke(token).await,
-            Self::Redis(s) => s.revoke(token).await,
+            Self::InMemory(s) => s.revoke_for_kind(token, expected_kind).await,
+            Self::Redis(s) => s.revoke_for_kind(token, expected_kind).await,
         }
     }
 }
@@ -307,6 +369,8 @@ pub struct PluginTokenClaims {
 impl PluginTokenClaims {
     pub const AUDIENCE: &'static str = "aeterna-plugin";
     pub const KIND: &'static str = "plugin-access";
+    pub const ADMIN_UI_AUDIENCE: &'static str = "aeterna-admin-ui";
+    pub const ADMIN_UI_KIND: &'static str = "admin-ui";
 
     /// Human-auth token produced by the OAuth flow. This is the
     /// default every pre-§10.1 token decodes as, matching what the
@@ -344,6 +408,7 @@ pub struct PluginIdentity {
     pub github_id: u64,
     pub email: Option<String>,
     pub jti: String,
+    pub kind: String,
 
     // ── B2 §10.1 — scope-check inputs for middleware (§10.5) ─────────
     /// Token-kind discriminator copied from the JWT `token_type` claim.
@@ -366,6 +431,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/auth/plugin/bootstrap", post(bootstrap_handler))
         .route("/auth/plugin/refresh", post(refresh_handler))
         .route("/auth/plugin/logout", post(logout_handler))
+        .route("/auth/admin-ui/bootstrap", post(admin_ui_bootstrap_handler))
+        .route("/auth/admin-ui/refresh", post(admin_ui_refresh_handler))
+        .route("/auth/admin-ui/revoke", post(admin_ui_revoke_handler))
         .with_state(state)
 }
 
@@ -373,11 +441,49 @@ pub fn router(state: Arc<AppState>) -> Router {
 // Handlers
 // ---------------------------------------------------------------------------
 
-#[tracing::instrument(skip_all, fields(provider = %req.provider))]
-async fn bootstrap_handler(
-    State(state): State<Arc<AppState>>,
-    Json(req): Json<PluginAuthBootstrapRequest>,
-) -> impl IntoResponse {
+fn plugin_access_ttls(cfg: &config::PluginAuthConfig) -> (u64, u64) {
+    (
+        cfg.access_token_ttl_seconds.unwrap_or(3600),
+        cfg.refresh_token_ttl_seconds
+            .unwrap_or(DEFAULT_REFRESH_TOKEN_TTL_SECS),
+    )
+}
+
+fn admin_ui_ttls() -> (u64, u64) {
+    (
+        DEFAULT_ADMIN_UI_ACCESS_TOKEN_TTL_SECS,
+        DEFAULT_ADMIN_UI_REFRESH_TOKEN_TTL_SECS,
+    )
+}
+
+fn mint_access_token_for_kind(
+    jwt_secret: &str,
+    issuer: &str,
+    tenant_id: &str,
+    user: &GitHubUser,
+    ttl_seconds: u64,
+    audience: &str,
+    kind: &str,
+) -> anyhow::Result<String> {
+    mint_access_token(
+        jwt_secret,
+        issuer,
+        tenant_id,
+        user,
+        ttl_seconds,
+        audience,
+        kind,
+    )
+}
+
+async fn bootstrap_for_kind(
+    state: Arc<AppState>,
+    req: PluginAuthBootstrapRequest,
+    audience: &str,
+    kind: &str,
+    access_ttl: u64,
+    refresh_ttl: u64,
+) -> axum::response::Response {
     let cfg = &state.plugin_auth_state.config;
 
     if !cfg.enabled {
@@ -387,7 +493,8 @@ async fn bootstrap_handler(
                 "error": "plugin_auth_disabled",
                 "message": "Plugin authentication is not enabled on this server"
             })),
-        );
+        )
+            .into_response();
     }
 
     if !cfg.allowed_providers.contains(&req.provider) {
@@ -397,7 +504,8 @@ async fn bootstrap_handler(
                 "error": "unsupported_provider",
                 "message": "Provider not supported"
             })),
-        );
+        )
+            .into_response();
     }
 
     let jwt_secret = match &cfg.jwt_secret {
@@ -409,7 +517,8 @@ async fn bootstrap_handler(
                     "error": "configuration_error",
                     "message": "JWT secret is not configured"
                 })),
-            );
+            )
+                .into_response();
         }
     };
 
@@ -423,14 +532,11 @@ async fn bootstrap_handler(
                     "error": "github_user_fetch_failed",
                     "message": format!("Failed to fetch GitHub user: {e}")
                 })),
-            );
+            )
+                .into_response();
         }
     };
 
-    let access_ttl = cfg.access_token_ttl_seconds.unwrap_or(3600);
-    let refresh_ttl = cfg
-        .refresh_token_ttl_seconds
-        .unwrap_or(DEFAULT_REFRESH_TOKEN_TTL_SECS);
     let issuer = cfg
         .token_issuer
         .clone()
@@ -438,30 +544,39 @@ async fn bootstrap_handler(
     let tenant_id = if let Some(t) = resolve_tenant_for_github_user(&github_user.login, cfg) {
         t
     } else {
-        tracing::error!(login = %github_user.login, "No tenant configured for plugin auth bootstrap");
+        tracing::error!(login = %github_user.login, "No tenant configured for auth bootstrap");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({
                 "error": "tenant_not_configured",
-                "message": "No tenant configured for plugin authentication. Set AETERNA_DEFAULT_TENANT_ID or configure default_tenant_id."
+                "message": "No tenant configured for authentication. Set AETERNA_DEFAULT_TENANT_ID or configure default_tenant_id."
             })),
-        );
+        )
+            .into_response();
     };
 
-    let access_token =
-        match mint_access_token(&jwt_secret, &issuer, &tenant_id, &github_user, access_ttl) {
-            Ok(t) => t,
-            Err(e) => {
-                tracing::error!("Failed to mint access token: {e}");
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({
-                        "error": "token_mint_failed",
-                        "message": "Failed to issue access token"
-                    })),
-                );
-            }
-        };
+    let access_token = match mint_access_token_for_kind(
+        &jwt_secret,
+        &issuer,
+        &tenant_id,
+        &github_user,
+        access_ttl,
+        audience,
+        kind,
+    ) {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("Failed to mint access token: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({
+                    "error": "token_mint_failed",
+                    "message": "Failed to issue access token"
+                })),
+            )
+                .into_response();
+        }
+    };
 
     let refresh_token = Uuid::new_v4().to_string();
     state
@@ -473,6 +588,7 @@ async fn bootstrap_handler(
             github_user.login.clone(),
             github_user.id,
             github_user.email.clone(),
+            kind.to_string(),
             refresh_ttl,
         )
         .await;
@@ -486,15 +602,20 @@ async fn bootstrap_handler(
             "token_type": "Bearer",
             "github_login": github_user.login,
             "github_email": github_user.email,
+            "kind": kind,
         })),
     )
+        .into_response()
 }
 
-#[tracing::instrument(skip_all)]
-async fn refresh_handler(
-    State(state): State<Arc<AppState>>,
-    Json(req): Json<PluginAuthRefreshRequest>,
-) -> impl IntoResponse {
+async fn refresh_for_kind(
+    state: Arc<AppState>,
+    req: PluginAuthRefreshRequest,
+    audience: &str,
+    kind: &str,
+    access_ttl: u64,
+    refresh_ttl: u64,
+) -> axum::response::Response {
     let cfg = &state.plugin_auth_state.config;
 
     if !cfg.enabled {
@@ -504,7 +625,8 @@ async fn refresh_handler(
                 "error": "plugin_auth_disabled",
                 "message": "Plugin authentication is not enabled on this server"
             })),
-        );
+        )
+            .into_response();
     }
 
     let jwt_secret = match &cfg.jwt_secret {
@@ -516,49 +638,58 @@ async fn refresh_handler(
                     "error": "configuration_error",
                     "message": "JWT secret is not configured"
                 })),
-            );
+            )
+                .into_response();
         }
     };
 
     let entry = match state
         .plugin_auth_state
         .refresh_store
-        .take(&req.refresh_token)
+        .take_for_kind(&req.refresh_token, kind)
         .await
     {
-        Some(e) => e,
-        None => {
+        Ok(e) => e,
+        Err(RefreshTokenTakeResult::WrongKind) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": "wrong_audience",
+                    "message": "Refresh token belongs to a different token audience"
+                })),
+            )
+                .into_response();
+        }
+        Err(RefreshTokenTakeResult::Missing) => {
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({
                     "error": "invalid_refresh_token",
                     "message": "Refresh token is invalid, expired, or already consumed"
                 })),
-            );
+            )
+                .into_response();
         }
     };
 
-    let access_ttl = cfg.access_token_ttl_seconds.unwrap_or(3600);
-    let refresh_ttl = cfg
-        .refresh_token_ttl_seconds
-        .unwrap_or(DEFAULT_REFRESH_TOKEN_TTL_SECS);
     let issuer = cfg
         .token_issuer
         .clone()
         .unwrap_or_else(|| "aeterna".to_string());
-
     let user_info = GitHubUser {
         id: entry.github_id,
         login: entry.github_login,
         email: entry.email,
     };
 
-    let access_token = match mint_access_token(
+    let access_token = match mint_access_token_for_kind(
         &jwt_secret,
         &issuer,
         &entry.tenant_id,
         &user_info,
         access_ttl,
+        audience,
+        kind,
     ) {
         Ok(t) => t,
         Err(e) => {
@@ -569,11 +700,11 @@ async fn refresh_handler(
                     "error": "token_mint_failed",
                     "message": "Failed to issue access token"
                 })),
-            );
+            )
+                .into_response();
         }
     };
 
-    // Rotate refresh token
     let new_refresh = Uuid::new_v4().to_string();
     state
         .plugin_auth_state
@@ -584,6 +715,7 @@ async fn refresh_handler(
             user_info.login.clone(),
             user_info.id,
             user_info.email.clone(),
+            kind.to_string(),
             refresh_ttl,
         )
         .await;
@@ -597,8 +729,64 @@ async fn refresh_handler(
             "token_type": "Bearer",
             "github_login": user_info.login,
             "github_email": user_info.email,
+            "kind": kind,
         })),
     )
+        .into_response()
+}
+
+async fn revoke_for_kind(
+    state: Arc<AppState>,
+    req: PluginAuthLogoutRequest,
+    kind: &str,
+) -> axum::response::Response {
+    if let Some(token) = &req.refresh_token {
+        state
+            .plugin_auth_state
+            .refresh_store
+            .revoke_for_kind(token, kind)
+            .await;
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({ "message": "Logged out successfully" })),
+    )
+        .into_response()
+}
+
+#[tracing::instrument(skip_all, fields(provider = %req.provider))]
+async fn bootstrap_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PluginAuthBootstrapRequest>,
+) -> impl IntoResponse {
+    let (access_ttl, refresh_ttl) = plugin_access_ttls(&state.plugin_auth_state.config);
+    bootstrap_for_kind(
+        state,
+        req,
+        PluginTokenClaims::AUDIENCE,
+        PluginTokenClaims::KIND,
+        access_ttl,
+        refresh_ttl,
+    )
+    .await
+}
+
+#[tracing::instrument(skip_all)]
+async fn refresh_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PluginAuthRefreshRequest>,
+) -> impl IntoResponse {
+    let (access_ttl, refresh_ttl) = plugin_access_ttls(&state.plugin_auth_state.config);
+    refresh_for_kind(
+        state,
+        req,
+        PluginTokenClaims::AUDIENCE,
+        PluginTokenClaims::KIND,
+        access_ttl,
+        refresh_ttl,
+    )
+    .await
 }
 
 #[tracing::instrument(skip_all)]
@@ -606,14 +794,49 @@ async fn logout_handler(
     State(state): State<Arc<AppState>>,
     Json(req): Json<PluginAuthLogoutRequest>,
 ) -> impl IntoResponse {
-    if let Some(token) = &req.refresh_token {
-        state.plugin_auth_state.refresh_store.revoke(token).await;
-    }
+    revoke_for_kind(state, req, PluginTokenClaims::KIND).await
+}
 
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({ "message": "Logged out successfully" })),
+#[tracing::instrument(skip_all, fields(provider = %req.provider))]
+async fn admin_ui_bootstrap_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PluginAuthBootstrapRequest>,
+) -> impl IntoResponse {
+    let (access_ttl, refresh_ttl) = admin_ui_ttls();
+    bootstrap_for_kind(
+        state,
+        req,
+        PluginTokenClaims::ADMIN_UI_AUDIENCE,
+        PluginTokenClaims::ADMIN_UI_KIND,
+        access_ttl,
+        refresh_ttl,
     )
+    .await
+}
+
+#[tracing::instrument(skip_all)]
+async fn admin_ui_refresh_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PluginAuthRefreshRequest>,
+) -> impl IntoResponse {
+    let (access_ttl, refresh_ttl) = admin_ui_ttls();
+    refresh_for_kind(
+        state,
+        req,
+        PluginTokenClaims::ADMIN_UI_AUDIENCE,
+        PluginTokenClaims::ADMIN_UI_KIND,
+        access_ttl,
+        refresh_ttl,
+    )
+    .await
+}
+
+#[tracing::instrument(skip_all)]
+async fn admin_ui_revoke_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PluginAuthLogoutRequest>,
+) -> impl IntoResponse {
+    revoke_for_kind(state, req, PluginTokenClaims::ADMIN_UI_KIND).await
 }
 
 // ---------------------------------------------------------------------------
@@ -729,6 +952,13 @@ async fn admin_session_handler(
         .await
         .ok()
         .flatten();
+    let default_tenant_slug = match default_tenant_id.as_deref() {
+        Some(tid) => match state.tenant_store.get_tenant(tid).await {
+            Ok(Some(t)) => Some(t.slug),
+            _ => None,
+        },
+        None => None,
+    };
 
     let tenants = if is_platform_admin {
         match state.tenant_store.list_tenants(false).await {
@@ -779,6 +1009,7 @@ async fn admin_session_handler(
             // #44.b: surface the persistent preference so the admin UI can
             // restore the tenant selector on load without an extra call.
             "default_tenant_id": default_tenant_id,
+            "default_tenant_slug": default_tenant_slug,
         })),
     )
 }
@@ -798,27 +1029,35 @@ pub fn validate_plugin_bearer(headers: &HeaderMap, jwt_secret: &str) -> Option<P
 pub fn validate_plugin_token(token: &str, jwt_secret: &str) -> Option<PluginIdentity> {
     let key = DecodingKey::from_secret(jwt_secret.as_bytes());
     let mut validation = Validation::new(jsonwebtoken::Algorithm::HS256);
-    validation.set_audience(&[PluginTokenClaims::AUDIENCE]);
-    // Accept any registered issuer; caller can restrict further if needed.
+    validation.set_audience(&[
+        PluginTokenClaims::AUDIENCE,
+        PluginTokenClaims::ADMIN_UI_AUDIENCE,
+    ]);
     validation.iss = None;
 
     match decode::<PluginTokenClaims>(token, &key, &validation) {
-        Ok(data) if data.claims.kind == PluginTokenClaims::KIND => Some(PluginIdentity {
-            idp_provider: data.claims.idp_provider,
-            tenant_id: data.claims.tenant_id,
-            github_login: data.claims.sub,
-            github_id: data.claims.github_id,
-            email: data.claims.email,
-            jti: data.claims.jti,
-            token_type: data.claims.token_type,
-            scopes: data.claims.scopes,
-        }),
+        Ok(data)
+            if data.claims.kind == PluginTokenClaims::KIND
+                || data.claims.kind == PluginTokenClaims::ADMIN_UI_KIND =>
+        {
+            Some(PluginIdentity {
+                idp_provider: data.claims.idp_provider,
+                tenant_id: data.claims.tenant_id,
+                github_login: data.claims.sub,
+                github_id: data.claims.github_id,
+                email: data.claims.email,
+                jti: data.claims.jti,
+                kind: data.claims.kind,
+                token_type: data.claims.token_type,
+                scopes: data.claims.scopes,
+            })
+        }
         Ok(_) => {
-            tracing::debug!("Plugin token rejected: unexpected kind");
+            tracing::debug!("Bearer token rejected: unexpected kind");
             None
         }
         Err(e) => {
-            tracing::debug!("Plugin token validation failed: {e}");
+            tracing::debug!("Bearer token validation failed: {e}");
             None
         }
     }
@@ -937,6 +1176,8 @@ fn mint_access_token(
     tenant_id: &str,
     user: &GitHubUser,
     ttl_seconds: u64,
+    audience: &str,
+    kind: &str,
 ) -> anyhow::Result<String> {
     let now = Utc::now().timestamp();
     let claims = PluginTokenClaims {
@@ -944,13 +1185,13 @@ fn mint_access_token(
         idp_provider: PROVIDER_GITHUB.to_string(),
         tenant_id: tenant_id.to_string(),
         iss: issuer.to_string(),
-        aud: vec![PluginTokenClaims::AUDIENCE.to_string()],
+        aud: vec![audience.to_string()],
         iat: now,
         exp: now + ttl_seconds as i64,
         jti: Uuid::new_v4().to_string(),
         github_id: user.id,
         email: user.email.clone(),
-        kind: PluginTokenClaims::KIND.to_string(),
+        kind: kind.to_string(),
         // Human OAuth flow → `"user"`. Authorization (§10.5) defers to
         // role checks for user tokens; `scopes` is intentionally empty.
         token_type: PluginTokenClaims::TOKEN_TYPE_USER.to_string(),
@@ -1255,10 +1496,7 @@ async fn web_callback_handler(
         }
     };
 
-    let access_ttl = cfg.access_token_ttl_seconds.unwrap_or(3600);
-    let refresh_ttl = cfg
-        .refresh_token_ttl_seconds
-        .unwrap_or(DEFAULT_REFRESH_TOKEN_TTL_SECS);
+    let (access_ttl, refresh_ttl) = admin_ui_ttls();
     let issuer = cfg
         .token_issuer
         .clone()
@@ -1271,14 +1509,21 @@ async fn web_callback_handler(
         return Redirect::to(&format!("{error_redirect}?error=tenant_not_configured"));
     };
 
-    let access_token =
-        match mint_access_token(&jwt_secret, &issuer, &tenant_id, &github_user, access_ttl) {
-            Ok(t) => t,
-            Err(e) => {
-                tracing::error!("Failed to mint access token: {e}");
-                return Redirect::to(&format!("{error_redirect}?error=token_mint_failed"));
-            }
-        };
+    let access_token = match mint_access_token(
+        &jwt_secret,
+        &issuer,
+        &tenant_id,
+        &github_user,
+        access_ttl,
+        PluginTokenClaims::ADMIN_UI_AUDIENCE,
+        PluginTokenClaims::ADMIN_UI_KIND,
+    ) {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!("Failed to mint access token: {e}");
+            return Redirect::to(&format!("{error_redirect}?error=token_mint_failed"));
+        }
+    };
 
     let refresh_token = Uuid::new_v4().to_string();
     state
@@ -1290,6 +1535,7 @@ async fn web_callback_handler(
             github_user.login.clone(),
             github_user.id,
             github_user.email.clone(),
+            PluginTokenClaims::ADMIN_UI_KIND.to_string(),
             refresh_ttl,
         )
         .await;
@@ -1372,9 +1618,35 @@ mod tests {
         }
     }
 
+    fn mint_plugin_token(tenant_id: &str) -> String {
+        mint_access_token(
+            &secret(),
+            "aeterna",
+            tenant_id,
+            &user(),
+            3600,
+            PluginTokenClaims::AUDIENCE,
+            PluginTokenClaims::KIND,
+        )
+        .unwrap()
+    }
+
+    fn mint_admin_ui_token(tenant_id: &str) -> String {
+        mint_access_token(
+            &secret(),
+            "aeterna",
+            tenant_id,
+            &user(),
+            1800,
+            PluginTokenClaims::ADMIN_UI_AUDIENCE,
+            PluginTokenClaims::ADMIN_UI_KIND,
+        )
+        .unwrap()
+    }
+
     #[test]
     fn mint_and_validate_roundtrip() {
-        let token = mint_access_token(&secret(), "aeterna", "default", &user(), 3600).unwrap();
+        let token = mint_plugin_token("default");
         let identity = validate_plugin_token(&token, &secret()).unwrap();
         assert_eq!(identity.tenant_id, "default");
         assert_eq!(identity.github_login, "testuser");
@@ -1391,14 +1663,24 @@ mod tests {
     /// tokens (evaluate scopes).
     #[test]
     fn minted_user_token_has_user_type_and_empty_scopes() {
-        let token = mint_access_token(&secret(), "aeterna", "default", &user(), 3600).unwrap();
+        let token = mint_plugin_token("default");
         let identity = validate_plugin_token(&token, &secret()).unwrap();
+        assert_eq!(identity.kind, PluginTokenClaims::KIND);
         assert_eq!(identity.token_type, PluginTokenClaims::TOKEN_TYPE_USER);
         assert!(
             identity.scopes.is_empty(),
             "user tokens must not carry scopes; got {:?}",
             identity.scopes
         );
+    }
+
+    #[test]
+    fn minted_admin_ui_token_round_trips_with_distinct_kind() {
+        let token = mint_admin_ui_token("default");
+        let identity = validate_plugin_token(&token, &secret()).unwrap();
+        assert_eq!(identity.kind, PluginTokenClaims::ADMIN_UI_KIND);
+        assert_eq!(identity.tenant_id, "default");
+        assert_eq!(identity.github_login, "testuser");
     }
 
     /// Rolling deploy guarantee: a JWT minted by a pre-§10.1 build
@@ -1493,13 +1775,13 @@ mod tests {
 
     #[test]
     fn validate_rejects_wrong_secret() {
-        let token = mint_access_token(&secret(), "aeterna", "default", &user(), 3600).unwrap();
+        let token = mint_plugin_token("default");
         assert!(validate_plugin_token(&token, "wrong-secret").is_none());
     }
 
     #[test]
     fn validate_rejects_tampered_token() {
-        let token = mint_access_token(&secret(), "aeterna", "default", &user(), 3600).unwrap();
+        let token = mint_plugin_token("default");
         let tampered = format!("{token}x");
         assert!(validate_plugin_token(&tampered, &secret()).is_none());
     }
@@ -1512,7 +1794,7 @@ mod tests {
 
     #[test]
     fn validate_bearer_header_extracts_identity() {
-        let token = mint_access_token(&secret(), "aeterna", "default", &user(), 3600).unwrap();
+        let token = mint_plugin_token("default");
         let mut headers = HeaderMap::new();
         headers.insert(AUTHORIZATION, format!("Bearer {token}").parse().unwrap());
         let identity = validate_plugin_bearer(&headers, &secret()).unwrap();
@@ -1543,7 +1825,7 @@ mod tests {
 
     #[test]
     fn tenant_context_uses_tenant_claim_from_bearer() {
-        let token = mint_access_token(&secret(), "aeterna", "tenant-42", &user(), 3600).unwrap();
+        let token = mint_plugin_token("tenant-42");
         let mut headers = HeaderMap::new();
         headers.insert(AUTHORIZATION, format!("Bearer {token}").parse().unwrap());
 
@@ -1562,16 +1844,50 @@ mod tests {
                 "alice".to_string(),
                 1,
                 None,
+                PluginTokenClaims::KIND.to_string(),
                 3600,
             )
             .await;
 
-        let entry = store.take("tok").await.unwrap();
+        let entry = store
+            .take_for_kind("tok", PluginTokenClaims::KIND)
+            .await
+            .unwrap();
         assert_eq!(entry.tenant_id, "default");
         assert_eq!(entry.github_login, "alice");
 
-        // Single-use: second take must be None
-        assert!(store.take("tok").await.is_none());
+        // Single-use: second take must be Missing
+        assert!(matches!(
+            store.take_for_kind("tok", PluginTokenClaims::KIND).await,
+            Err(RefreshTokenTakeResult::Missing)
+        ));
+    }
+
+    #[tokio::test]
+    async fn refresh_store_take_for_wrong_kind_preserves_token() {
+        let store = RefreshTokenStore::new();
+        store
+            .insert(
+                "tok".to_string(),
+                "default".to_string(),
+                "bob".to_string(),
+                2,
+                None,
+                PluginTokenClaims::ADMIN_UI_KIND.to_string(),
+                3600,
+            )
+            .await;
+
+        assert!(matches!(
+            store.take_for_kind("tok", PluginTokenClaims::KIND).await,
+            Err(RefreshTokenTakeResult::WrongKind)
+        ));
+        assert!(
+            store
+                .take_for_kind("tok", PluginTokenClaims::ADMIN_UI_KIND)
+                .await
+                .is_ok()
+        );
     }
 
     #[tokio::test]
@@ -1584,11 +1900,15 @@ mod tests {
                 "bob".to_string(),
                 2,
                 None,
+                PluginTokenClaims::KIND.to_string(),
                 3600,
             )
             .await;
-        store.revoke("tok").await;
-        assert!(store.take("tok").await.is_none());
+        store.revoke_for_kind("tok", PluginTokenClaims::KIND).await;
+        assert!(matches!(
+            store.take_for_kind("tok", PluginTokenClaims::KIND).await,
+            Err(RefreshTokenTakeResult::Missing)
+        ));
     }
 
     #[tokio::test]
@@ -1602,10 +1922,14 @@ mod tests {
                 "carol".to_string(),
                 3,
                 None,
+                PluginTokenClaims::KIND.to_string(),
                 0,
             )
             .await;
-        assert!(store.take("tok").await.is_none());
+        assert!(matches!(
+            store.take_for_kind("tok", PluginTokenClaims::KIND).await,
+            Err(RefreshTokenTakeResult::Missing)
+        ));
     }
 
     // ── Task 4.1: bootstrap fail-closed – resolve_tenant_for_github_user ──────
@@ -1689,7 +2013,7 @@ mod tests {
 
     #[test]
     fn tenant_context_from_plugin_bearer_returns_none_on_wrong_secret() {
-        let token = mint_access_token(&secret(), "aeterna", "t1", &user(), 3600).unwrap();
+        let token = mint_plugin_token("t1");
         let mut headers = HeaderMap::new();
         headers.insert(AUTHORIZATION, format!("Bearer {token}").parse().unwrap());
         assert!(

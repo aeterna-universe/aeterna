@@ -262,24 +262,22 @@ async fn test_hierarchy_mapper_flat_teams() {
     assert!(mappings.contains_key("platform"));
     assert!(mappings.contains_key("security"));
 
-    let company: (String, String) = sqlx::query_as(
-        "SELECT name, type FROM organizational_units WHERE tenant_id = $1 AND type = 'company'",
-    )
-    .bind(tenant_id.to_string())
-    .fetch_one(&pool)
-    .await
-    .expect("company row");
-    assert_eq!(company.0, "test-org");
-    assert_eq!(company.1, "company");
+    let org_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM organizations WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(org_count.0, 2);
 
-    let org_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM organizational_units WHERE tenant_id = $1 AND type = 'organization'",
+    let team_count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM teams t JOIN organizations o ON o.id = t.org_id WHERE o.tenant_id = $1",
     )
-    .bind(tenant_id.to_string())
+    .bind(tenant_id)
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(org_count.0, 2);
+    assert_eq!(team_count.0, 2);
 }
 
 #[tokio::test]
@@ -303,17 +301,17 @@ async fn test_hierarchy_mapper_two_level_nesting() {
     assert!(mappings.contains_key("api-team"));
     assert!(mappings.contains_key("frontend-team"));
 
-    let api_team: (String, Option<String>) = sqlx::query_as(
-        "SELECT type, parent_id FROM organizational_units WHERE tenant_id = $1 AND external_id = 'api-team'"
+    let api_team: (String,) = sqlx::query_as(
+        "SELECT o.slug
+           FROM teams t
+           JOIN organizations o ON o.id = t.org_id
+          WHERE o.tenant_id = $1 AND t.slug = 'api-team'",
     )
-    .bind(tenant_id.to_string())
+    .bind(tenant_id)
     .fetch_one(&pool)
     .await
     .expect("api-team row");
-    assert_eq!(api_team.0, "team");
-
-    let platform_id = mappings.get("platform").unwrap().to_string();
-    assert_eq!(api_team.1.as_deref(), Some(platform_id.as_str()));
+    assert_eq!(api_team.0, "platform");
 }
 
 #[tokio::test]
@@ -335,27 +333,39 @@ async fn test_hierarchy_mapper_three_level_nesting() {
 
     assert_eq!(mappings.len(), 3);
 
-    let engineering_id = mappings.get("engineering").unwrap().to_string();
-    let platform_id = mappings.get("platform").unwrap().to_string();
+    let engineering_id = mappings.get("engineering").unwrap();
+    let platform_id = mappings.get("platform").unwrap();
+    let api_team_id = mappings.get("api-team").unwrap();
+    assert_ne!(engineering_id, platform_id);
+    assert_ne!(platform_id, api_team_id);
 
-    let platform_row: (String, Option<String>) = sqlx::query_as(
-        "SELECT type, parent_id FROM organizational_units WHERE tenant_id = $1 AND external_id = 'platform'"
+    let org_and_team_counts: (i64, i64) = sqlx::query_as(
+        "SELECT
+             (SELECT COUNT(*) FROM organizations WHERE tenant_id = $1),
+             (SELECT COUNT(*) FROM teams t JOIN organizations o ON o.id = t.org_id WHERE o.tenant_id = $1)"
     )
-    .bind(tenant_id.to_string())
+    .bind(tenant_id)
     .fetch_one(&pool)
     .await
-    .expect("platform row");
-    assert_eq!(platform_row.1.as_deref(), Some(engineering_id.as_str()));
+    .expect("counts");
+    assert_eq!(org_and_team_counts.0, 1);
+    assert_eq!(org_and_team_counts.1, 3);
 
-    let api_row: (String, Option<String>) = sqlx::query_as(
-        "SELECT type, parent_id FROM organizational_units WHERE tenant_id = $1 AND external_id = 'api-team'"
+    let descendant_orgs: Vec<(String,)> = sqlx::query_as(
+        "SELECT o.slug
+           FROM teams t
+           JOIN organizations o ON o.id = t.org_id
+           WHERE o.tenant_id = $1 AND t.slug IN ('platform', 'api-team')
+          ORDER BY t.slug",
     )
-    .bind(tenant_id.to_string())
-    .fetch_one(&pool)
+    .bind(tenant_id)
+    .fetch_all(&pool)
     .await
-    .expect("api-team row");
-    assert_eq!(api_row.0, "team");
-    assert_eq!(api_row.1.as_deref(), Some(platform_id.as_str()));
+    .expect("descendant orgs");
+    assert_eq!(
+        descendant_orgs,
+        vec![("engineering".to_string(),), ("engineering".to_string(),)]
+    );
 }
 
 #[tokio::test]
@@ -386,13 +396,16 @@ async fn test_hierarchy_mapper_idempotent_upsert() {
     );
     assert_eq!(first.get("security"), second.get("security"));
 
-    let count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM organizational_units WHERE tenant_id = $1")
-            .bind(tenant_id.to_string())
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(count.0, 3, "company + 2 orgs, no duplicates");
+    let counts: (i64, i64) = sqlx::query_as(
+        "SELECT
+            (SELECT COUNT(*) FROM organizations WHERE tenant_id = $1),
+            (SELECT COUNT(*) FROM teams t JOIN organizations o ON o.id = t.org_id WHERE o.tenant_id = $1)"
+    )
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(counts, (2, 2), "2 orgs + 2 teams, no duplicates");
 }
 
 #[tokio::test]
@@ -546,17 +559,17 @@ async fn test_full_sync_flow_creates_users_and_teams() {
             .unwrap();
     assert_eq!(user_count.0, 3);
 
-    let unit_count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM organizational_units WHERE tenant_id = $1")
-            .bind(tenant_id.to_string())
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert!(
-        unit_count.0 >= 5,
-        "company + 2 orgs + 2 teams = at least 5, got {}",
-        unit_count.0
-    );
+    let hierarchy_counts: (i64, i64) = sqlx::query_as(
+        "SELECT
+            (SELECT COUNT(*) FROM organizations WHERE tenant_id = $1),
+            (SELECT COUNT(*) FROM teams t JOIN organizations o ON o.id = t.org_id WHERE o.tenant_id = $1)"
+    )
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(hierarchy_counts.0 >= 2, "expected at least 2 organizations");
+    assert!(hierarchy_counts.1 >= 4, "expected at least 4 teams");
 }
 
 #[tokio::test]
@@ -730,7 +743,7 @@ async fn test_bridge_sync_to_governance_populates_roles() {
     let config = github_config(&mock_server);
     let tenant_id = Uuid::new_v4();
 
-    // Step 1: Run sync to create users, memberships, org units
+    // Step 1: Run sync to create users, memberships, and modern hierarchy rows
     let report = run_github_sync(&config, &pool, tenant_id)
         .await
         .expect("sync should succeed");

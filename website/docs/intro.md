@@ -7,7 +7,7 @@ slug: /
 
 Aeterna is a **Universal Memory & Knowledge Framework** for enterprise AI agent systems. It provides persistent, hierarchical memory and governed organizational knowledge for AI agents at scale.
 
-Built for companies deploying AI coding assistants, autonomous agents, and intelligent automation across hundreds of engineers and thousands of projects.
+Built for organizations deploying AI coding assistants, autonomous agents, and intelligent automation across hundreds of engineers and thousands of projects.
 
 ## Why Aeterna?
 
@@ -66,7 +66,7 @@ graph TB
 Memory is organized in layers with automatic precedence resolution:
 
 ```
-Company  ← Global policies, standards (least specific)
+Tenant  ← Global policies, standards (least specific)
   └─ Organization  ← Department rules, compliance
        └─ Team  ← Team conventions, patterns
             └─ Project  ← Project-specific context

@@ -6,20 +6,22 @@
 -- opal-fetcher, but /v1/agents still returned the globally-merged agent
 -- set across every tenant — because the `agents` table (migration 009)
 -- has no `tenant_id` column. An agent's tenant was only knowable
--- transitively via `agents.allowed_company_ids -> companies.tenant_id`,
+-- transitively via the legacy root-scope UUID array -> the tenant link on
+-- the legacy root table,
 -- and that set can in principle span multiple tenants.
 --
 -- This migration establishes the invariant **one agent = one tenant**:
 --
 --   1. ADDs a nullable `agents.tenant_id UUID` column (FK -> tenants.id).
 --   2. AUDITs existing agents for cross-tenant scope; ABORTs with a
---      loud RAISE if any agent's allowed_company_ids span multiple
---      tenants or if any active agent has no derivable tenant. This is
+--      loud RAISE if any agent's legacy root-scope UUID array spans
+--      multiple tenants or if any active agent has no derivable tenant.
+--      This is
 --      deliberate: we do not want to pick a tenant for you, because a
 --      silent wrong choice would be a durable authz bug.
---   3. BACKFILLs tenant_id from the distinct tenant of
---      allowed_company_ids (plus fallback derivations through orgs /
---      teams / projects for agents scoped at finer granularities).
+--   3. BACKFILLs tenant_id from the distinct tenant implied by the
+--      legacy root-scope UUID array (plus fallback derivations through
+--      orgs / teams / projects for agents scoped at finer granularities).
 --   4. SETs NOT NULL once the backfill is complete.
 --   5. RELOCATEs the `v_agent_permissions` view from
 --      `idp-sync::github::initialize_opal_views` into this migration
@@ -35,9 +37,11 @@
 -- error message lists every problem agent id so the fix is mechanical.
 --
 -- Follow-up #130 subtask remaining after this migration: relocate
--- idp-sync writes from `organizational_units` to
--- `companies/organizations/teams`, then remove the legacy OU writes
--- from `PostgresBackend::initialize_schema`.
+-- idp-sync writes from `organizational_units` to the modern hierarchy
+-- tables, then remove the legacy OU writes
+-- from `PostgresBackend::initialize_schema` in the first migration that
+-- lands the modern-table IdP sync writer (target milestone: the next
+-- post-029 hierarchy migration, not another ad-hoc runtime override).
 
 -- ---------------------------------------------------------------------
 -- 1. Add column (nullable initially for backfill)
@@ -55,8 +59,8 @@ DECLARE
     offenders TEXT;
 BEGIN
     -- For each not-yet-backfilled active agent, compute the set of
-    -- distinct tenants implied by its entire scope (companies + the
-    -- companies reachable through orgs / teams / projects). An agent
+    -- distinct tenants implied by its entire scope (legacy root rows + the
+    -- roots reachable through orgs / teams / projects). An agent
     -- is an offender if that set has more than one element.
     SELECT string_agg(agent_id::text, ', ')
       INTO offenders
@@ -206,7 +210,7 @@ SELECT
     a.delegated_by_agent_id,
     a.delegation_depth,
     a.capabilities,
-    a.allowed_company_ids,
+    a.allowed_company_ids AS allowed_tenant_ids,
     a.allowed_org_ids,
     a.allowed_team_ids,
     a.allowed_project_ids,

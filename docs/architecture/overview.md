@@ -10,7 +10,7 @@ The Memory-Knowledge System is a hierarchical storage and governed knowledge fra
 4. **Project**: Shared across a specific project.
 5. **Team**: Shared across a team.
 6. **Org**: Shared across an organization.
-7. **Company**: Shared across the entire company.
+7. **Tenant**: Shared across the entire tenant.
 
 ## 4-Type Knowledge Repository
 1. **ADR (Architectural Decision Record)**: Captures technical decisions.

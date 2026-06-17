@@ -5,7 +5,7 @@ TBD - created by archiving change add-multi-tenant-governance. Update Purpose af
 ## Requirements
 ### Requirement: Tenant Isolation
 
-The system SHALL enforce hard isolation at the company (tenant) boundary for all memory and knowledge operations.
+The system SHALL enforce hard isolation at the tenant boundary for all memory and knowledge operations.
 
 Each tenant MUST have:
 - Unique tenant identifier
@@ -13,7 +13,7 @@ Each tenant MUST have:
 - Independent configuration
 
 #### Scenario: Tenant boundary enforcement
-- **WHEN** a user from Company A attempts to access data belonging to Company B
+- **WHEN** a user from Tenant A attempts to access data belonging to Tenant B
 - **THEN** the system SHALL reject the request with an authorization error
 - **AND** the system SHALL NOT reveal whether the target resource exists
 
@@ -36,7 +36,7 @@ Each tenant MUST have:
 ### Requirement: Hierarchical Organization Structure
 
 The system SHALL support a four-level organizational hierarchy within each tenant:
-1. Company (tenant root)
+1. Tenant (root scope)
 2. Organization (business unit)
 3. Team (working group)
 4. Project (codebase/repository)
@@ -45,7 +45,7 @@ The hierarchy MUST be bootstrappable from an external identity provider (GitHub,
 
 #### Scenario: Hierarchy navigation
 - **WHEN** a user queries for knowledge at the Team level
-- **THEN** the system SHALL include inherited knowledge from Organization and Company levels
+- **THEN** the system SHALL include inherited knowledge from Organization and Tenant levels
 - **AND** the system SHALL mark each result with its originating hierarchy level
 
 #### Scenario: Hierarchy creation
@@ -55,7 +55,7 @@ The hierarchy MUST be bootstrappable from an external identity provider (GitHub,
 
 #### Scenario: IdP-bootstrapped hierarchy
 - **WHEN** an IdP sync provider (GitHub, Okta, or Azure AD) is configured
-- **THEN** the system SHALL create the Company, Organization, and Team units automatically from the IdP's group/team structure
+- **THEN** the system SHALL create the Tenant, Organization, and Team units automatically from the IdP's group/team structure
 - **AND** manually-created units SHALL coexist with IdP-synced units without conflict
 - **AND** IdP-synced units SHALL be tagged with their source provider for audit purposes
 
@@ -260,8 +260,8 @@ Policies can be:
 - **Forbidden**: Cannot be overridden (enforced from parent)
 
 #### Scenario: Mandatory policy inheritance
-- **WHEN** a Company defines a mandatory security policy
-- **THEN** all Organizations, Teams, and Projects under that Company SHALL inherit the policy
+- **WHEN** a Tenant defines a mandatory security policy
+- **THEN** all Organizations, Teams, and Projects under that Tenant SHALL inherit the policy
 - **AND** the policy SHALL NOT be deletable at lower levels
 
 #### Scenario: Optional policy override

@@ -8,7 +8,7 @@ export const createKnowledgeTools = (client: AeternaClient): Record<string, Tool
     description: "Query the knowledge repository for project/team/org knowledge",
     args: {
       query: z.string().describe("Search query"),
-      scope: z.enum(["project", "team", "org", "company"] as const).optional()
+      scope: z.enum(["project", "team", "org", "tenant"] as const).optional()
         .describe("Knowledge scope (default: project)"),
       types: z.array(z.enum(["adr", "pattern", "policy", "reference"] as const)).optional()
         .describe("Knowledge types to include"),
@@ -43,7 +43,7 @@ export const createKnowledgeTools = (client: AeternaClient): Record<string, Tool
         .describe("Knowledge type: adr, pattern, policy, or reference"),
       title: z.string().describe("Knowledge item title"),
       content: z.string().describe("Knowledge content"),
-      scope: z.enum(["project", "team", "org", "company"] as const)
+      scope: z.enum(["project", "team", "org", "tenant"] as const)
         .describe("Knowledge scope level"),
       tags: z.array(z.string()).optional()
         .describe("Tags for categorization"),

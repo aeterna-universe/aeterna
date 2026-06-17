@@ -24,7 +24,7 @@ impl Default for DecayConfig {
         rates.insert("project".to_string(), 0.01);
         rates.insert("team".to_string(), 0.008);
         rates.insert("org".to_string(), 0.005);
-        rates.insert("company".to_string(), 0.002); // Very slow
+        rates.insert("tenant".to_string(), 0.002); // Very slow
         Self {
             rates,
             archival_threshold: 0.01,
@@ -153,7 +153,7 @@ mod tests {
         let config = DecayConfig::default();
         assert!((config.rate_for_layer("agent").unwrap() - 0.10).abs() < f64::EPSILON);
         assert!((config.rate_for_layer("session").unwrap() - 0.05).abs() < f64::EPSILON);
-        assert!((config.rate_for_layer("company").unwrap() - 0.002).abs() < f64::EPSILON);
+        assert!((config.rate_for_layer("tenant").unwrap() - 0.002).abs() < f64::EPSILON);
         assert!(config.rate_for_layer("nonexistent").is_none());
     }
 

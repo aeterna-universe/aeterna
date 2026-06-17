@@ -9,7 +9,7 @@ function CreatePolicyDialog({ open, onClose }: { open: boolean; onClose: () => v
   const queryClient = useQueryClient()
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
-  const [layer, setLayer] = useState("Company")
+  const [layer, setLayer] = useState("tenant")
   const [mode, setMode] = useState("mandatory")
 
   const create = useMutation({
@@ -72,7 +72,7 @@ function CreatePolicyDialog({ open, onClose }: { open: boolean; onClose: () => v
                   onChange={(e) => setLayer(e.target.value)}
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                 >
-                  <option value="Company">Company</option>
+                  <option value="tenant">Tenant</option>
                   <option value="Organization">Organization</option>
                   <option value="Team">Team</option>
                   <option value="Project">Project</option>

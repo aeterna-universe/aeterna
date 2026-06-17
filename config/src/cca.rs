@@ -97,7 +97,7 @@ impl Default for ContextArchitectConfig {
                 "project".to_string(),
                 "team".to_string(),
                 "org".to_string(),
-                "company".to_string(),
+                "tenant".to_string(),
             ],
             min_relevance_score: 0.3,
             enable_caching: true,

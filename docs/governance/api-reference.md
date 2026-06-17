@@ -9,12 +9,15 @@ The governance system provides policy management, validation, and drift detectio
 ## Deployment Modes
 
 ### Local Mode
+
 All governance operations are performed locally without remote communication. Requires a `GovernanceEngine` instance.
 
 ### Hybrid Mode
+
 Combines local governance with remote synchronization. Uses local cache and syncs changes to remote governance service. Requires both `GovernanceEngine` instance and `remote_url` configuration.
 
 ### Remote Mode
+
 All operations are performed through a remote governance service. Requires `remote_url` configuration.
 
 ## MCP Tools
@@ -23,24 +26,27 @@ The governance system exposes the following MCP tools for agent interaction:
 
 ### 1. governance_unit_create
 
-Creates a new organizational unit (Company, Organization, Team, or Project).
+Creates a new organizational unit (Organization, Team, or Project).
 
 **Parameters:**
+
 - `name` (string, required): Name of the unit
-- `unit_type` (string, required): Type of the unit. Values: `company`, `organization`, `team`, `project`
+- `unit_type` (string, required): Type of the unit. Values: `organization`, `team`, `project`
 - `parent_id` (string, optional): Parent unit ID
 - `tenantContext` (TenantContext, optional): Tenant context information
 - `metadata` (object, optional): Optional metadata
 
 **Response:**
+
 ```json
 {
-  "success": true,
-  "unit_id": "uuid-string"
+    "success": true,
+    "unit_id": "uuid-string"
 }
 ```
 
 **Example Usage:**
+
 ```rust
 let params = json!({
     "name": "Engineering Team",
@@ -60,25 +66,28 @@ let result = tool.call(params).await?;
 Adds or updates a policy for an organizational unit.
 
 **Parameters:**
+
 - `unit_id` (string, required): Unit ID to attach policy to
 - `policy` (object, required): Policy definition
 - `tenantContext` (TenantContext, optional): Tenant context information
 
 **Response:**
+
 ```json
 {
-  "success": true,
-  "policy_id": "policy-uuid"
+    "success": true,
+    "policy_id": "policy-uuid"
 }
 ```
 
 **Example Usage:**
+
 ```rust
 let policy = Policy {
     id: "security-policy".to_string(),
     name: "Security Standards".to_string(),
     description: Some("Security constraints for all projects".to_string()),
-    layer: KnowledgeLayer::Company,
+    layer: KnowledgeLayer::Tenant,
     mode: PolicyMode::Mandatory,
     merge_strategy: RuleMergeStrategy::Merge,
     rules: vec![
@@ -112,19 +121,22 @@ let result = tool.call(params).await?;
 Assigns a role to a user within a specific organizational unit.
 
 **Parameters:**
+
 - `user_id` (string, required): User ID
 - `unit_id` (string, required): Unit ID
 - `role` (string, required): Role to assign. Values: `platform_admin`, `tenant_admin`, `admin`, `architect`, `tech_lead`, `developer`, `viewer`, `agent`
 - `tenantContext` (TenantContext, optional): Tenant context information
 
 **Response:**
+
 ```json
 {
-  "success": true
+    "success": true
 }
 ```
 
 **Example Usage:**
+
 ```rust
 let params = json!({
     "user_id": "user-456",
@@ -144,19 +156,22 @@ let result = tool.call(params).await?;
 Removes a role from a user within a specific organizational unit.
 
 **Parameters:**
+
 - `user_id` (string, required): User ID
 - `unit_id` (string, required): Unit ID
 - `role` (string, required): Role to remove. Values: `platform_admin`, `tenant_admin`, `admin`, `architect`, `tech_lead`, `developer`, `viewer`, `agent`
 - `tenantContext` (TenantContext, optional): Tenant context information
 
 **Response:**
+
 ```json
 {
-  "success": true
+    "success": true
 }
 ```
 
 **Example Usage:**
+
 ```rust
 let params = json!({
     "user_id": "user-456",
@@ -176,30 +191,33 @@ let result = tool.call(params).await?;
 Navigates the organizational hierarchy (ancestors or descendants) for a unit.
 
 **Parameters:**
+
 - `unit_id` (string, required): Starting Unit ID
 - `direction` (string, required): Navigation direction. Values: `ancestors`, `descendants`
 - `tenantContext` (TenantContext, optional): Tenant context information
 
 **Response:**
+
 ```json
 {
-  "success": true,
-  "units": [
-    {
-      "id": "unit-123",
-      "name": "Parent Unit",
-      "unitType": "organization",
-      "parentId": "unit-456",
-      "tenantId": "acme-corp",
-      "metadata": {},
-      "createdAt": 1640995200,
-      "updatedAt": 1640995200
-    }
-  ]
+    "success": true,
+    "units": [
+        {
+            "id": "unit-123",
+            "name": "Parent Unit",
+            "unitType": "organization",
+            "parentId": "unit-456",
+            "tenantId": "acme-corp",
+            "metadata": {},
+            "createdAt": 1640995200,
+            "updatedAt": 1640995200
+        }
+    ]
 }
 ```
 
 **Example Usage:**
+
 ```rust
 let params = json!({
     "unit_id": "team-789",
@@ -226,9 +244,11 @@ The main engine for policy validation and drift detection.
 Adds a policy to the engine for validation.
 
 **Parameters:**
+
 - `policy`: Policy object with rules and metadata
 
 **Example:**
+
 ```rust
 let mut engine = GovernanceEngine::new();
 engine.add_policy(security_policy);
@@ -239,13 +259,16 @@ engine.add_policy(security_policy);
 Validates content against policies for a specific knowledge layer.
 
 **Parameters:**
+
 - `target_layer`: The knowledge layer to validate against
 - `context`: HashMap containing content and metadata to validate
 
 **Returns:**
+
 - `ValidationResult`: Contains validation status and any violations
 
 **Example:**
+
 ```rust
 let mut context = HashMap::new();
 context.insert("dependencies".to_string(), json!(["safe-lib", "unsafe-lib"]));
@@ -264,11 +287,13 @@ if !result.is_valid {
 Enhanced validation with tenant context and hierarchy support.
 
 **Parameters:**
+
 - `target_layer`: The knowledge layer to validate against
 - `context`: HashMap containing content and metadata to validate
 - `tenant_ctx`: Optional tenant context for hierarchical policy resolution
 
 **Returns:**
+
 - `ValidationResult`: Contains validation status and any violations
 
 ##### check_drift(tenant_ctx: &TenantContext, project_id: &str, context: &HashMap<String, serde_json::Value>) -> Result<f32, anyhow::Error>
@@ -276,14 +301,17 @@ Enhanced validation with tenant context and hierarchy support.
 Analyzes content for policy drift and returns a drift score (0.0-1.0).
 
 **Parameters:**
+
 - `tenant_ctx`: Tenant context
 - `project_id`: Project identifier
 - `context`: HashMap containing content and metadata to analyze
 
 **Returns:**
+
 - `f32`: Drift score where 0.0 = no drift, 1.0 = maximum drift
 
 **Example:**
+
 ```rust
 let mut context = HashMap::new();
 context.insert("content".to_string(), json!("some code content"));
@@ -409,17 +437,20 @@ pub struct OrganizationalUnit {
 ## Enums
 
 ### KnowledgeLayer
-- `Company`: Company-level policies
+
+- `Tenant`: Tenant-level policies
 - `Org`: Organization-level policies
 - `Team`: Team-level policies
 - `Project`: Project-level policies
 
 ### ConstraintSeverity
+
 - `Info`: Informational violation (0.1 drift weight)
 - `Warn`: Warning violation (0.5 drift weight)
 - `Block`: Blocking violation (1.0 drift weight)
 
 ### ConstraintOperator
+
 - `MustUse`: Content must use specified value
 - `MustNotUse`: Content must not use specified value
 - `MustMatch`: Content must match regex pattern
@@ -428,6 +459,7 @@ pub struct OrganizationalUnit {
 - `MustNotExist`: Content must not exist
 
 ### ConstraintTarget
+
 - `File`: Target is file path
 - `Code`: Target is code content
 - `Dependency`: Target is dependency list
@@ -435,6 +467,7 @@ pub struct OrganizationalUnit {
 - `Config`: Target is configuration
 
 ### Role
+
 - `PlatformAdmin`: Cross-tenant admin role (precedence: 6)
 - `TenantAdmin`: Tenant-scoped admin role (precedence: 5)
 - `Viewer`: Read-only tenant role
@@ -445,7 +478,7 @@ pub struct OrganizationalUnit {
 - `Agent`: AI agent role (precedence: 0)
 
 ### UnitType
-- `Company`: Company organization unit
+
 - `Organization`: Organization unit
 - `Team`: Team unit
 - `Project`: Project unit
@@ -459,6 +492,7 @@ All governance API calls require tenant context authentication:
 3. **Agent ID** (optional): Identifies the AI agent if applicable
 
 Headers for remote mode:
+
 ```
 X-Tenant-Id: your-tenant-id
 X-User-Id: your-user-id
@@ -467,12 +501,14 @@ X-User-Id: your-user-id
 ## Error Handling
 
 ### MCP Tool Errors
+
 - `-32602`: Invalid input parameters
 - `-32601`: Tool not found
 - `-32000`: Internal server error
 - `-32001`: Request timeout
 
 ### GovernanceClient Errors
+
 - `Network(reqwest::Error)`: Network connectivity issues
 - `Api(String)`: API-specific errors from remote service
 - `Serialization(serde_json::Error)`: JSON serialization/deserialization errors
@@ -507,7 +543,7 @@ let agent_ctx = TenantContext::with_agent(
 
 ## Policy Inheritance and Resolution
 
-Policies are resolved hierarchically from Company → Org → Team → Project layers:
+Policies are resolved hierarchically from Tenant → Org → Team → Project layers:
 
 1. **Collection**: Gather all applicable policies from hierarchy
 2. **Merging**: Apply merge strategies (Override, Merge, Intersect)
@@ -522,7 +558,7 @@ Policies are resolved hierarchically from Company → Org → Team → Project l
 ### Example Policy Resolution
 
 ```
-Company Policy (Mandatory):
+Tenant Policy (Mandatory):
 - Rule A: Must not use unsafe dependencies
 
 Team Policy (Optional):
@@ -567,10 +603,10 @@ let mut engine = GovernanceEngine::new();
 
 // 2. Define security policy
 let security_policy = Policy {
-    id: "company-security".to_string(),
-    name: "Company Security Standards".to_string(),
+    id: "tenant-security".to_string(),
+    name: "Tenant Security Standards".to_string(),
     description: Some("Security constraints for all projects".to_string()),
-    layer: KnowledgeLayer::Company,
+    layer: KnowledgeLayer::Tenant,
     mode: PolicyMode::Mandatory,
     merge_strategy: RuleMergeStrategy::Merge,
     rules: vec![

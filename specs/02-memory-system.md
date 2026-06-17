@@ -104,7 +104,7 @@ Memory is organized into seven hierarchical layers, from most specific to least 
 │  org           Per-organization          Org-wide policies       │
 │    │                                     Compliance rules        │
 │    │                                                             │
-│  company  ←── Per-company/tenant         Company standards       │
+│  tenant  ←── Per-tenant         Tenant standards       │
 │               (least specific)           Global policies         │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -134,7 +134,7 @@ interface LayerIdentifiers {
   /** Required for org layer and below */
   orgId?: string;
   
-  /** Required for company layer */
+  /** Required for tenant layer */
   companyId?: string;
 }
 ```
@@ -149,7 +149,7 @@ interface LayerIdentifiers {
 | project | - | - | - | ✓ | - | - | - |
 | team | - | - | - | - | ✓ | - | - |
 | org | - | - | - | - | - | ✓ | - |
-| company | - | - | - | - | - | - | ✓ |
+| tenant | - | - | - | - | - | - | ✓ |
 
 ---
 
@@ -194,7 +194,7 @@ type MemoryLayer =
   | 'project'
   | 'team'
   | 'org'
-  | 'company';
+  | 'tenant';
 ```
 
 ### Metadata Schema
@@ -564,7 +564,7 @@ When searching across multiple layers, results are merged using these rules:
 │  4. project                                                     │
 │  5. team                                                        │
 │  6. org                                                         │
-│  7. company  (lowest priority - least specific)                 │
+│  7. tenant  (lowest priority - least specific)                 │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -604,7 +604,7 @@ function getLayerPrecedence(layer: MemoryLayer): number {
     project: 4,
     team: 5,
     org: 6,
-    company: 7
+    tenant: 7
   };
   return precedence[layer];
 }
@@ -617,12 +617,12 @@ More specific layers **override** less specific layers when content conflicts:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                                                                  │
-│  company layer: "Use spaces for indentation"                    │
+│  tenant layer: "Use spaces for indentation"                    │
 │                              │                                   │
 │                              ▼                                   │
 │  project layer: "Use tabs for indentation"  ◄── WINS            │
 │                                                                  │
-│  Result: Agent uses tabs (project overrides company)            │
+│  Result: Agent uses tabs (project overrides tenant)            │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -635,8 +635,8 @@ Layers are only searchable if appropriate identifiers are provided:
 function getAccessibleLayers(identifiers: LayerIdentifiers): MemoryLayer[] {
   const layers: MemoryLayer[] = [];
   
-  // Always accessible with company ID
-  if (identifiers.companyId) layers.push('company');
+  // Always accessible with tenant ID
+  if (identifiers.companyId) layers.push('tenant');
   
   // Org requires org ID
   if (identifiers.orgId) layers.push('org');

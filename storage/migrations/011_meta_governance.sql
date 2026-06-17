@@ -302,7 +302,7 @@ ORDER BY hcr.created_at DESC;
 -- ============================================================================
 -- COMMENTS
 -- ============================================================================
-COMMENT ON TABLE meta_governance_policies IS 'Defines who can govern at each layer (company/org/team/project)';
+COMMENT ON TABLE meta_governance_policies IS 'Defines who can govern at each layer (legacy-root/org/team/project)';
 COMMENT ON TABLE human_confirmation_requests IS 'Agent actions requiring human approval before execution';
 COMMENT ON FUNCTION get_effective_meta_governance_policy IS 'Returns the effective policy with scope-specific or default fallback';
 COMMENT ON FUNCTION check_governance_authorization IS 'Checks if a principal can perform a governance action at a given layer';

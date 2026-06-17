@@ -153,7 +153,7 @@ pub fn policy_violation(policy_id: &str, details: &str) -> UxError {
         .fix("Review the policy requirements")
         .fix("Request an exception if needed")
         .suggest(format!(
-            "aeterna knowledge get policies/{policy_id}.md --layer company"
+            "aeterna knowledge get policies/{policy_id}.md --layer tenant"
         ))
 }
 
@@ -213,7 +213,7 @@ pub fn invalid_metadata_json(error: &str) -> UxError {
 pub fn invalid_knowledge_layer(layer: &str) -> UxError {
     UxError::new(format!("Invalid knowledge layer: '{layer}'"))
         .why("Knowledge layers represent organizational hierarchy")
-        .fix("Use one of: company, org, team, project")
+        .fix("Use one of: tenant, org, team, project")
         .suggest("aeterna knowledge list --layer project")
 }
 
@@ -223,7 +223,7 @@ pub fn promotion_direction_invalid(from_layer: &str, to_layer: &str) -> UxError 
         "Cannot promote from '{from_layer}' to '{to_layer}'"
     ))
     .why("Promotion must be to a broader (higher) layer in the hierarchy")
-    .fix("Layer hierarchy: agent < user < session < project < team < org < company")
+    .fix("Layer hierarchy: agent < user < session < project < team < org < tenant")
     .fix("Choose a target layer that is broader than the source")
     .suggest(format!(
         "aeterna memory promote <id> --from-layer {from_layer} --to-layer team"

@@ -36,7 +36,7 @@ The Knowledge Repository provides:
 - **Structured storage**: Typed artifacts (ADRs, policies, patterns, specs)
 - **Git-based versioning**: Full audit trail, immutable commits
 - **Constraint enforcement**: Declarative rules guiding agent behavior
-- **Multi-tenant federation**: Company → Org → Team → Project layers
+- **Multi-tenant federation**: Tenant → Org → Team → Project layers
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -229,7 +229,7 @@ interface KnowledgeItem {
   supersededBy?: string[];
 }
 
-type KnowledgeLayer = 'company' | 'org' | 'team' | 'project';
+type KnowledgeLayer = 'tenant' | 'org' | 'team' | 'project';
 
 type KnowledgeStatus = 
   | 'draft'      // Work in progress
@@ -270,7 +270,7 @@ interface KnowledgeMetadata {
 │  LAYER       SCOPE                  EXAMPLES                     │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                  │
-│  company     Entire company         "All code must be typed"    │
+│  tenant     Entire tenant         "All code must be typed"    │
 │     │        (least specific)       "Security policy"           │
 │     │                                                            │
 │  org         Business unit          "Use React for frontend"    │
@@ -300,8 +300,8 @@ status: accepted
 severity: block
 tags: [database, infrastructure, architecture]
 metadata:
-  authors: [alice@company.com]
-  reviewers: [bob@company.com, charlie@company.com]
+  authors: [alice@example.com]
+  reviewers: [bob@example.com, charlie@example.com]
   relatedItems: [adr-015-data-layer]
 createdAt: "2025-01-07T10:00:00Z"
 updatedAt: "2025-01-07T10:00:00Z"
@@ -356,14 +356,14 @@ constraints:
 ---
 id: policy-no-console-log
 type: policy
-layer: company
+layer: tenant
 title: No Console.log in Production Code
 summary: Console.log statements must be removed before merging to main
 status: accepted
 severity: warn
 tags: [logging, code-quality]
 metadata:
-  authors: [security-team@company.com]
+  authors: [security-team@example.com]
 createdAt: "2025-01-01T00:00:00Z"
 updatedAt: "2025-01-07T00:00:00Z"
 ---
@@ -448,7 +448,7 @@ type ConstraintTarget =
 |----------|--------|---------|-------------|
 | `must_use` | dependency | `postgresql` | `postgresql` is in dependencies |
 | `must_not_use` | dependency | `mysql` | `mysql` is NOT in dependencies |
-| `must_match` | code | `^import.*from ['"]@company/` | All imports from @company/* |
+| `must_match` | code | `^import.*from ['"]@tenant/` | All imports from @tenant/* |
 | `must_not_match` | code | `console\.log\(` | No console.log statements |
 | `must_exist` | file | `README.md` | README.md exists |
 | `must_not_exist` | file | `.env.local` | .env.local not committed |
@@ -582,7 +582,7 @@ function evaluateConstraints(
 ```
 knowledge-repo/
 ├── manifest.json           # Index of all items
-├── company/                # Company-wide knowledge
+├── tenant/                # Tenant-wide knowledge
 │   ├── adrs/
 │   │   └── adr-001-*.md
 │   ├── policies/
@@ -708,7 +708,7 @@ interface ManifestEntry {
     }
   },
   "byLayer": {
-    "company": ["policy-security-baseline"],
+    "tenant": ["policy-security-baseline"],
     "org": ["adr-042-database-selection"],
     "team": [],
     "project": []
@@ -782,7 +782,7 @@ type CommitChangeType =
 │                                                                  │
 │  Commit: abc123                                                  │
 │  Parent: def456                                                  │
-│  Author: alice@company.com                                       │
+│  Author: alice@example.com                                       │
 │  Date:   2025-01-07T10:00:00Z                                   │
 │  Type:   create                                                  │
 │                                                                  │
@@ -795,7 +795,7 @@ type CommitChangeType =
 │                                                                  │
 │  Commit: def456                                                  │
 │  Parent: ghi789                                                  │
-│  Author: bob@company.com                                         │
+│  Author: bob@example.com                                         │
 │  Date:   2025-01-06T15:30:00Z                                   │
 │  Type:   update                                                  │
 │                                                                  │
@@ -824,10 +824,10 @@ type CommitChangeType =
 ┌─────────────────────────────────────────────────────────────────┐
 │                                                                  │
 │                     CENTRAL HUB                                  │
-│                  (company-wide repo)                             │
+│                  (tenant-wide repo)                             │
 │                                                                  │
 │  ┌─────────────────────────────────────────────────────────┐    │
-│  │  company/                                                │    │
+│  │  tenant/                                                │    │
 │  │    └── policies/                                         │    │
 │  │    └── patterns/                                         │    │
 │  └─────────────────────────────────────────────────────────┘    │
@@ -956,9 +956,9 @@ async function syncFromUpstream(
 │       │                                                          │
 │    org                                                           │
 │       │                                                          │
-│    company ◄── Lowest precedence (least specific)               │
+│    tenant ◄── Lowest precedence (least specific)               │
 │                                                                  │
-│  Project-level items override company-level items               │
+│  Project-level items override tenant-level items               │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```

@@ -24,7 +24,7 @@ Pattern: `summary:{tenant_id}:{layer}:{entry_id}:{depth}`
 | Field | Type | Description |
 |-------|------|-------------|
 | tenant_id | string | Tenant identifier |
-| layer | string | Memory layer: `agent`, `user`, `session`, `project`, `team`, `org`, `company` |
+| layer | string | Memory layer: `agent`, `user`, `session`, `project`, `team`, `org`, `tenant` |
 | entry_id | string | Memory entry UUID |
 | depth | string | Summary depth: `sentence`, `paragraph`, `detailed` |
 

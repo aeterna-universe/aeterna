@@ -193,12 +193,12 @@ The plugin includes an embedded SQLite store for personal memory layers (agent, 
 | Layer | Storage | Write Path | Read Path |
 |-------|---------|------------|-----------|
 | agent, user, session | Local SQLite | Direct local write | Local query |
-| project, team, org, company | Remote server | HTTP API | Local cache, remote fallback |
+| project, team, org, tenant | Remote server | HTTP API | Local cache, remote fallback |
 
 ### How It Works
 
 1. **Personal layers** (agent/user/session) are owned locally — reads and writes go directly to the embedded SQLite database at `~/.aeterna/local.db`
-2. **Shared layers** (project/team/org/company) are owned by the remote server — writes go via HTTP, reads check the local cache first (< 60s staleness) then fall back to HTTP
+2. **Shared layers** (project/team/org/tenant) are owned by the remote server — writes go via HTTP, reads check the local cache first (< 60s staleness) then fall back to HTTP
 3. **Sync engine** runs in the background:
    - **Push** every 30s: local changes queued and batch-pushed to the server
    - **Pull** every 60s: shared-layer updates pulled and cached locally

@@ -156,7 +156,7 @@ docker run -p 8081:8081 aeterna/mcp-server:latest
   "mcp": {
     "aeterna": {
       "type": "remote",
-      "url": "https://aeterna.company.com/mcp",
+      "url": "https://aeterna.example.com/mcp",
       "headers": {
         "Authorization": "Bearer ${AETERNA_TOKEN}"
       }
@@ -240,7 +240,7 @@ The HTTP transport exposes the MCP server over HTTP with Server-Sent Events (SSE
   "mcp": {
     "aeterna": {
       "type": "remote",
-      "url": "https://aeterna.company.com/mcp",
+      "url": "https://aeterna.example.com/mcp",
       "headers": {
         "Authorization": "Bearer ${AETERNA_TOKEN}",
         "X-Tenant-ID": "acme-corp"
@@ -487,7 +487,7 @@ For enterprise deployments with identity providers:
 ```bash
 # Server startup
 aeterna-mcp --mode http --auth jwt \
-  --jwt-issuer "https://auth.company.com" \
+  --jwt-issuer "https://auth.example.com" \
   --jwt-audience "aeterna-mcp"
 ```
 
@@ -499,13 +499,13 @@ aeterna-mcp --mode http --auth jwt \
 mode = "jwt"
 
 [auth.jwt]
-issuer = "https://auth.company.com"
+issuer = "https://auth.example.com"
 audience = "aeterna-mcp"
-jwks_url = "https://auth.company.com/.well-known/jwks.json"
+jwks_url = "https://auth.example.com/.well-known/jwks.json"
 # Required claims for authorization
 required_claims = ["sub", "tenant_id"]
 # Map JWT claims to Aeterna context
-claim_mappings = { tenant_id = "company", department = "org", team = "team" }
+claim_mappings = { tenant_id = "tenant", department = "org", team = "team" }
 ```
 
 **JWT Claims Mapping:**
@@ -513,7 +513,7 @@ claim_mappings = { tenant_id = "company", department = "org", team = "team" }
 | JWT Claim | Aeterna Context | Usage |
 |-----------|-----------------|-------|
 | `sub` | User ID | Memory layer filtering |
-| `tenant_id` | Company | Multi-tenant isolation |
+| `tenant_id` | Tenant | Multi-tenant isolation |
 | `department` | Org | Org-level knowledge |
 | `team` | Team | Team-level knowledge |
 | `roles` | RBAC roles | Permission checks |
@@ -582,9 +582,9 @@ mode = "jwt"            # none, api-key, jwt
 keys_file = "/etc/aeterna/api-keys.json"
 
 [auth.jwt]
-issuer = "https://auth.company.com"
+issuer = "https://auth.example.com"
 audience = "aeterna-mcp"
-jwks_url = "https://auth.company.com/.well-known/jwks.json"
+jwks_url = "https://auth.example.com/.well-known/jwks.json"
 
 [backend]
 # Aeterna backend configuration
@@ -646,7 +646,7 @@ path = "/metrics"
       
       // OR Remote (HTTP) configuration
       "type": "remote",
-      "url": "https://aeterna.company.com/mcp",
+      "url": "https://aeterna.example.com/mcp",
       "headers": {
         "Authorization": "Bearer ${AETERNA_TOKEN}",
         "X-Tenant-ID": "${AETERNA_TENANT}",
@@ -856,10 +856,10 @@ metadata:
 spec:
   tls:
   - hosts:
-    - aeterna.company.com
+    - aeterna.tenant.com
     secretName: aeterna-tls
   rules:
-  - host: aeterna.company.com
+  - host: aeterna.tenant.com
     http:
       paths:
       - path: /mcp
@@ -920,7 +920,7 @@ For enterprise deployments, combine both:
     "@aeterna-org/opencode-plugin": {
       "backend": {
         "type": "mcp",
-        "url": "https://aeterna.company.com/mcp",
+        "url": "https://aeterna.example.com/mcp",
         "auth": {
           "type": "jwt",
           "tokenEnv": "AETERNA_TOKEN"
@@ -951,7 +951,7 @@ Error: connection refused to aeterna-mcp
 **Diagnosis:**
 ```bash
 # Check if server is running (HTTP mode)
-curl -v https://aeterna.company.com/mcp/health
+curl -v https://aeterna.example.com/mcp/health
 
 # Check if process is running (stdio mode)
 ps aux | grep aeterna-mcp
@@ -993,7 +993,7 @@ echo $AETERNA_TOKEN | head -c 10
 
 # Test key
 curl -H "Authorization: Bearer $AETERNA_TOKEN" \
-  https://aeterna.company.com/mcp/health
+  https://aeterna.example.com/mcp/health
 ```
 
 **Solutions:**
@@ -1033,7 +1033,7 @@ Error: Unknown tool: aeterna_memory_add
 **Diagnosis:**
 ```bash
 # List available tools
-curl https://aeterna.company.com/mcp/tools/list | jq '.tools[].name'
+curl https://aeterna.example.com/mcp/tools/list | jq '.tools[].name'
 ```
 
 **Solutions:**
@@ -1062,7 +1062,7 @@ Error: Resource not found: aeterna://knowledge/project
 **Diagnosis:**
 ```bash
 # List available resources
-curl https://aeterna.company.com/mcp/resources/list | jq '.resources[].uri'
+curl https://aeterna.example.com/mcp/resources/list | jq '.resources[].uri'
 ```
 
 **Solutions:**
@@ -1090,7 +1090,7 @@ AETERNA_LOG_LEVEL=trace aeterna-mcp --mode http
 
 ```bash
 # Check server health
-curl https://aeterna.company.com/mcp/health
+curl https://aeterna.example.com/mcp/health
 
 # Expected response
 {
@@ -1109,7 +1109,7 @@ curl https://aeterna.company.com/mcp/health
 
 ```bash
 # Prometheus metrics (if enabled)
-curl https://aeterna.company.com/mcp/metrics
+curl https://aeterna.example.com/mcp/metrics
 
 # Key metrics
 aeterna_mcp_tool_calls_total{tool="aeterna_memory_search"}

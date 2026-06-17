@@ -185,17 +185,17 @@ async fn test_summary_cache_invalidation_all_depths() -> Result<(), anyhow::Erro
     ] {
         let summary = create_test_summary(depth, &format!("{:?} summary", depth));
         redis
-            .set_summary_cache(&tenant_id, &MemoryLayer::Company, &entry_id, &summary, None)
+            .set_summary_cache(&tenant_id, &MemoryLayer::Tenant, &entry_id, &summary, None)
             .await?;
     }
 
     let deleted = redis
-        .invalidate_summary_cache(&tenant_id, &MemoryLayer::Company, &entry_id, None)
+        .invalidate_summary_cache(&tenant_id, &MemoryLayer::Tenant, &entry_id, None)
         .await?;
     assert_eq!(deleted, 3);
 
     let all = redis
-        .get_all_summaries_for_entry(&tenant_id, &MemoryLayer::Company, &entry_id)
+        .get_all_summaries_for_entry(&tenant_id, &MemoryLayer::Tenant, &entry_id)
         .await?;
     assert!(all.is_empty());
 

@@ -763,7 +763,7 @@ async fn require_assign_roles_permission(
     state: &AppState,
     ctx: &TenantContext,
 ) -> Result<(), axum::response::Response> {
-    let resource = format!("Aeterna::Company::\"{}\"", ctx.tenant_id.as_str());
+    let resource = format!("Aeterna::Tenant::\"{}\"", ctx.tenant_id.as_str());
     match state
         .auth_service
         .check_permission(ctx, "AssignRoles", &resource)
@@ -787,7 +787,7 @@ async fn require_create_project_permission(
     state: &AppState,
     ctx: &TenantContext,
 ) -> Result<(), axum::response::Response> {
-    let resource = format!("Aeterna::Company::\"{}\"", ctx.tenant_id.as_str());
+    let resource = format!("Aeterna::Tenant::\"{}\"", ctx.tenant_id.as_str());
     match state
         .auth_service
         .check_permission(ctx, "CreateProject", &resource)
@@ -811,7 +811,7 @@ async fn require_manage_team_assignments_permission(
     state: &AppState,
     ctx: &TenantContext,
 ) -> Result<(), axum::response::Response> {
-    let resource = format!("Aeterna::Company::\"{}\"", ctx.tenant_id.as_str());
+    let resource = format!("Aeterna::Tenant::\"{}\"", ctx.tenant_id.as_str());
     match state
         .auth_service
         .check_permission(ctx, "ManageTeamAssignments", &resource)

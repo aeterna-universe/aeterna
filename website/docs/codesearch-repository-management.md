@@ -38,9 +38,9 @@ repositories:
 
 ```yaml
 repositories:
-  - name: company-backend
+  - name: tenant-backend
     type: remote
-    url: https://github.com/company/backend.git
+    url: https://github.com/example/backend.git
     branches:
       - main
       - develop
@@ -186,7 +186,7 @@ impl IncrementalIndexer {
    # GitHub webhook on push
    POST /api/v1/codesearch/webhook/github
    {
-     "repository": "company/backend",
+     "repository": "example/backend",
      "ref": "refs/heads/main",
      "commits": [...]
    }
@@ -445,8 +445,8 @@ async fn github_webhook(
 ```bash
 # Add a remote repository
 aeterna codesearch repo add \
-  --name company-backend \
-  --url https://github.com/company/backend.git \
+  --name tenant-backend \
+  --url https://github.com/example/backend.git \
   --branches main,develop \
   --poll-interval 5m
 
@@ -454,12 +454,12 @@ aeterna codesearch repo add \
 aeterna codesearch repo list
 # Output:
 # NAME              TYPE    STATUS    BRANCH    LAST INDEXED
-# company-backend   remote  ready     main      2m ago
+# tenant-backend   remote  ready     main      2m ago
 # my-local-project  local   ready     -         5s ago (watching)
 # aeterna           hybrid  ready     main      10m ago
 
 # Update a repository (pull + incremental index)
-aeterna codesearch repo update company-backend
+aeterna codesearch repo update tenant-backend
 # Output:
 # Pulling latest changes from main...
 # Found 15 changed files
@@ -467,7 +467,7 @@ aeterna codesearch repo update company-backend
 # ✓ 15 files indexed in 8.3s
 
 # Checkout a different branch
-aeterna codesearch repo checkout company-backend develop
+aeterna codesearch repo checkout tenant-backend develop
 # Output:
 # Checking out branch: develop
 # Calculating delta from main: 42 files changed
@@ -475,7 +475,7 @@ aeterna codesearch repo checkout company-backend develop
 # ✓ Branch switched and indexed in 15.2s
 
 # Remove a repository
-aeterna codesearch repo remove company-backend
+aeterna codesearch repo remove tenant-backend
 # Output:
 # Removing repository and index...
 # ✓ Repository removed
@@ -492,7 +492,7 @@ aeterna codesearch index --incremental
 # ✓ Completed in 3.1s
 
 # Force full re-index
-aeterna codesearch index --full --repo company-backend
+aeterna codesearch index --full --repo tenant-backend
 # Warning: This will re-index all 10,247 files
 # Proceed? [y/N] y
 # Indexing...
@@ -533,7 +533,7 @@ codesearch:
     # Main backend repo
     - name: backend
       type: remote
-      url: https://github.com/company/backend.git
+      url: https://github.com/example/backend.git
       branches: [main, develop]
       indexing:
         mode: poll
@@ -544,7 +544,7 @@ codesearch:
     # Frontend repo
     - name: frontend
       type: remote
-      url: https://github.com/company/frontend.git
+      url: https://github.com/example/frontend.git
       branches: [main]
       indexing:
         mode: webhook  # GitHub webhook integration
@@ -554,7 +554,7 @@ codesearch:
     # Shared library
     - name: shared-lib
       type: remote
-      url: https://github.com/company/shared-lib.git
+      url: https://github.com/example/shared-lib.git
       branches: ["v1.*", "v2.*"]
       indexing:
         mode: poll
@@ -584,7 +584,7 @@ codesearch:
     # Active development (local clone + remote sync)
     - name: my-feature
       type: hybrid
-      url: https://github.com/company/backend.git
+      url: https://github.com/example/backend.git
       local_path: /workspace/backend
       branch: feature/my-feature
       sync:
@@ -597,7 +597,7 @@ codesearch:
     # Reference repos (remote only)
     - name: main-backend
       type: remote
-      url: https://github.com/company/backend.git
+      url: https://github.com/example/backend.git
       branches: [main]
       indexing:
         mode: poll
@@ -688,12 +688,12 @@ aeterna codesearch repo update project  # Incremental only!
 **Solution**:
 ```bash
 # Check index metadata
-aeterna codesearch repo status company-backend --verbose
+aeterna codesearch repo status tenant-backend --verbose
 # Last indexed commit: abc123
 # Current commit: xyz789
 
 # Force re-sync
-aeterna codesearch index --full --repo company-backend
+aeterna codesearch index --full --repo tenant-backend
 ```
 
 #### Issue: Webhook not triggering

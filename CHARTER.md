@@ -20,7 +20,7 @@ Modern enterprises deploying AI agents face a critical paradox:
 
 **AI agents are simultaneously powerful and forgetful.**
 
-They can write code, answer questions, and automate workflows—but each session starts from zero. They don't remember that your team prefers PostgreSQL. They don't know your company's security policies. They can't learn from mistakes their colleagues made last week.
+They can write code, answer questions, and automate workflows—but each session starts from zero. They don't remember that your team prefers PostgreSQL. They don't know your tenant's security policies. They can't learn from mistakes their colleagues made last week.
 
 ### The Symptoms
 
@@ -111,10 +111,10 @@ AI agent ecosystems lack a **shared memory and knowledge layer** that:
 
 ### 1. Memory is Hierarchical
 
-Not all memories are equal. A company security policy matters more than a user's preference for tabs over spaces. Aeterna's 7-layer hierarchy ensures precedence:
+Not all memories are equal. A tenant security policy matters more than a user's preference for tabs over spaces. Aeterna's 7-layer hierarchy ensures precedence:
 
 ```
-company  ←── "No production deployments on Fridays"
+tenant  ←── "No production deployments on Fridays"
    │
 org      ←── "Platform teams use Kubernetes"
    │
@@ -164,7 +164,7 @@ Team Learning → Team Memory
         │
         │ Proven across teams
         ▼
-Organizational Wisdom → Company Memory
+Organizational Wisdom → Tenant Memory
 ```
 
 ### 4. Context is Adaptive
@@ -223,7 +223,7 @@ One memory. One knowledge base. Many agents.
 
 ### Implemented (v1.0)
 
-- [x] **7-Layer Memory Hierarchy** - agent → user → session → project → team → org → company
+- [x] **7-Layer Memory Hierarchy** - agent → user → session → project → team → org → tenant
 - [x] **Git-Based Knowledge Repository** - ADRs, policies, patterns, specs with version control
 - [x] **Constraint DSL** - 6 operators, 5 targets, 3 severity levels
 - [x] **Multi-Tenant Governance** - RBAC with Cedar policies
@@ -286,7 +286,7 @@ Aeterna supports both local development and centralized enterprise deployment:
 │  │ │ Local       │ │                      │ │ Repository  │ │               │
 │  │ └─────────────┘ │                      │ └─────────────┘ │               │
 │  │                 │                      │                 │               │
-│  │ • Session mem   │                      │ • Company ADRs  │               │
+│  │ • Session mem   │                      │ • Tenant ADRs  │               │
 │  │ • User prefs    │                      │ • Org policies  │               │
 │  │ • Project ctx   │                      │ • Team patterns │               │
 │  └─────────────────┘                      └─────────────────┘               │
@@ -336,7 +336,7 @@ Aeterna embraces open standards:
 
 ### 2. AI Coding Assistant Fleet
 
-**Scenario**: Company deploys AI coding assistants to all engineers.
+**Scenario**: Tenant deploys AI coding assistants to all engineers.
 
 **Aeterna provides**:
 - Shared coding standards enforced across all AI sessions

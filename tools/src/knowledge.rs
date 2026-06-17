@@ -18,10 +18,10 @@ use validator::Validate;
 // ── Precedence helpers ────────────────────────────────────────────────────────
 
 /// Maps a KnowledgeLayer to its canonical authority rank.
-/// Lower = more authoritative.  Company is most authoritative (rank 0).
+/// Lower = more authoritative.  Tenant is most authoritative (rank 0).
 fn knowledge_layer_authority(layer: mk_core::types::KnowledgeLayer) -> u8 {
     match layer {
-        mk_core::types::KnowledgeLayer::Company => 0,
+        mk_core::types::KnowledgeLayer::Tenant => 0,
         mk_core::types::KnowledgeLayer::Org => 1,
         mk_core::types::KnowledgeLayer::Team => 2,
         mk_core::types::KnowledgeLayer::Project => 3,
@@ -96,7 +96,7 @@ impl Tool for KnowledgeGetTool {
         let ctx = p.tenant_context.ok_or("Missing tenant context")?;
 
         let layer = match p.layer.to_lowercase().as_str() {
-            "company" => mk_core::types::KnowledgeLayer::Company,
+            "tenant" => mk_core::types::KnowledgeLayer::Tenant,
             "org" => mk_core::types::KnowledgeLayer::Org,
             "team" => mk_core::types::KnowledgeLayer::Team,
             "project" => mk_core::types::KnowledgeLayer::Project,
@@ -149,7 +149,7 @@ impl Tool for KnowledgeListTool {
         let ctx = p.tenant_context.ok_or("Missing tenant context")?;
 
         let layer = match p.layer.to_lowercase().as_str() {
-            "company" => mk_core::types::KnowledgeLayer::Company,
+            "tenant" => mk_core::types::KnowledgeLayer::Tenant,
             "org" => mk_core::types::KnowledgeLayer::Org,
             "team" => mk_core::types::KnowledgeLayer::Team,
             "project" => mk_core::types::KnowledgeLayer::Project,
@@ -210,7 +210,7 @@ impl Tool for KnowledgeQueryTool {
         let mut layers = Vec::new();
         if p.layers.is_empty() {
             layers = vec![
-                mk_core::types::KnowledgeLayer::Company,
+                mk_core::types::KnowledgeLayer::Tenant,
                 mk_core::types::KnowledgeLayer::Org,
                 mk_core::types::KnowledgeLayer::Team,
                 mk_core::types::KnowledgeLayer::Project,
@@ -218,7 +218,7 @@ impl Tool for KnowledgeQueryTool {
         } else {
             for l in &p.layers {
                 let layer = match l.to_lowercase().as_str() {
-                    "company" => mk_core::types::KnowledgeLayer::Company,
+                    "tenant" => mk_core::types::KnowledgeLayer::Tenant,
                     "org" => mk_core::types::KnowledgeLayer::Org,
                     "team" => mk_core::types::KnowledgeLayer::Team,
                     "project" => mk_core::types::KnowledgeLayer::Project,
@@ -249,7 +249,7 @@ impl Tool for KnowledgeQueryTool {
             .await?;
 
         // Sort by canonical-vs-residual precedence:
-        //   1. Layer authority: Company(0) > Org(1) > Team(2) > Project(3)
+        //   1. Layer authority: Tenant(0) > Org(1) > Team(2) > Project(3)
         //   2. Variant-role precedence: Canonical(5) > Clarification(4) > Specialization(3) > Applicability(2) > Exception(1)
         //   3. Most-recently-updated first within same role+layer
         repo_results.sort_by(|a, b| {
@@ -480,11 +480,11 @@ impl KnowledgeInterpreter for SimpleKnowledgeInterpreter {
             (mk_core::types::KnowledgeType::Adr, 0.5)
         };
 
-        let suggested_layer = if lower.contains("company")
+        let suggested_layer = if lower.contains("tenant")
             || lower.contains("organization-wide")
             || lower.contains("all teams")
         {
-            mk_core::types::KnowledgeLayer::Company
+            mk_core::types::KnowledgeLayer::Tenant
         } else if lower.contains("org") || lower.contains("department") {
             mk_core::types::KnowledgeLayer::Org
         } else if lower.contains("team") {
@@ -643,7 +643,7 @@ fn parse_knowledge_type(s: &str) -> Result<mk_core::types::KnowledgeType, Knowle
 
 fn parse_knowledge_layer(s: &str) -> Result<mk_core::types::KnowledgeLayer, KnowledgeToolError> {
     match s.to_lowercase().as_str() {
-        "company" => Ok(mk_core::types::KnowledgeLayer::Company),
+        "tenant" => Ok(mk_core::types::KnowledgeLayer::Tenant),
         "org" => Ok(mk_core::types::KnowledgeLayer::Org),
         "team" => Ok(mk_core::types::KnowledgeLayer::Team),
         "project" => Ok(mk_core::types::KnowledgeLayer::Project),
@@ -745,7 +745,7 @@ where
                 },
                 "layer": {
                     "type": "string",
-                    "enum": ["company", "org", "team", "project"],
+                    "enum": ["tenant", "org", "team", "project"],
                     "description": "Optional: Target layer for the knowledge"
                 },
                 "title": {
@@ -1244,7 +1244,7 @@ impl<S: KnowledgeProposalStorage + 'static> Tool for KnowledgePendingListTool<S>
             "properties": {
                 "layer": {
                     "type": "string",
-                    "enum": ["company", "org", "team", "project"],
+                    "enum": ["tenant", "org", "team", "project"],
                     "description": "Filter by target layer"
                 }
             }
@@ -1324,7 +1324,7 @@ impl Tool for KnowledgePromotionPreviewTool {
             "type": "object",
             "properties": {
                 "sourceItemId": { "type": "string" },
-                "targetLayer": { "type": "string", "enum": ["company", "org", "team", "project"] },
+                "targetLayer": { "type": "string", "enum": ["tenant", "org", "team", "project"] },
                 "mode": { "type": "string", "enum": ["full", "partial"] },
                 "tenantContext": { "$ref": "#/definitions/TenantContext" }
             },
@@ -1386,7 +1386,7 @@ impl Tool for KnowledgePromoteTool {
             "type": "object",
             "properties": {
                 "sourceItemId": { "type": "string" },
-                "targetLayer": { "type": "string", "enum": ["company", "org", "team", "project"] },
+                "targetLayer": { "type": "string", "enum": ["tenant", "org", "team", "project"] },
                 "mode": { "type": "string", "enum": ["full", "partial"] },
                 "sharedContent": { "type": "string" },
                 "residualContent": { "type": "string" },
@@ -1753,13 +1753,13 @@ mod tests {
         let interpreter = SimpleKnowledgeInterpreter::new();
 
         let result = interpreter
-            .interpret("All teams must follow this company-wide standard", None)
+            .interpret("All teams must follow this tenant-wide standard", None)
             .await
             .unwrap();
 
         assert_eq!(
             result.suggested_layer,
-            mk_core::types::KnowledgeLayer::Company
+            mk_core::types::KnowledgeLayer::Tenant
         );
     }
 

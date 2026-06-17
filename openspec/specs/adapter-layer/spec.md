@@ -331,7 +331,7 @@ class Mem0ProviderAdapter implements MemoryProviderAdapter {
       case 'project': return `project:${ids.projectId}`;
       case 'team': return `team:${ids.teamId}`;
       case 'org': return `org:${ids.orgId}`;
-      case 'company': return `company:${ids.companyId}`;
+      case 'tenant': return `tenant:${ids.companyId}`;
     }
   }
 }
@@ -456,7 +456,7 @@ class ChromaProviderAdapter implements MemoryProviderAdapter {
       case 'project': parts.push(ids.projectId!); break;
       case 'team': parts.push(ids.teamId!); break;
       case 'org': parts.push(ids.orgId!); break;
-      case 'company': parts.push(ids.companyId!); break;
+      case 'tenant': parts.push(ids.companyId!); break;
     }
     return parts.join('_').substring(0, 63);
   }
@@ -613,7 +613,7 @@ class LangChainEcosystemAdapter implements EcosystemAdapter {
       description: 'Store a new memory for future reference',
       schema: z.object({
         content: z.string().describe('The content to remember'),
-        layer: z.enum(['agent', 'user', 'session', 'project', 'team', 'org', 'company'])
+        layer: z.enum(['agent', 'user', 'session', 'project', 'team', 'org', 'tenant'])
           .optional()
           .default('user')
           .describe('Memory scope'),
@@ -644,7 +644,7 @@ class LangChainEcosystemAdapter implements EcosystemAdapter {
       description: 'Search memories for relevant information',
       schema: z.object({
         query: z.string().describe('Search query'),
-        layers: z.array(z.enum(['agent', 'user', 'session', 'project', 'team', 'org', 'company']))
+        layers: z.array(z.enum(['agent', 'user', 'session', 'project', 'team', 'org', 'tenant']))
           .optional()
           .describe('Layers to search'),
         limit: z.number().optional().default(5).describe('Maximum results')
@@ -762,7 +762,7 @@ class OpenCodeEcosystemAdapter implements EcosystemAdapter {
             content: { type: 'string', description: 'What to remember' },
             layer: { 
               type: 'string', 
-              enum: ['agent', 'user', 'session', 'project', 'team', 'org', 'company'],
+              enum: ['agent', 'user', 'session', 'project', 'team', 'org', 'tenant'],
               default: 'user'
             },
             tags: { type: 'array', items: { type: 'string' } }
@@ -872,7 +872,7 @@ class OpenCodeEcosystemAdapter implements EcosystemAdapter {
       query: 'coding preferences project patterns user style',
       identifiers,
       limit: 15,
-      layers: ['agent', 'user', 'project', 'team', 'org', 'company']
+      layers: ['agent', 'user', 'project', 'team', 'org', 'tenant']
     });
     
     const knowledge = await this.core!.knowledge.query({

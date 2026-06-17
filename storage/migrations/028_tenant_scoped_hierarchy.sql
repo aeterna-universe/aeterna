@@ -1,7 +1,7 @@
 -- 028_tenant_scoped_hierarchy.sql
 --
--- Make the organizational hierarchy (companies / organizations / teams)
--- tenant-scoped by introducing `companies.tenant_id UUID REFERENCES
+-- Make the organizational hierarchy's legacy root layer tenant-scoped by
+-- introducing `companies.tenant_id UUID REFERENCES
 -- tenants(id)`. Rationale, blast-radius analysis, and backfill strategy
 -- are documented at length in:
 --
@@ -10,29 +10,28 @@
 --
 -- Summary of the problem this fixes:
 --
---   Migration 009 created `companies` 8 migrations before the
---   `tenants` table existed, under the explicit assumption (see
---   009 line 8) that "each company is a separate tenant". That
---   made `companies.slug TEXT UNIQUE` a sensible global constraint.
+--   Migration 009 created the legacy root table 8 migrations before the
+--   `tenants` table existed, under the explicit assumption that each root
+--   row was itself a tenant. That made the legacy root slug globally unique.
 --
 --   Migration 017 introduced the real `tenants` table for
 --   multi-tenant isolation but did not reconcile with 009.
 --
---   `TenantManifest.hierarchy: Vec<ManifestCompany>` assumes a
---   single tenant can own arbitrarily many companies. That
---   contradicts the global `UNIQUE(slug)` constraint.
+--   The manifest hierarchy model assumed a single tenant could own
+--   arbitrarily many legacy root rows. That contradicted the global
+--   slug uniqueness constraint.
 --
 -- Resolution (decided 2026-04-22 22:16 UTC, option A):
---   Add `companies.tenant_id` as a cascading FK to `tenants(id)`
---   and swap `UNIQUE(slug)` for `UNIQUE(tenant_id, slug)`.
+--   Add a tenant FK to the legacy root table and swap global slug
+--   uniqueness for per-tenant slug uniqueness.
 --
 -- Transitively scoped (no schema change needed):
---   - organizations (via company_id -> companies.tenant_id)
---   - teams (via org_id -> organizations.company_id -> ...)
+--   - organizations (via the legacy root FK -> tenant)
+--   - teams (via org -> legacy root -> tenant)
 --   - projects (same chain)
 --   - governance_roles / governance_configs / approval_workflows
---     (their scope-tuple columns point at companies/orgs/teams UUIDs)
---   - email_domain_patterns.company_id, git_remote_patterns.company_id
+--     (their scope-tuple columns point at legacy-root/org/team UUIDs)
+--   - email_domain_patterns legacy-root FK, git_remote_patterns legacy-root FK
 --
 -- Not resolved here (tracked in blast-radius NOTES):
 --   - email_domain_patterns.domain UNIQUE (global vs per-tenant)
@@ -51,7 +50,7 @@ ALTER TABLE companies
     ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE;
 
 -- ============================================================================
--- Step 2. Backfill. Companies created before this migration were keyed only
+-- Step 2. Backfill. Legacy root rows created before this migration were keyed only
 -- by slug; match each to a tenant with the same slug. This is the invariant
 -- bootstrap.rs + admin_sync.rs + commands/admin.rs now maintain after the
 -- preceding "§2.2-B prereq" commit (36d2c51b) repaired their tenant-row
@@ -65,11 +64,11 @@ UPDATE companies c
    AND c.tenant_id IS NULL;
 
 -- ============================================================================
--- Step 3. Orphan abort. If any companies row has no matching tenants.slug,
+-- Step 3. Orphan abort. If any legacy root row has no matching tenants.slug,
 -- we refuse to proceed. See blast-radius NOTES for the rationale against a
 -- silent "migration-orphan" tenant (short version: silent reassignment in
 -- prod is invisible data corruption). Operators facing this error should
--- either create the missing tenants rows or reassign the orphan companies
+-- either create the missing tenants rows or reassign the orphan legacy root rows
 -- via manual SQL, then re-run the migration.
 -- ============================================================================
 DO $$

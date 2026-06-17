@@ -86,7 +86,7 @@ test.describe("§13.4 ui runner — consistency matrix", () => {
     expect(names).toEqual(
       expect.arrayContaining([
         "01-bootstrap.json",
-        "02-add-company.json",
+        "02-add-tenant-root.json",
         "03-rotate-reference.json",
         "04-noop-reapply.json",
         "05-prune.json",

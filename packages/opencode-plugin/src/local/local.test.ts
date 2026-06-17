@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const testState = vi.hoisted(() => {
-  type MemoryLayer = "agent" | "user" | "session" | "project" | "team" | "org" | "company";
+  type MemoryLayer = "agent" | "user" | "session" | "project" | "team" | "org" | "tenant";
   type LocalOwnership = "local" | "cached";
   type SyncOperation = "upsert" | "delete";
 
@@ -325,7 +325,7 @@ const testState = vi.hoisted(() => {
             (row) =>
               row.ownership === "cached" &&
               row.deleted_at === null &&
-              ["project", "team", "org", "company"].includes(row.layer) &&
+              ["project", "team", "org", "tenant"].includes(row.layer) &&
               likeMatch(row.content, p.pattern)
           )
           .sort((a, b) => b.updated_at - a.updated_at)
@@ -339,7 +339,7 @@ const testState = vi.hoisted(() => {
             (row) =>
               row.ownership === "cached" &&
               row.deleted_at === null &&
-              ["project", "team", "org", "company"].includes(row.layer)
+              ["project", "team", "org", "tenant"].includes(row.layer)
           )
           .sort((a, b) => b.updated_at - a.updated_at)
           .slice(0, p.limit);

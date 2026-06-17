@@ -64,7 +64,7 @@ impl MockOnboardingStorage {
                 .ok_or_else(|| format!("Parent unit not found: {}", parent_id))?;
 
             match (parent.unit_type, unit.unit_type) {
-                (UnitType::Company, UnitType::Organization) => {}
+                (UnitType::Organization, UnitType::Organization) => {}
                 (UnitType::Organization, UnitType::Team) => {}
                 (UnitType::Team, UnitType::Project) => {}
                 _ => {
@@ -74,8 +74,8 @@ impl MockOnboardingStorage {
                     ));
                 }
             }
-        } else if unit.unit_type != UnitType::Company {
-            return Err("Only Company units can be root units (no parent)".to_string());
+        } else if unit.unit_type != UnitType::Organization {
+            return Err("Only Organization units can be root units (no parent)".to_string());
         }
 
         let id = unit.id.clone();
@@ -311,11 +311,11 @@ mod organizational_unit_tests {
     #[tokio::test]
     async fn test_create_company_as_root() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
 
-        let result = storage.create_unit(company).await;
+        let result = storage.create_unit(tenant).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "company-1");
+        assert_eq!(result.unwrap(), "root-org-1");
     }
 
     #[tokio::test]
@@ -328,21 +328,21 @@ mod organizational_unit_tests {
         assert!(
             result
                 .unwrap_err()
-                .contains("Only Company units can be root")
+                .contains("Only Organization units can be root")
         );
     }
 
     #[tokio::test]
     async fn test_create_organization_under_company() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         let result = storage.create_unit(org).await;
         assert!(result.is_ok());
@@ -351,14 +351,14 @@ mod organizational_unit_tests {
     #[tokio::test]
     async fn test_create_team_under_organization() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org).await.unwrap();
 
@@ -370,14 +370,14 @@ mod organizational_unit_tests {
     #[tokio::test]
     async fn test_create_project_under_team() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org).await.unwrap();
 
@@ -397,10 +397,10 @@ mod organizational_unit_tests {
     #[tokio::test]
     async fn test_invalid_hierarchy_team_under_company() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
-        let team = create_test_unit("team-1", "API Team", UnitType::Team, Some("company-1"));
+        let team = create_test_unit("team-1", "API Team", UnitType::Team, Some("root-org-1"));
         let result = storage.create_unit(team).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid hierarchy"));
@@ -409,14 +409,14 @@ mod organizational_unit_tests {
     #[tokio::test]
     async fn test_invalid_hierarchy_project_under_organization() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org).await.unwrap();
 
@@ -434,14 +434,14 @@ mod organizational_unit_tests {
     #[tokio::test]
     async fn test_invalid_hierarchy_organization_under_project() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org).await.unwrap();
 
@@ -484,14 +484,14 @@ mod organizational_unit_tests {
     #[tokio::test]
     async fn test_get_unit() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
-        let result = storage.get_unit("company-1").await.unwrap();
+        let result = storage.get_unit("root-org-1").await.unwrap();
         assert!(result.is_some());
         let unit = result.unwrap();
-        assert_eq!(unit.name, "Acme Corp");
-        assert_eq!(unit.unit_type, UnitType::Company);
+        assert_eq!(unit.name, "Acme Root Org");
+        assert_eq!(unit.unit_type, UnitType::Organization);
     }
 
     #[tokio::test]
@@ -504,14 +504,14 @@ mod organizational_unit_tests {
     #[tokio::test]
     async fn test_list_children() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org1 = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org1).await.unwrap();
 
@@ -519,11 +519,11 @@ mod organizational_unit_tests {
             "org-2",
             "Product",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org2).await.unwrap();
 
-        let children = storage.list_children("company-1").await.unwrap();
+        let children = storage.list_children("root-org-1").await.unwrap();
         assert_eq!(children.len(), 2);
     }
 
@@ -531,14 +531,14 @@ mod organizational_unit_tests {
     async fn test_get_ancestors() {
         let storage = MockOnboardingStorage::new();
 
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org).await.unwrap();
 
@@ -557,38 +557,38 @@ mod organizational_unit_tests {
         assert_eq!(ancestors.len(), 3);
         assert_eq!(ancestors[0].unit_type, UnitType::Team);
         assert_eq!(ancestors[1].unit_type, UnitType::Organization);
-        assert_eq!(ancestors[2].unit_type, UnitType::Company);
+        assert_eq!(ancestors[2].unit_type, UnitType::Organization);
     }
 
     #[tokio::test]
     async fn test_delete_unit() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
-        let result = storage.delete_unit("company-1").await;
+        let result = storage.delete_unit("root-org-1").await;
         assert!(result.is_ok());
         assert!(result.unwrap());
 
-        let unit = storage.get_unit("company-1").await.unwrap();
+        let unit = storage.get_unit("root-org-1").await.unwrap();
         assert!(unit.is_none());
     }
 
     #[tokio::test]
     async fn test_cannot_delete_unit_with_children() {
         let storage = MockOnboardingStorage::new();
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org).await.unwrap();
 
-        let result = storage.delete_unit("company-1").await;
+        let result = storage.delete_unit("root-org-1").await;
         assert!(result.is_err());
         assert!(
             result
@@ -978,14 +978,14 @@ mod integration_tests {
     async fn test_full_onboarding_workflow() {
         let storage = MockOnboardingStorage::new();
 
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org).await.unwrap();
 
@@ -1037,14 +1037,14 @@ mod integration_tests {
     async fn test_multi_team_user() {
         let storage = MockOnboardingStorage::new();
 
-        let company = create_test_unit("company-1", "Acme Corp", UnitType::Company, None);
-        storage.create_unit(company).await.unwrap();
+        let tenant = create_test_unit("root-org-1", "Acme Root Org", UnitType::Organization, None);
+        storage.create_unit(tenant).await.unwrap();
 
         let org = create_test_unit(
             "org-1",
             "Engineering",
             UnitType::Organization,
-            Some("company-1"),
+            Some("root-org-1"),
         );
         storage.create_unit(org).await.unwrap();
 

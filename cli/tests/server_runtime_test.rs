@@ -378,7 +378,7 @@ async fn seed_company_unit(state: &Arc<AppState>, tenant_id: &TenantId) -> Strin
         .create_unit(&mk_core::types::OrganizationalUnit {
             id: unit_id.clone(),
             name: "Acme".to_string(),
-            unit_type: mk_core::types::UnitType::Company,
+            unit_type: mk_core::types::UnitType::Organization,
             parent_id: None,
             tenant_id: tenant_id.clone(),
             metadata: HashMap::new(),
@@ -1131,7 +1131,7 @@ async fn user_role_revoke_fails_closed_when_assignment_scope_is_ambiguous() {
         .create_unit(&mk_core::types::OrganizationalUnit {
             id: company_unit_id.clone(),
             name: "Acme".to_string(),
-            unit_type: mk_core::types::UnitType::Company,
+            unit_type: mk_core::types::UnitType::Organization,
             parent_id: None,
             tenant_id: tenant_id.clone(),
             metadata: HashMap::new(),
@@ -1451,7 +1451,7 @@ async fn govern_roles_assign_and_revoke_via_rest_api() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let _company_id = seed_company_unit(&state, &tenant_id).await;
+    let _tenant_id = seed_company_unit(&state, &tenant_id).await;
     let app = router::build_router(state);
     let principal = "11111111-2222-3333-4444-555555555555";
 
@@ -1470,7 +1470,7 @@ async fn govern_roles_assign_and_revoke_via_rest_api() {
                         "principal": principal,
                         "principalType": "user",
                         "role": "Architect",
-                        "scope": "company"
+                        "scope": "tenant"
                     }))
                     .unwrap(),
                 ))
@@ -1488,7 +1488,7 @@ async fn govern_roles_assign_and_revoke_via_rest_api() {
     assert_eq!(assign_json["principal"], principal);
     assert_eq!(assign_json["principalType"], "user");
     assert_eq!(assign_json["role"], "architect");
-    assert_eq!(assign_json["scope"], "company");
+    assert_eq!(assign_json["scope"], "tenant");
 
     let list_response = app
         .clone()
@@ -1513,7 +1513,7 @@ async fn govern_roles_assign_and_revoke_via_rest_api() {
     assert!(list_json.as_array().unwrap().iter().any(|entry| {
         entry["principal"] == principal
             && entry["role"] == "architect"
-            && entry["scope"] == "company"
+            && entry["scope"] == "tenant"
     }));
 
     let revoke_response = app
@@ -2212,7 +2212,7 @@ async fn tenant_list_and_hierarchy_read_operations() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let company_id = seed_company_unit(&state, &tenant_id).await;
+    let tenant_id = seed_company_unit(&state, &tenant_id).await;
     let app = router::build_router(state);
 
     // list_tenants – platform_admin
@@ -2258,7 +2258,7 @@ async fn tenant_list_and_hierarchy_read_operations() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 
-    // list_hierarchy_units (no filter) – returns company unit
+    // list_hierarchy_units (no filter) – returns tenant unit
     let resp = app
         .clone()
         .oneshot(
@@ -2284,7 +2284,7 @@ async fn tenant_list_and_hierarchy_read_operations() {
     let units = body["units"].as_array().unwrap();
     assert!(!units.is_empty());
     let ids: Vec<_> = units.iter().filter_map(|u| u["id"].as_str()).collect();
-    assert!(ids.contains(&company_id.as_str()));
+    assert!(ids.contains(&tenant_id.as_str()));
 
     // show_hierarchy_unit
     let resp = app
@@ -2292,7 +2292,7 @@ async fn tenant_list_and_hierarchy_read_operations() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/api/v1/admin/hierarchy/{company_id}"))
+                .uri(format!("/api/v1/admin/hierarchy/{tenant_id}"))
                 .header("x-user-id", "admin-user")
                 .header("x-user-role", "admin")
                 .header("x-tenant-id", "default")
@@ -2309,7 +2309,7 @@ async fn tenant_list_and_hierarchy_read_operations() {
     )
     .unwrap();
     assert_eq!(body["success"], true);
-    assert_eq!(body["unit"]["id"], company_id.as_str());
+    assert_eq!(body["unit"]["id"], tenant_id.as_str());
 
     // show_hierarchy_unit – not found
     let resp = app
@@ -2338,7 +2338,7 @@ async fn hierarchy_update_ancestors_descendants_memberships() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let company_id = seed_company_unit(&state, &tenant_id).await;
+    let tenant_id = seed_company_unit(&state, &tenant_id).await;
 
     // Create a child org unit via HTTP so it gets seeded in postgres
     let app = router::build_router(state.clone());
@@ -2356,7 +2356,7 @@ async fn hierarchy_update_ancestors_descendants_memberships() {
                     serde_json::to_vec(&json!({
                         "name": "Engineering Org",
                         "unitType": "Organization",
-                        "parentId": company_id,
+                        "parentId": tenant_id,
                     }))
                     .unwrap(),
                 ))
@@ -2421,7 +2421,7 @@ async fn hierarchy_update_ancestors_descendants_memberships() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
-    // list_hierarchy_ancestors of org (parent = company)
+    // list_hierarchy_ancestors of org (parent = tenant-root organization)
     let resp = app
         .clone()
         .oneshot(
@@ -2450,15 +2450,15 @@ async fn hierarchy_update_ancestors_descendants_memberships() {
         .iter()
         .filter_map(|u| u["id"].as_str())
         .collect();
-    assert!(ancestor_ids.contains(&company_id.as_str()));
+    assert!(ancestor_ids.contains(&tenant_id.as_str()));
 
-    // list_hierarchy_descendants of company (should include org)
+    // list_hierarchy_descendants of tenant (should include org)
     let resp = app
         .clone()
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/api/v1/admin/hierarchy/{company_id}/descendants"))
+                .uri(format!("/api/v1/admin/hierarchy/{tenant_id}/descendants"))
                 .header("x-user-id", "admin-user")
                 .header("x-user-role", "admin")
                 .header("x-tenant-id", "default")
@@ -2568,7 +2568,7 @@ async fn org_crud_and_member_lifecycle() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let company_id = seed_company_unit(&state, &tenant_id).await;
+    let _tenant_id = seed_company_unit(&state, &tenant_id).await;
     let app = router::build_router(state);
 
     // list_orgs – initially empty
@@ -2595,7 +2595,7 @@ async fn org_crud_and_member_lifecycle() {
     .unwrap();
     assert!(body.as_array().unwrap().is_empty());
 
-    // create_org with invalid company_id
+    // create_org with invalid tenant_id
     let resp = app
         .clone()
         .oneshot(
@@ -2609,7 +2609,7 @@ async fn org_crud_and_member_lifecycle() {
                 .body(Body::from(
                     serde_json::to_vec(&json!({
                         "name": "Ghost Org",
-                        "companyId": "00000000-0000-0000-0000-000000000099",
+                        "parentId": "00000000-0000-0000-0000-000000000099",
                     }))
                     .unwrap(),
                 ))
@@ -2633,7 +2633,6 @@ async fn org_crud_and_member_lifecycle() {
                 .body(Body::from(
                     serde_json::to_vec(&json!({
                         "name": "Platform Engineering",
-                        "companyId": company_id,
                         "description": "Core infra org",
                     }))
                     .unwrap(),
@@ -2813,7 +2812,7 @@ async fn team_crud_and_member_lifecycle() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let company_id = seed_company_unit(&state, &tenant_id).await;
+    let _tenant_id = seed_company_unit(&state, &tenant_id).await;
     let app = router::build_router(state.clone());
 
     // Create parent org first
@@ -2830,7 +2829,6 @@ async fn team_crud_and_member_lifecycle() {
                 .body(Body::from(
                     serde_json::to_vec(&json!({
                         "name": "Platform Org",
-                        "companyId": company_id,
                     }))
                     .unwrap(),
                 ))
@@ -3118,7 +3116,7 @@ async fn user_roles_grant_revoke_and_unsupported_schema() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let company_id = seed_company_unit(&state, &tenant_id).await;
+    let tenant_id = seed_company_unit(&state, &tenant_id).await;
     let app = router::build_router(state);
 
     // list_user_roles – no roles yet (just ensures handler runs; no users table needed)
@@ -3145,7 +3143,7 @@ async fn user_roles_grant_revoke_and_unsupported_schema() {
     .unwrap();
     assert!(body.as_array().unwrap().is_empty());
 
-    // grant_user_role – scope "company" (needs company unit)
+    // grant_user_role – scope "tenant" (needs tenant unit)
     let resp = app
         .clone()
         .oneshot(
@@ -3157,8 +3155,7 @@ async fn user_roles_grant_revoke_and_unsupported_schema() {
                 .header("x-tenant-id", "default")
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    serde_json::to_vec(&json!({ "role": "Developer", "scope": "company" }))
-                        .unwrap(),
+                    serde_json::to_vec(&json!({ "role": "Developer", "scope": "tenant" })).unwrap(),
                 ))
                 .unwrap(),
         )
@@ -3173,7 +3170,7 @@ async fn user_roles_grant_revoke_and_unsupported_schema() {
     .unwrap();
     assert_eq!(body["userId"], "alice");
     assert_eq!(body["role"], "developer");
-    assert_eq!(body["unitId"], company_id.as_str());
+    assert_eq!(body["unitId"], tenant_id.as_str());
 
     // list_user_roles – alice now has developer role
     let resp = app
@@ -3198,8 +3195,7 @@ async fn user_roles_grant_revoke_and_unsupported_schema() {
     )
     .unwrap();
     assert!(body.as_array().unwrap().iter().any(|r| {
-        r["role"].as_str() == Some("developer")
-            && r["unit_id"].as_str() == Some(company_id.as_str())
+        r["role"].as_str() == Some("developer") && r["unit_id"].as_str() == Some(tenant_id.as_str())
     }));
 
     // revoke_user_role – success
@@ -3314,7 +3310,7 @@ async fn govern_status_config_audit_and_pending() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let _company_id = seed_company_unit(&state, &tenant_id).await;
+    let _tenant_id = seed_company_unit(&state, &tenant_id).await;
     let app = router::build_router(state);
 
     // govern/status
@@ -3555,7 +3551,7 @@ async fn admin_stats_returns_counts() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let _company_id = seed_company_unit(&state, &tenant_id).await;
+    let _tenant_id = seed_company_unit(&state, &tenant_id).await;
     let app = router::build_router(state);
 
     let resp = app
@@ -3602,7 +3598,7 @@ async fn govern_policies_list_and_create() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let _company_id = seed_company_unit(&state, &tenant_id).await;
+    let _tenant_id = seed_company_unit(&state, &tenant_id).await;
     let app = router::build_router(state);
 
     // GET /govern/policies – empty list initially
@@ -3644,7 +3640,7 @@ async fn govern_policies_list_and_create() {
                     serde_json::to_vec(&json!({
                         "name": "test-policy",
                         "description": "integration test policy",
-                        "layer": "company",
+                        "layer": "tenant",
                         "mode": "optional"
                     }))
                     .unwrap(),
@@ -3735,7 +3731,7 @@ async fn govern_approve_reject_path_order() {
         return;
     };
     let tenant_id = TenantId::new("default".to_string()).unwrap();
-    let _company_id = seed_company_unit(&state, &tenant_id).await;
+    let _tenant_id = seed_company_unit(&state, &tenant_id).await;
     let app = router::build_router(state);
 
     // /govern/approve/{id} must be routable (not 404 / 405)

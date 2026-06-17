@@ -28,7 +28,7 @@ export interface MockedSession {
 
 export function defaultSessionBody(session: MockedSession = {}) {
   const tenants = session.tenants ?? [
-    { id: "tenant-acme-id", slug: "acme", name: "Acme Corp", status: "Active" },
+    { id: "tenant-acme-id", slug: "acme", name: "Acme Tenant", status: "Active" },
   ]
   return {
     user: {

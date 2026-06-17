@@ -329,7 +329,7 @@ fn tenant_context_from_headers(headers: &HeaderMap) -> TenantContext {
 
 fn parse_knowledge_layer(value: &str) -> Option<KnowledgeLayer> {
     match value {
-        "company" => Some(KnowledgeLayer::Company),
+        "tenant" => Some(KnowledgeLayer::Tenant),
         "org" | "organization" => Some(KnowledgeLayer::Org),
         "team" => Some(KnowledgeLayer::Team),
         "project" => Some(KnowledgeLayer::Project),
@@ -351,8 +351,8 @@ mod tests {
     #[test]
     fn parse_knowledge_layer_handles_known_values() {
         assert_eq!(
-            parse_knowledge_layer("company"),
-            Some(KnowledgeLayer::Company)
+            parse_knowledge_layer("tenant"),
+            Some(KnowledgeLayer::Tenant)
         );
         assert_eq!(parse_knowledge_layer("org"), Some(KnowledgeLayer::Org));
         assert_eq!(parse_knowledge_layer("team"), Some(KnowledgeLayer::Team));
@@ -938,7 +938,7 @@ impl GovernanceDashboardApi {
                 KnowledgeLayer::Project,
                 KnowledgeLayer::Team,
                 KnowledgeLayer::Org,
-                KnowledgeLayer::Company,
+                KnowledgeLayer::Tenant,
             ]
         };
 

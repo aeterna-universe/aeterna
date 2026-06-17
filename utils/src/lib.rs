@@ -64,7 +64,7 @@ pub fn generate_uuid() -> String {
 pub fn is_valid_layer(layer: &str) -> bool {
     matches!(
         layer,
-        "agent" | "user" | "session" | "project" | "team" | "org" | "company"
+        "agent" | "user" | "session" | "project" | "team" | "org" | "tenant"
     )
 }
 
@@ -77,7 +77,7 @@ pub fn is_valid_knowledge_type(ktype: &str) -> bool {
 /// Validate knowledge layer string
 #[must_use]
 pub fn is_valid_knowledge_layer(layer: &str) -> bool {
-    matches!(layer, "company" | "org" | "team" | "project")
+    matches!(layer, "tenant" | "org" | "team" | "project")
 }
 
 /// Redact PII from content string
@@ -104,7 +104,7 @@ pub fn get_layer_precedence(layer: &str) -> u8 {
         "project" => 4,
         "team" => 5,
         "org" => 6,
-        "company" => 7,
+        "tenant" => 7,
         _ => 7, // Default to lowest precedence
     }
 }
@@ -132,7 +132,7 @@ mod tests {
     fn test_layer_validation_valid() {
         assert!(is_valid_layer("agent"));
         assert!(is_valid_layer("user"));
-        assert!(is_valid_layer("company"));
+        assert!(is_valid_layer("tenant"));
     }
 
     #[test]
@@ -183,14 +183,14 @@ mod tests {
     #[test]
     fn test_is_valid_knowledge_layer() {
         assert!(is_valid_knowledge_layer("project"));
-        assert!(is_valid_knowledge_layer("company"));
+        assert!(is_valid_knowledge_layer("tenant"));
         assert!(!is_valid_knowledge_layer("user"));
     }
 
     #[test]
     fn test_get_layer_precedence() {
         assert_eq!(get_layer_precedence("agent"), 1);
-        assert_eq!(get_layer_precedence("company"), 7);
+        assert_eq!(get_layer_precedence("tenant"), 7);
         assert_eq!(get_layer_precedence("unknown"), 7);
     }
 }

@@ -26,30 +26,16 @@ async fn test_recursive_hierarchy_queries() {
         target_tenant_id: None,
     };
 
-    let comp_id = unique_id("comp");
     let org_id = unique_id("org");
     let team_id = unique_id("team");
     let proj_id = unique_id("proj");
-
-    let company = OrganizationalUnit {
-        id: comp_id.clone(),
-        name: "Company".to_string(),
-        unit_type: UnitType::Company,
-        tenant_id: tenant_id.clone(),
-        parent_id: None,
-        metadata: std::collections::HashMap::new(),
-        created_at: chrono::DateTime::from_timestamp(1000, 0).unwrap(),
-        updated_at: chrono::DateTime::from_timestamp(1000, 0).unwrap(),
-        source_owner: RecordSource::Admin,
-    };
-    storage.create_unit(&company).await.unwrap();
 
     let org1 = OrganizationalUnit {
         id: org_id.clone(),
         name: "Org 1".to_string(),
         unit_type: UnitType::Organization,
         tenant_id: tenant_id.clone(),
-        parent_id: Some(comp_id.clone()),
+        parent_id: None,
         metadata: std::collections::HashMap::new(),
         created_at: chrono::DateTime::from_timestamp(1000, 0).unwrap(),
         updated_at: chrono::DateTime::from_timestamp(1000, 0).unwrap(),
@@ -83,28 +69,26 @@ async fn test_recursive_hierarchy_queries() {
     };
     storage.create_unit(&project1).await.unwrap();
 
-    let descendants = StorageBackend::get_descendants(&storage, ctx.clone(), &comp_id)
-        .await
-        .unwrap();
-    assert_eq!(descendants.len(), 3);
-    let ids: Vec<String> = descendants.iter().map(|u| u.id.clone()).collect();
-    assert!(ids.contains(&org_id));
-    assert!(ids.contains(&team_id));
-    assert!(ids.contains(&proj_id));
-
     let descendants = StorageBackend::get_descendants(&storage, ctx.clone(), &org_id)
         .await
         .unwrap();
     assert_eq!(descendants.len(), 2);
+    let ids: Vec<String> = descendants.iter().map(|u| u.id.clone()).collect();
+    assert!(ids.contains(&team_id));
+    assert!(ids.contains(&proj_id));
+
+    let descendants = StorageBackend::get_descendants(&storage, ctx.clone(), &team_id)
+        .await
+        .unwrap();
+    assert_eq!(descendants.len(), 1);
 
     let ancestors = StorageBackend::get_ancestors(&storage, ctx.clone(), &proj_id)
         .await
         .unwrap();
-    assert_eq!(ancestors.len(), 3);
+    assert_eq!(ancestors.len(), 2);
     let ids: Vec<String> = ancestors.iter().map(|u| u.id.clone()).collect();
     assert!(ids.contains(&team_id));
     assert!(ids.contains(&org_id));
-    assert!(ids.contains(&comp_id));
 
     let tenant2_id = TenantId::new(unique_id("t2")).unwrap();
     let ctx2 = TenantContext {

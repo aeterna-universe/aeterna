@@ -109,7 +109,7 @@ The admin dashboard SHALL provide a visual tree representation of the organizati
 
 #### Scenario: Hierarchy tree display
 - **WHEN** a user navigates to the organization management page
-- **THEN** the dashboard SHALL display a collapsible tree view showing Company → Organization → Team → Project hierarchy
+- **THEN** the dashboard SHALL display a collapsible tree view showing Tenant → Organization → Team → Project hierarchy
 
 #### Scenario: Hierarchy unit creation
 - **WHEN** a user creates a new organizational unit with a valid name, type, and parent
@@ -154,7 +154,7 @@ The admin dashboard SHALL provide search, browse, and feedback interfaces for th
 - **AND** the dashboard SHALL display results with relevance scores, layer indicators, and importance scores
 
 #### Scenario: Memory layer browsing
-- **WHEN** a user selects a memory layer (Agent, User, Session, Project, Team, Org, Company)
+- **WHEN** a user selects a memory layer (Agent, User, Session, Project, Team, Org, Tenant)
 - **THEN** the dashboard SHALL display a paginated list of memories in that layer with content preview and metadata
 
 #### Scenario: Memory feedback submission

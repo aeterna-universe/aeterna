@@ -89,7 +89,7 @@ export interface SyncMemorySnapshot {
 }
 
 const LOCAL_LAYERS: readonly MemoryLayer[] = ["agent", "user", "session"];
-const SHARED_LAYERS: readonly MemoryLayer[] = ["project", "team", "org", "company"];
+const SHARED_LAYERS: readonly MemoryLayer[] = ["project", "team", "org", "tenant"];
 
 export class LocalMemoryManager {
   private readonly localDb: LocalDatabase;
@@ -405,7 +405,7 @@ export class LocalMemoryManager {
           FROM memories
           WHERE ownership = 'cached'
             AND deleted_at IS NULL
-            AND layer IN ('project', 'team', 'org', 'company')
+            AND layer IN ('project', 'team', 'org', 'tenant')
             AND content LIKE @pattern
           ORDER BY updated_at DESC
           LIMIT @limit
@@ -435,7 +435,7 @@ export class LocalMemoryManager {
         FROM memories
         WHERE ownership = 'cached'
           AND deleted_at IS NULL
-          AND layer IN ('project', 'team', 'org', 'company')
+          AND layer IN ('project', 'team', 'org', 'tenant')
         ORDER BY updated_at DESC
         LIMIT @limit
         `

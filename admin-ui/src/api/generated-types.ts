@@ -754,7 +754,7 @@ export interface components {
             path?: string;
             content?: string;
             /** @enum {string} */
-            layer?: "company" | "org" | "team" | "project";
+            layer?: "tenant" | "org" | "team" | "project";
             tags?: string[];
             variantRole?: string | null;
             metadata?: Record<string, never>;

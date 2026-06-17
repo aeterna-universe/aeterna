@@ -58,7 +58,7 @@ pub struct KnowledgeSearchArgs {
     #[arg(short, long, default_value = "10")]
     pub limit: usize,
 
-    /// Filter by layers (comma-separated: company, org, team, project)
+    /// Filter by layers (comma-separated: tenant, org, team, project)
     #[arg(long)]
     pub layers: Option<String>,
 
@@ -84,7 +84,7 @@ pub struct KnowledgeGetArgs {
     /// Path to the knowledge entry (e.g., "adrs/adr-001.md")
     pub path: String,
 
-    /// Layer to get from (company, org, team, project)
+    /// Layer to get from (tenant, org, team, project)
     #[arg(short, long, default_value = "project")]
     pub layer: String,
 
@@ -95,7 +95,7 @@ pub struct KnowledgeGetArgs {
 
 #[derive(Args)]
 pub struct KnowledgeListArgs {
-    /// Layer to list from (company, org, team, project)
+    /// Layer to list from (tenant, org, team, project)
     #[arg(short, long, default_value = "project")]
     pub layer: String,
 
@@ -149,7 +149,7 @@ pub struct KnowledgeProposeArgs {
     #[arg(short = 't', long)]
     pub knowledge_type: Option<String>,
 
-    /// Target layer (company, org, team, project) - inferred from description
+    /// Target layer (tenant, org, team, project) - inferred from description
     /// if not specified
     #[arg(short, long)]
     pub layer: Option<String>,
@@ -395,13 +395,13 @@ async fn run_search(args: KnowledgeSearchArgs) -> anyhow::Result<()> {
                 "project".to_string(),
                 "team".to_string(),
                 "org".to_string(),
-                "company".to_string(),
+                "tenant".to_string(),
             ]
         },
         |l| l.split(',').map(|s| s.trim().to_lowercase()).collect(),
     );
 
-    let valid_layers = ["company", "org", "team", "project"];
+    let valid_layers = ["tenant", "org", "team", "project"];
     for layer in &layers {
         if !valid_layers.contains(&layer.as_str()) {
             let err = ux_error::invalid_knowledge_layer(layer);
@@ -471,7 +471,7 @@ async fn run_search(args: KnowledgeSearchArgs) -> anyhow::Result<()> {
                     "project" => "Project-specific knowledge (ADRs, patterns)",
                     "team" => "Team standards and conventions",
                     "org" => "Organization-wide policies",
-                    "company" => "Company global standards",
+                    "tenant" => "Tenant-wide standards",
                     _ => "",
                 };
                 println!("    {}. {} - {}", i + 1, layer, desc);
@@ -522,7 +522,7 @@ async fn run_get(args: KnowledgeGetArgs) -> anyhow::Result<()> {
     let _resolved = resolver.resolve()?;
 
     let layer = args.layer.to_lowercase();
-    let valid_layers = ["company", "org", "team", "project"];
+    let valid_layers = ["tenant", "org", "team", "project"];
     if !valid_layers.contains(&layer.as_str()) {
         let err = ux_error::invalid_knowledge_layer(&layer);
         err.display();
@@ -552,7 +552,7 @@ async fn run_list(args: KnowledgeListArgs) -> anyhow::Result<()> {
     let _resolved = resolver.resolve()?;
 
     let layer = args.layer.to_lowercase();
-    let valid_layers = ["company", "org", "team", "project"];
+    let valid_layers = ["tenant", "org", "team", "project"];
     if !valid_layers.contains(&layer.as_str()) {
         let err = ux_error::invalid_knowledge_layer(&layer);
         err.display();
@@ -649,7 +649,7 @@ async fn run_propose(args: KnowledgeProposeArgs) -> anyhow::Result<()> {
     let resolved = resolver.resolve()?;
 
     let valid_types = ["adr", "pattern", "policy", "spec"];
-    let valid_layers = ["company", "org", "team", "project"];
+    let valid_layers = ["tenant", "org", "team", "project"];
 
     if let Some(ref kt) = args.knowledge_type {
         let kt_lower = kt.to_lowercase();
@@ -804,7 +804,7 @@ async fn run_propose(args: KnowledgeProposeArgs) -> anyhow::Result<()> {
 /// task 4.2 — preview promotion without persisting anything
 async fn run_promotion_preview(args: KnowledgePromotionPreviewArgs) -> anyhow::Result<()> {
     let target_layer = args.target_layer.to_lowercase();
-    let valid_layers = ["company", "org", "team", "project"];
+    let valid_layers = ["tenant", "org", "team", "project"];
     if !valid_layers.contains(&target_layer.as_str()) {
         let err = ux_error::invalid_knowledge_layer(&target_layer);
         err.display();
@@ -891,7 +891,7 @@ async fn run_promotion_preview(args: KnowledgePromotionPreviewArgs) -> anyhow::R
 /// task 4.1 — create promotion request, with interactive split UX (task 4.8)
 async fn run_promote(args: KnowledgePromoteArgs) -> anyhow::Result<()> {
     let target_layer = args.target_layer.to_lowercase();
-    let valid_layers = ["company", "org", "team", "project"];
+    let valid_layers = ["tenant", "org", "team", "project"];
     if !valid_layers.contains(&target_layer.as_str()) {
         let err = ux_error::invalid_knowledge_layer(&target_layer);
         err.display();
@@ -1291,7 +1291,7 @@ async fn run_reject(args: KnowledgeRejectArgs) -> anyhow::Result<()> {
 /// task 4.6 — retarget a promotion request to a different layer
 async fn run_retarget(args: KnowledgeRetargetArgs) -> anyhow::Result<()> {
     let target_layer = args.target_layer.to_lowercase();
-    let valid_layers = ["company", "org", "team", "project"];
+    let valid_layers = ["tenant", "org", "team", "project"];
     if !valid_layers.contains(&target_layer.as_str()) {
         let err = ux_error::invalid_knowledge_layer(&target_layer);
         err.display();
@@ -1553,13 +1553,13 @@ fn detect_knowledge_type(description: &str) -> String {
 fn detect_knowledge_layer(description: &str) -> String {
     let lower = description.to_lowercase();
 
-    if lower.contains("company")
+    if lower.contains("tenant")
         || lower.contains("enterprise")
         || lower.contains("global")
         || lower.contains("all teams")
         || lower.contains("organization-wide")
     {
-        return "company".to_string();
+        return "tenant".to_string();
     }
 
     if lower.contains("org")
@@ -1738,18 +1738,18 @@ mod tests {
     #[test]
     fn test_detect_knowledge_layer_company() {
         assert_eq!(
-            detect_knowledge_layer("Company-wide security policy"),
-            "company"
+            detect_knowledge_layer("Tenant-wide security policy"),
+            "tenant"
         );
         assert_eq!(
             detect_knowledge_layer("Enterprise standard for APIs"),
-            "company"
+            "tenant"
         );
-        assert_eq!(detect_knowledge_layer("Global logging format"), "company");
-        assert_eq!(detect_knowledge_layer("Apply to all teams"), "company");
+        assert_eq!(detect_knowledge_layer("Global logging format"), "tenant");
+        assert_eq!(detect_knowledge_layer("Apply to all teams"), "tenant");
         assert_eq!(
             detect_knowledge_layer("Organization-wide code style"),
-            "company"
+            "tenant"
         );
     }
 
@@ -1809,8 +1809,8 @@ mod tests {
 
     #[test]
     fn test_valid_promotion_layers() {
-        let valid = ["company", "org", "team", "project"];
-        assert!(valid.contains(&"company"));
+        let valid = ["tenant", "org", "team", "project"];
+        assert!(valid.contains(&"tenant"));
         assert!(valid.contains(&"org"));
         assert!(valid.contains(&"team"));
         assert!(valid.contains(&"project"));

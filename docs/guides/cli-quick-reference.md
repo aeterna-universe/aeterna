@@ -176,7 +176,7 @@ Not part of the manifest model — Git provider connection visibility lives in t
 |---------|-------------|
 | `aeterna knowledge search "QUERY"` | Search knowledge base |
 | `aeterna knowledge search "QUERY" --type adr` | Search ADRs only |
-| `aeterna knowledge search "QUERY" --layers company,org` | Search specific layers |
+| `aeterna knowledge search "QUERY" --layers tenant,org` | Search specific layers |
 | `aeterna knowledge browse --type adr` | Browse all ADRs |
 | `aeterna knowledge browse --type pattern --layer team` | Browse team patterns |
 | `aeterna knowledge browse --type policy` | Browse policies |
@@ -253,7 +253,7 @@ Not part of the manifest model — Git provider connection visibility lives in t
 | Command | Description |
 |---------|-------------|
 | `aeterna govern status` | Show governance status |
-| `aeterna govern status --scope company` | Company-wide status |
+| `aeterna govern status --scope tenant` | Tenant-wide status |
 | `aeterna govern roles list` | List all roles |
 | `aeterna govern roles list --scope team` | Team roles |
 | `aeterna govern roles assign USER ROLE --scope SCOPE` | Assign role |
@@ -274,7 +274,7 @@ Not part of the manifest model — Git provider connection visibility lives in t
 | Command | Description |
 |---------|-------------|
 | `aeterna govern audit --last 7d` | Last 7 days |
-| `aeterna govern audit --scope company --from DATE --to DATE` | Date range |
+| `aeterna govern audit --scope tenant --from DATE --to DATE` | Date range |
 | `aeterna govern audit --scope org --event-type TYPE` | Filter by event type |
 | `aeterna govern audit --format csv` | CSV output |
 | `aeterna govern audit --format json` | JSON output |
@@ -417,8 +417,8 @@ aeterna memory promote mem_xyz789 --to team --reason "Team-wide gotcha"
 ### Admin Onboarding Workflow
 
 ```bash
-# Initialize company
-aeterna init --company "Acme Corp" --admin admin@acme.com
+# Initialize tenant
+aeterna init --tenant "Acme Corp" --admin admin@acme.com
 
 # Create org structure
 aeterna org create "Engineering"
@@ -445,8 +445,8 @@ aeterna admin health --verbose
 | `--json` | JSON output |
 | `--verbose` | Verbose output |
 | `--dry-run` | Preview without changes |
-| `--scope SCOPE` | Target scope (company/org/team/project) |
-| `--layer LAYER` | Memory layer (agent/user/session/project/team/org/company) |
+| `--scope SCOPE` | Target scope (tenant/org/team/project) |
+| `--layer LAYER` | Memory layer (agent/user/session/project/team/org/tenant) |
 | `--format FORMAT` | Output format (json/yaml/csv) |
 
 ---
@@ -454,7 +454,7 @@ aeterna admin health --verbose
 ## Scope Format
 
 ```
-company:acme-corp
+tenant:acme-corp
 org:acme-corp:engineering
 team:engineering:backend
 project:backend:payments-service
@@ -471,10 +471,10 @@ session
 project
 team
 org
-company     (least specific)
+tenant     (least specific)
 ```
 
-Search precedence: agent → user → session → project → team → org → company
+Search precedence: agent → user → session → project → team → org → tenant
 
 ---
 

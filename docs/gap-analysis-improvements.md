@@ -546,7 +546,7 @@ impl TenantRouter {
         if metrics.memory_count > 1_000_000 {
             // Enterprise: dedicated cluster
             ShardStrategy::Isolated {
-                cluster_url: format!("https://{}.qdrant.company.com", tenant_id)
+                cluster_url: format!("https://{}.qdrant.tenant.com", tenant_id)
             }
         } else if metrics.memory_count > 100_000 {
             // Large: dedicated collection

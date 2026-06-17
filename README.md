@@ -2,7 +2,7 @@
 
 **Universal Memory & Knowledge Framework for Enterprise AI Agent Systems**
 
-Aeterna provides hierarchical memory storage and governed organizational knowledge for AI agents at scale. Built for companies deploying AI coding assistants, autonomous agents, and intelligent automation across hundreds of engineers and thousands of projects.
+Aeterna provides hierarchical memory storage and governed organizational knowledge for AI agents at scale. Built for organizations deploying AI coding assistants, autonomous agents, and intelligent automation across hundreds of engineers and thousands of projects.
 
 > **Contributors & AI agents:** This repository is the **public OSS codebase**. Internal
 > deployment configuration (environment overlays, cluster manifests, secrets, runbooks)
@@ -18,16 +18,16 @@ Aeterna provides hierarchical memory storage and governed organizational knowled
 
 Modern enterprises face critical challenges when deploying AI agents:
 
-| Challenge | Impact | Aeterna Solution |
-|-----------|--------|------------------|
-| **Context window limits** | Agents forget previous interactions | Semantic memory with intelligent retrieval |
-| **Knowledge fragmentation** | Decisions scattered across wikis, docs, Slack | Git-versioned knowledge repository |
-| **No memory hierarchy** | All information treated equally | 7-layer memory with precedence rules |
-| **Vendor lock-in** | Switching providers requires rewrites | Provider-agnostic adapter architecture |
-| **Knowledge drift** | No audit trail for architectural decisions | Immutable commits, constraint enforcement |
-| **Multi-tenant chaos** | Teams stepping on each other | Hierarchical isolation with policy inheritance |
-| **Compliance gaps** | AI agents violating organizational standards | Cedar/Permit.io authorization + policy engine |
-| **Agent coordination** | No shared context between agents | A2A protocol via Radkit integration |
+| Challenge                   | Impact                                        | Aeterna Solution                               |
+| --------------------------- | --------------------------------------------- | ---------------------------------------------- |
+| **Context window limits**   | Agents forget previous interactions           | Semantic memory with intelligent retrieval     |
+| **Knowledge fragmentation** | Decisions scattered across wikis, docs, Slack | Git-versioned knowledge repository             |
+| **No memory hierarchy**     | All information treated equally               | 7-layer memory with precedence rules           |
+| **Vendor lock-in**          | Switching providers requires rewrites         | Provider-agnostic adapter architecture         |
+| **Knowledge drift**         | No audit trail for architectural decisions    | Immutable commits, constraint enforcement      |
+| **Multi-tenant chaos**      | Teams stepping on each other                  | Hierarchical isolation with policy inheritance |
+| **Compliance gaps**         | AI agents violating organizational standards  | Cedar/Permit.io authorization + policy engine  |
+| **Agent coordination**      | No shared context between agents              | A2A protocol via Radkit integration            |
 
 ---
 
@@ -118,14 +118,14 @@ team         Per-team
    │         "Team standards, shared patterns"
 org          Per-organization/department
    │         "Org-wide policies, compliance rules"
-company  ←── Per-tenant (least specific)
-             "Company standards, global policies"
+tenant  ←── Per-tenant (least specific)
+             "Tenant standards, global policies"
 ```
 
 ### Knowledge Layers (4 levels)
 
 ```
-Company (highest precedence)
+Tenant (highest precedence)
     ↓ Policies flow DOWN
 Organization
     ↓ Teams inherit + customize
@@ -137,7 +137,7 @@ Project (lowest precedence)
 ### Example: 300-Engineer SaaS Platform
 
 ```
-Acme Corp (Company)
+Acme Corp (Tenant)
 ├── Platform Engineering (Org)
 │   ├── API Team (Team)
 │   │   ├── payments-service (Project)
@@ -159,7 +159,8 @@ Acme Corp (Company)
 ```
 
 Each AI agent operating in `payments-service` automatically:
-1. Inherits company-wide security policies
+
+1. Inherits tenant-wide security policies
 2. Applies Platform Engineering compliance rules
 3. Follows API Team coding standards
 4. Uses project-specific conventions
@@ -170,23 +171,23 @@ Each AI agent operating in `payments-service` automatically:
 
 ### Merge Strategies
 
-| Strategy | Behavior | Use Case |
-|----------|----------|----------|
-| **Override** | Child completely replaces parent | Project needs different rules |
-| **Merge** | Combines rules from both | Adding project-specific rules |
-| **Intersect** | Keeps only common rules | Stricter compliance |
+| Strategy      | Behavior                         | Use Case                      |
+| ------------- | -------------------------------- | ----------------------------- |
+| **Override**  | Child completely replaces parent | Project needs different rules |
+| **Merge**     | Combines rules from both         | Adding project-specific rules |
+| **Intersect** | Keeps only common rules          | Stricter compliance           |
 
 ### Example: Security Policy Flow
 
 ```rust
-// Company-level: Security Baseline (Mandatory)
-let company_policy = Policy {
+// Tenant-level: Security Baseline (Mandatory)
+let tenant_policy = Policy {
     id: "security-baseline",
-    layer: KnowledgeLayer::Company,
+    layer: KnowledgeLayer::Tenant,
     mode: PolicyMode::Mandatory,
     merge_strategy: RuleMergeStrategy::Merge,
     rules: vec![
-        rule!(MustNotUse, Dependency, "lodash < 4.17.21", Block, 
+        rule!(MustNotUse, Dependency, "lodash < 4.17.21", Block,
               "CVE-2021-23337: Prototype pollution"),
         rule!(MustExist, File, "SECURITY.md", Warn,
               "Security documentation required"),
@@ -221,6 +222,7 @@ let team_policy = Policy {
 ```
 
 **Result**: An AI agent working on `payments-service` evaluates ALL policies:
+
 - ❌ Blocked if using vulnerable lodash
 - ⚠️ Warned if missing opentelemetry
 - ℹ️ Informed if not using Result types
@@ -232,15 +234,15 @@ let team_policy = Policy {
 
 ### Role Hierarchy
 
-| Role | Precedence | Scope | Capabilities |
-|------|------------|-------|--------------|
-| **PlatformAdmin** | 6 | Cross-tenant | Tenant lifecycle, shared Git provider connections, cross-tenant inspection |
-| **TenantAdmin** | 5 | Single tenant | Tenant-scoped administration, tenant config/secrets, role delegation within tenant |
-| **Admin** | 4 | Single tenant | Full tenant access, manage tenant resources |
-| **Architect** | 3 | Single tenant | Design policies, manage knowledge repository |
-| **TechLead** | 2 | Single tenant | Manage team resources, enforce policies |
-| **Developer** | 1 | Single tenant | Standard development, knowledge access |
-| **Agent** | 0 | Delegated | Delegated permissions from user context |
+| Role              | Precedence | Scope         | Capabilities                                                                       |
+| ----------------- | ---------- | ------------- | ---------------------------------------------------------------------------------- |
+| **PlatformAdmin** | 6          | Cross-tenant  | Tenant lifecycle, shared Git provider connections, cross-tenant inspection         |
+| **TenantAdmin**   | 5          | Single tenant | Tenant-scoped administration, tenant config/secrets, role delegation within tenant |
+| **Admin**         | 4          | Single tenant | Full tenant access, manage tenant resources                                        |
+| **Architect**     | 3          | Single tenant | Design policies, manage knowledge repository                                       |
+| **TechLead**      | 2          | Single tenant | Manage team resources, enforce policies                                            |
+| **Developer**     | 1          | Single tenant | Standard development, knowledge access                                             |
+| **Agent**         | 0          | Delegated     | Delegated permissions from user context                                            |
 
 ### Cedar Authorization + OPAL Integration
 
@@ -301,8 +303,8 @@ Aeterna uses a tenant configuration provider to align tenant-scoped runtime conf
 - non-secret tenant config is stored as a structured tenant document
 - secret values are stored separately and exposed only as logical references
 - the first provider implementation is Kubernetes-backed:
-  - ConfigMap: `aeterna-tenant-<tenant-id>`
-  - Secret: `aeterna-tenant-<tenant-id>-secret`
+    - ConfigMap: `aeterna-tenant-<tenant-id>`
+    - Secret: `aeterna-tenant-<tenant-id>-secret`
 - `TenantAdmin` can mutate only tenant-owned fields and secret entries
 - `PlatformAdmin` can manage platform-owned fields, tenant bootstrapping, and shared Git provider connections
 
@@ -319,6 +321,7 @@ Aeterna includes Memory-R1, an autonomous memory optimization system inspired by
 ### Reward-Based Promotion
 
 Aeterna implements an autonomous reward propagation loop for its Recursive Language Model (RLM) search strategy. When the system decomposes complex queries:
+
 - **Automatic Recognition**: Memories discovered via graph traversals or recursive steps are automatically identified.
 - **Reward Propagation**: Successful search trajectories apply positive reward signals to all involved memories.
 - **Dynamic Hierarchy**: Reward scores influence the `importance_score`, which determines if a memory is promoted to broader organizational layers (e.g., from Session to Project or Team).
@@ -371,7 +374,9 @@ let related = graph.query()
 The **add-cca-capabilities** change introduces four specialized agents:
 
 ### Context Architect
+
 Hierarchical context compression for efficient memory storage:
+
 ```rust
 let compressed = context_architect.compress(session_memory)
     .with_hierarchy(true)
@@ -380,7 +385,9 @@ let compressed = context_architect.compress(session_memory)
 ```
 
 ### Note-Taking Agent
+
 Trajectory distillation to Markdown documentation:
+
 ```rust
 let notes = note_taking.distill(agent_trajectory)
     .to_format(DocumentFormat::Markdown)
@@ -389,7 +396,9 @@ let notes = note_taking.distill(agent_trajectory)
 ```
 
 ### Hindsight Learning
+
 Error capture and resolution pattern extraction:
+
 ```rust
 let patterns = hindsight.extract_errors(failed_sessions)
     .identify_patterns()
@@ -398,7 +407,9 @@ let patterns = hindsight.extract_errors(failed_sessions)
 ```
 
 ### Meta-Agent
+
 Build-test-improve self-refinement loop:
+
 ```rust
 let improved = meta_agent.refine(agent_behavior)
     .with_feedback_loop(FedbackType::Hindsight)
@@ -414,29 +425,29 @@ Aeterna exposes 11 unified tools via Model Context Protocol:
 
 ### Memory Tools
 
-| Tool | Description |
-|------|-------------|
-| `memory_add` | Store new memory with layer targeting |
-| `memory_search` | Semantic search across layers |
-| `memory_delete` | Remove specific memory |
-| `memory_feedback` | Provide reward signal for memory |
-| `memory_optimize` | Trigger autonomous optimization |
+| Tool              | Description                           |
+| ----------------- | ------------------------------------- |
+| `memory_add`      | Store new memory with layer targeting |
+| `memory_search`   | Semantic search across layers         |
+| `memory_delete`   | Remove specific memory                |
+| `memory_feedback` | Provide reward signal for memory      |
+| `memory_optimize` | Trigger autonomous optimization       |
 
 ### Knowledge Tools
 
-| Tool | Description |
-|------|-------------|
-| `knowledge_query` | Search knowledge repository |
+| Tool              | Description                  |
+| ----------------- | ---------------------------- |
+| `knowledge_query` | Search knowledge repository  |
 | `knowledge_check` | Validate against constraints |
-| `knowledge_show` | Retrieve full knowledge item |
+| `knowledge_show`  | Retrieve full knowledge item |
 
 ### Graph Tools
 
-| Tool | Description |
-|------|-------------|
-| `graph_query` | Query memory relationships |
-| `graph_neighbors` | Find related memories |
-| `graph_path` | Discover connection paths |
+| Tool              | Description                |
+| ----------------- | -------------------------- |
+| `graph_query`     | Query memory relationships |
+| `graph_neighbors` | Find related memories      |
+| `graph_path`      | Discover connection paths  |
 
 ---
 
@@ -461,20 +472,20 @@ Aeterna exposes 11 unified tools via Model Context Protocol:
 
 The following changes have been archived (completed and deployed):
 
-| Change | Description | Completed |
-|--------|-------------|-----------|
-| **add-opencode-plugin** | OpenCode plugin with MCP tools, hooks, SDK v1.1.36 | Jan 2026 |
-| **add-radkit-integration** | Agent-to-Agent protocol via Radkit SDK | Jan 2026 |
-| **add-ux-first-governance** | Natural language → Cedar policy, OPAL integration | Jan 2026 |
-| **add-rlm-memory-navigation** | RLM memory navigation infrastructure | Jan 2026 |
-| **add-cca-capabilities** | Context Architect, Note-Taking, Hindsight, Meta-Agent | Jan 2026 |
-| **add-reflective-reasoning** | Pre-retrieval reasoning, multi-hop retrieval | Jan 2026 |
-| **add-r1-graph-memory** | DuckDB graph layer, Memory-R1 optimization | Jan 2026 |
-| **add-multi-tenant-governance** | ReBAC with Permit.io + Cedar, drift detection | Jan 2026 |
-| **add-tenant-admin-control-plane** | Tenant lifecycle, repo-binding admin flows, cross-tenant targeting | Apr 2026 |
-| **add-tenant-config-provider** | Tenant config/secrets model, Kubernetes provider, shared Git provider connections | Apr 2026 |
-| **fix-authz-boundary-hardening** | Stronger control-plane authorization boundaries | Apr 2026 |
-| **fix-runtime-security-hardening** | Runtime secret and deployment hardening | Apr 2026 |
+| Change                             | Description                                                                       | Completed |
+| ---------------------------------- | --------------------------------------------------------------------------------- | --------- |
+| **add-opencode-plugin**            | OpenCode plugin with MCP tools, hooks, SDK v1.1.36                                | Jan 2026  |
+| **add-radkit-integration**         | Agent-to-Agent protocol via Radkit SDK                                            | Jan 2026  |
+| **add-ux-first-governance**        | Natural language → Cedar policy, OPAL integration                                 | Jan 2026  |
+| **add-rlm-memory-navigation**      | RLM memory navigation infrastructure                                              | Jan 2026  |
+| **add-cca-capabilities**           | Context Architect, Note-Taking, Hindsight, Meta-Agent                             | Jan 2026  |
+| **add-reflective-reasoning**       | Pre-retrieval reasoning, multi-hop retrieval                                      | Jan 2026  |
+| **add-r1-graph-memory**            | DuckDB graph layer, Memory-R1 optimization                                        | Jan 2026  |
+| **add-multi-tenant-governance**    | ReBAC with Permit.io + Cedar, drift detection                                     | Jan 2026  |
+| **add-tenant-admin-control-plane** | Tenant lifecycle, repo-binding admin flows, cross-tenant targeting                | Apr 2026  |
+| **add-tenant-config-provider**     | Tenant config/secrets model, Kubernetes provider, shared Git provider connections | Apr 2026  |
+| **fix-authz-boundary-hardening**   | Stronger control-plane authorization boundaries                                   | Apr 2026  |
+| **fix-runtime-security-hardening** | Runtime secret and deployment hardening                                           | Apr 2026  |
 
 ### OpenCode Plugin
 
@@ -495,11 +506,13 @@ This installs the plugin and adds it to your OpenCode configuration automaticall
 Aeterna addresses **93 production readiness gaps** identified across enterprise deployments:
 
 ### Gap Distribution
+
 - **Critical**: 19 gaps (data integrity, availability, cost control, security, stability)
 - **High**: 47 gaps (performance, monitoring, scalability, compliance)
 - **Medium**: 27 gaps (documentation, testing, tooling)
 
 ### Key Areas Addressed
+
 - **Security**: Cedar/Permit.io authorization, policy enforcement, tenant isolation
 - **Reliability**: Multi-tenant failover, data replication, disaster recovery
 - **Performance**: Vector optimization, caching strategies, resource pooling
@@ -674,19 +687,19 @@ aeterna/
 
 ## Specifications
 
-| Document | Description | Requirements |
-|----------|-------------|-------------|
-| [00-overview](specs/00-overview.md) | Executive summary and architecture | - |
-| [01-core-concepts](specs/01-core-concepts.md) | Glossary and mental models | - |
-| [02-memory-system](specs/02-memory-system.md) | Memory layers and operations | 21 requirements |
-| [03-knowledge-repository](specs/03-knowledge-repository.md) | Git-based knowledge store | 17 requirements |
-| [04-memory-knowledge-sync](specs/04-memory-knowledge-sync.md) | Pointer architecture | 11 requirements |
-| [05-adapter-architecture](specs/05-adapter-architecture.md) | Provider abstraction | - |
-| [06-tool-interface](specs/06-tool-interface.md) | MCP tool contracts | - |
-| [07-configuration](specs/07-configuration.md) | Config schema | - |
-| [08-deployment](specs/08-deployment.md) | Self-hosted vs cloud | - |
-| [09-migration](specs/09-migration.md) | Data portability | - |
-| [storage-spec](specs/storage/spec.md) | Storage layer specification | 10 requirements |
+| Document                                                      | Description                        | Requirements    |
+| ------------------------------------------------------------- | ---------------------------------- | --------------- |
+| [00-overview](specs/00-overview.md)                           | Executive summary and architecture | -               |
+| [01-core-concepts](specs/01-core-concepts.md)                 | Glossary and mental models         | -               |
+| [02-memory-system](specs/02-memory-system.md)                 | Memory layers and operations       | 21 requirements |
+| [03-knowledge-repository](specs/03-knowledge-repository.md)   | Git-based knowledge store          | 17 requirements |
+| [04-memory-knowledge-sync](specs/04-memory-knowledge-sync.md) | Pointer architecture               | 11 requirements |
+| [05-adapter-architecture](specs/05-adapter-architecture.md)   | Provider abstraction               | -               |
+| [06-tool-interface](specs/06-tool-interface.md)               | MCP tool contracts                 | -               |
+| [07-configuration](specs/07-configuration.md)                 | Config schema                      | -               |
+| [08-deployment](specs/08-deployment.md)                       | Self-hosted vs cloud               | -               |
+| [09-migration](specs/09-migration.md)                         | Data portability                   | -               |
+| [storage-spec](specs/storage/spec.md)                         | Storage layer specification        | 10 requirements |
 
 ---
 
@@ -726,6 +739,7 @@ aeterna/
 ```
 
 **What Aeterna provides:**
+
 - **ADRs** capture migration decisions (Strangler Fig strategy, tech selections)
 - **Policies** block legacy patterns from spreading (enforce at CI/CD)
 - **Patterns** document reusable solutions (Strangler Facade, ACL, Bricks)
@@ -739,15 +753,17 @@ aeterna/
 ### 2. Enterprise AI Coding Assistant with OpenCode Integration
 
 Deploy AI coding assistants that:
+
 - Remember individual developer preferences
 - Apply team coding standards automatically
-- Enforce company security policies
+- Enforce tenant security policies
 - Share learnings across the organization
 - Integrate seamlessly with OpenCode via MCP plugin
 
 ### 3. Multi-Agent Platform with A2A Coordination
 
 Build coordinated multi-agent systems where:
+
 - Each agent has isolated memory
 - Shared knowledge prevents conflicting decisions
 - Policy constraints prevent dangerous actions
@@ -757,6 +773,7 @@ Build coordinated multi-agent systems where:
 ### 4. AI-Powered DevOps with Helm Deployment
 
 Automate infrastructure management with:
+
 - Service-specific operational knowledge
 - Team runbooks as enforceable constraints
 - Incident learnings promoted across teams
@@ -766,6 +783,7 @@ Automate infrastructure management with:
 ### 5. Knowledge-Augmented RAG with Reflective Reasoning
 
 Enhance retrieval-augmented generation with:
+
 - Hierarchical context from multiple scopes
 - Constraint-guided response generation
 - Version-controlled knowledge base
@@ -833,6 +851,7 @@ Apache License 2.0 - See [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 Built with insights from:
+
 - [Mem0](https://mem0.ai) - Memory layer concepts
 - [Letta](https://letta.com) - Agent memory patterns
 - [Cedar](https://www.cedarpolicy.com) - Authorization language
@@ -840,4 +859,4 @@ Built with insights from:
 - [Permit.io](https://permit.io) - ReBAC authorization
 - [Radkit](https://radkit.dev) - Agent-to-Agent protocol
 - [OPAL](https://opal.ac) - Policy administration
-Policy administration
+  Policy administration

@@ -29,7 +29,7 @@ default_token_budget = 4000
 
 # Memory layer priorities (queried in this order)
 # Higher priority layers are queried first and included preferentially
-layer_priorities = ["session", "project", "team", "org", "company"]
+layer_priorities = ["session", "project", "team", "org", "tenant"]
 
 # Minimum relevance score for including memory entries (0.0-1.0)
 # Lower = more entries, higher = only highly relevant
@@ -151,7 +151,7 @@ Controls hierarchical context assembly and compression.
 |--------|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable Context Architect component |
 | `default_token_budget` | integer | `4000` | Default token budget for context assembly (100-32000). Adjust based on your LLM's context window. |
-| `layer_priorities` | array | `["session", "project", "team", "org", "company"]` | Memory layer query order. First = highest priority. |
+| `layer_priorities` | array | `["session", "project", "team", "org", "tenant"]` | Memory layer query order. First = highest priority. |
 | `min_relevance_score` | float | `0.3` | Minimum relevance score for including entries (0.0-1.0). Lower = more entries. |
 | `enable_caching` | boolean | `true` | Enable caching of assembled contexts for performance |
 | `cache_ttl_secs` | integer | `300` | Cache time-to-live in seconds (5 minutes default) |
@@ -177,11 +177,11 @@ layer_priorities = ["session", "user", "project"]
 # Project-focused (broad project context)
 layer_priorities = ["project", "session", "team"]
 
-# Organizational knowledge (team/company standards)
-layer_priorities = ["team", "org", "company", "project"]
+# Organizational knowledge (team/tenant standards)
+layer_priorities = ["team", "org", "tenant", "project"]
 
 # All layers (comprehensive but may exceed budget)
-layer_priorities = ["agent", "user", "session", "project", "team", "org", "company"]
+layer_priorities = ["agent", "user", "session", "project", "team", "org", "tenant"]
 ```
 
 #### Staleness Policy Explained

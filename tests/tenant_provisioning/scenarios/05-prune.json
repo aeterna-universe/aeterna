@@ -32,18 +32,13 @@
   },
   "hierarchy": [
     {
-      "name": "Acme, Inc.",
-      "orgs": [
+      "name": "Engineering",
+      "teams": [
         {
-          "name": "Engineering",
-          "teams": [
-            {
-              "name": "Platform"
-            },
-            {
-              "name": "Product"
-            }
-          ]
+          "name": "Platform"
+        },
+        {
+          "name": "Product"
         }
       ]
     }

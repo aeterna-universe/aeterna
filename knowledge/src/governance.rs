@@ -246,7 +246,7 @@ impl GovernanceEngine {
         let mut mandatory_policies: HashMap<String, KnowledgeLayer> = HashMap::new();
 
         let layers = [
-            KnowledgeLayer::Company,
+            KnowledgeLayer::Tenant,
             KnowledgeLayer::Org,
             KnowledgeLayer::Team,
             KnowledgeLayer::Project,
@@ -332,7 +332,7 @@ impl GovernanceEngine {
         let mut mandatory_policies: HashMap<String, KnowledgeLayer> = HashMap::new();
 
         let layers = [
-            KnowledgeLayer::Company,
+            KnowledgeLayer::Tenant,
             KnowledgeLayer::Org,
             KnowledgeLayer::Team,
             KnowledgeLayer::Project,
@@ -895,7 +895,7 @@ mod tests {
             id: "p1".to_string(),
             name: "Security Standards".to_string(),
             description: None,
-            layer: KnowledgeLayer::Company,
+            layer: KnowledgeLayer::Tenant,
             rules: vec![
                 PolicyRule {
                     id: "r1".to_string(),
@@ -1739,9 +1739,9 @@ mod tests {
 
         let company_policy = Policy {
             id: "merge-test".to_string(),
-            name: "Company Policy".to_string(),
+            name: "Tenant Policy".to_string(),
             description: None,
-            layer: KnowledgeLayer::Company,
+            layer: KnowledgeLayer::Tenant,
             mode: mk_core::types::PolicyMode::Optional,
             merge_strategy: mk_core::types::RuleMergeStrategy::Merge,
             rules: vec![PolicyRule {
@@ -1750,7 +1750,7 @@ mod tests {
                 operator: ConstraintOperator::MustExist,
                 value: serde_json::json!(null),
                 severity: ConstraintSeverity::Block,
-                message: "Company rule".to_string(),
+                message: "Tenant rule".to_string(),
                 rule_type: mk_core::types::RuleType::Allow,
             }],
             metadata: HashMap::new(),
@@ -1792,9 +1792,9 @@ mod tests {
 
         let company_policy = Policy {
             id: "intersect-test".to_string(),
-            name: "Company Policy".to_string(),
+            name: "Tenant Policy".to_string(),
             description: None,
-            layer: KnowledgeLayer::Company,
+            layer: KnowledgeLayer::Tenant,
             mode: mk_core::types::PolicyMode::Optional,
             merge_strategy: mk_core::types::RuleMergeStrategy::Merge,
             rules: vec![
@@ -1858,9 +1858,9 @@ mod tests {
 
         let company_policy = Policy {
             id: "metadata-test".to_string(),
-            name: "Company Policy".to_string(),
+            name: "Tenant Policy".to_string(),
             description: None,
-            layer: KnowledgeLayer::Company,
+            layer: KnowledgeLayer::Tenant,
             mode: mk_core::types::PolicyMode::Optional,
             merge_strategy: mk_core::types::RuleMergeStrategy::Merge,
             rules: vec![],
@@ -1896,9 +1896,9 @@ mod tests {
 
         let company_policy = Policy {
             id: "mandatory-test".to_string(),
-            name: "Mandatory Company Policy".to_string(),
+            name: "Mandatory Tenant Policy".to_string(),
             description: None,
-            layer: KnowledgeLayer::Company,
+            layer: KnowledgeLayer::Tenant,
             mode: mk_core::types::PolicyMode::Mandatory,
             merge_strategy: mk_core::types::RuleMergeStrategy::Merge,
             rules: vec![PolicyRule {

@@ -242,7 +242,7 @@ async fn test_tenant_id_validation_valid_patterns() {
         "tenant_one",
         "TenantOne",
         "tenant123",
-        "my-company-tenant-id",
+        "my-tenant-id",
         "UPPERCASE_TENANT",
     ];
 

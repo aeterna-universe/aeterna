@@ -1,7 +1,7 @@
 # Aeterna — Claude Code Memory
 
 > **🔴 PUBLIC REPO — READ FIRST:** This is a public OSS codebase.
-> Everything related to deploying on real company infrastructure lives
+> Everything related to deploying on real internal infrastructure lives
 > in a separate internal repository. **Never** introduce identifiers
 > naming real environments, hostnames, cloud resources, tenants,
 > credentials, or any similar operational artefacts into commits,
@@ -18,21 +18,21 @@ Universal Memory & Knowledge Framework for Enterprise AI Agent Systems. Provides
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| **Language** | Rust (Edition 2024 — NEVER 2021) |
-| **Async runtime** | Tokio (full features) |
-| **Memory storage** | Redis 7+ (Working/Session), PostgreSQL 16+ (Episodic/Procedural/User/Org metadata), Qdrant 1.12+ (all semantic vectors) |
-| **Graph layer** | DuckDB 0.9+ |
-| **Embeddings** | rust-genai 0.4+ (OpenAI, Anthropic, Gemini, Z.AI, xAI, Ollama, Groq, Cohere…) |
-| **Authorization** | Cedar policies + Permit.io + OPAL |
-| **MCP interface** | 11 unified tools (memory, knowledge, graph) |
-| **A2A protocol** | Radkit SDK 0.0.4 |
-| **Error handling** | `anyhow` (apps), `thiserror` (libs) |
-| **Serialisation** | serde / serde_json / serde_yaml / toml |
-| **HTTP** | reqwest 0.13 |
-| **DB (relational)** | sqlx 0.9 (PostgreSQL + Tokio) |
-| **Testing** | cargo-tarpaulin, proptest, cargo-mutants, testcontainers, wiremock |
+| Layer               | Technology                                                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Language**        | Rust (Edition 2024 — NEVER 2021)                                                                                        |
+| **Async runtime**   | Tokio (full features)                                                                                                   |
+| **Memory storage**  | Redis 7+ (Working/Session), PostgreSQL 16+ (Episodic/Procedural/User/Org metadata), Qdrant 1.12+ (all semantic vectors) |
+| **Graph layer**     | DuckDB 0.9+                                                                                                             |
+| **Embeddings**      | rust-genai 0.4+ (OpenAI, Anthropic, Gemini, Z.AI, xAI, Ollama, Groq, Cohere…)                                           |
+| **Authorization**   | Cedar policies + Permit.io + OPAL                                                                                       |
+| **MCP interface**   | 11 unified tools (memory, knowledge, graph)                                                                             |
+| **A2A protocol**    | Radkit SDK 0.0.4                                                                                                        |
+| **Error handling**  | `anyhow` (apps), `thiserror` (libs)                                                                                     |
+| **Serialisation**   | serde / serde_json / serde_yaml / toml                                                                                  |
+| **HTTP**            | reqwest 0.13                                                                                                            |
+| **DB (relational)** | sqlx 0.9 (PostgreSQL + Tokio)                                                                                           |
+| **Testing**         | cargo-tarpaulin, proptest, cargo-mutants, testcontainers, wiremock                                                      |
 
 ---
 
@@ -84,7 +84,7 @@ Archival      yr  — Qdrant long-term
 ### Knowledge Hierarchy (4 levels, high → low precedence)
 
 ```
-Company → Organization → Team → Project
+Tenant → Organization → Team → Project
 ```
 
 Policies flow **down**; projects can override with `Merge` or `Override` strategy.
@@ -185,6 +185,7 @@ openspec archive <change-id> --yes    # Archive after deployment
 ```
 
 **Stage 1 — Create proposal** (`openspec/changes/<change-id>/`):
+
 - `proposal.md` — Why + What + Impact
 - `tasks.md` — Implementation checklist
 - `design.md` — (optional) Technical decisions
@@ -198,31 +199,31 @@ openspec archive <change-id> --yes    # Archive after deployment
 
 ### Active Changes (as of 2026-04)
 
-| Change | Status | Remaining |
-|---|---|---|
-| `add-cloud-llm-providers` | in-progress | 1 task |
-| `fix-production-readiness-gaps` | in-progress | 4 tasks |
-| `add-okta-federated-auth` | complete (needs archive) | -- |
-| `add-admin-web-ui` | in-progress | see tasks.md |
-| `add-backup-restore` | in-progress | see tasks.md |
-| `add-day2-operations` | in-progress | see tasks.md |
-| `add-tenant-provider-config` | in-progress | see tasks.md |
-| `refactor-binary-split` | in-progress | see tasks.md |
+| Change                          | Status                   | Remaining    |
+| ------------------------------- | ------------------------ | ------------ |
+| `add-cloud-llm-providers`       | in-progress              | 1 task       |
+| `fix-production-readiness-gaps` | in-progress              | 4 tasks      |
+| `add-okta-federated-auth`       | complete (needs archive) | --           |
+| `add-admin-web-ui`              | in-progress              | see tasks.md |
+| `add-backup-restore`            | in-progress              | see tasks.md |
+| `add-day2-operations`           | in-progress              | see tasks.md |
+| `add-tenant-provider-config`    | in-progress              | see tasks.md |
+| `refactor-binary-split`         | in-progress              | see tasks.md |
 
 ---
 
 ## Performance Targets
 
-| Tier | Latency | Throughput |
-|---|---|---|
-| Working memory | < 10ms | — |
-| Session memory | < 50ms | — |
-| Semantic search | < 200ms | — |
-| API | — | > 100 QPS |
-| Creates | — | > 50 CPS |
-| CPU | — | < 70% |
-| Memory | — | < 80% |
-| DB connections | — | < 80% pool |
+| Tier            | Latency | Throughput |
+| --------------- | ------- | ---------- |
+| Working memory  | < 10ms  | —          |
+| Session memory  | < 50ms  | —          |
+| Semantic search | < 200ms | —          |
+| API             | —       | > 100 QPS  |
+| Creates         | —       | > 50 CPS   |
+| CPU             | —       | < 70%      |
+| Memory          | —       | < 80%      |
+| DB connections  | —       | < 80% pool |
 
 ---
 
@@ -251,14 +252,14 @@ Published as `@aeterna-org/opencode-plugin` — MCP tools + hooks + automatic co
 
 ## Key Specs to Read Before Working
 
-| Spec | Location |
-|---|---|
-| Memory system | `openspec/specs/memory-system/` |
-| Knowledge repository | `openspec/specs/knowledge-repository/` |
-| OpenCode integration | `openspec/specs/opencode-integration/` |
+| Spec                    | Location                                  |
+| ----------------------- | ----------------------------------------- |
+| Memory system           | `openspec/specs/memory-system/`           |
+| Knowledge repository    | `openspec/specs/knowledge-repository/`    |
+| OpenCode integration    | `openspec/specs/opencode-integration/`    |
 | Multi-tenant governance | `openspec/specs/multi-tenant-governance/` |
-| Storage layer | `openspec/specs/storage/` |
-| Codesearch integration | `openspec/specs/codesearch-integration/` |
+| Storage layer           | `openspec/specs/storage/`                 |
+| Codesearch integration  | `openspec/specs/codesearch-integration/`  |
 
 ---
 
@@ -266,21 +267,21 @@ Published as `@aeterna-org/opencode-plugin` — MCP tools + hooks + automatic co
 
 The CLI crate hosts an Axum HTTP server with these key modules:
 
-| Module | Purpose |
-|---|---|
-| `router.rs` | Route tree assembly, middleware stack |
-| `bootstrap.rs` | Server initialization, service wiring |
-| `plugin_auth.rs` | GitHub OAuth + JWT issuance/refresh |
-| `auth_middleware.rs` | JWT validation middleware layer |
-| `backup_api.rs` | Export/import job management |
-| `memory_api.rs` | Memory CRUD and search endpoints |
-| `knowledge_api.rs` | Knowledge operations |
-| `govern_api.rs` | Governance dashboard API |
-| `tenant_api.rs` | Tenant CRUD |
-| `org_api.rs` / `team_api.rs` / `project_api.rs` / `user_api.rs` | Entity management |
-| `role_grants.rs` | Role administration (nested under `/admin`) |
-| `mcp_transport.rs` | MCP protocol transport |
-| `health.rs` | Health, liveness, readiness probes |
+| Module                                                          | Purpose                                     |
+| --------------------------------------------------------------- | ------------------------------------------- |
+| `router.rs`                                                     | Route tree assembly, middleware stack       |
+| `bootstrap.rs`                                                  | Server initialization, service wiring       |
+| `plugin_auth.rs`                                                | GitHub OAuth + JWT issuance/refresh         |
+| `auth_middleware.rs`                                            | JWT validation middleware layer             |
+| `backup_api.rs`                                                 | Export/import job management                |
+| `memory_api.rs`                                                 | Memory CRUD and search endpoints            |
+| `knowledge_api.rs`                                              | Knowledge operations                        |
+| `govern_api.rs`                                                 | Governance dashboard API                    |
+| `tenant_api.rs`                                                 | Tenant CRUD                                 |
+| `org_api.rs` / `team_api.rs` / `project_api.rs` / `user_api.rs` | Entity management                           |
+| `role_grants.rs`                                                | Role administration (nested under `/admin`) |
+| `mcp_transport.rs`                                              | MCP protocol transport                      |
+| `health.rs`                                                     | Health, liveness, readiness probes          |
 
 ---
 
@@ -325,14 +326,14 @@ Before implementing any new feature, ask: "Does this work with 3 replicas behind
 
 Managed by `TenantProviderRegistry` in `memory/src/provider_registry.rs`:
 
-| Config Key | Purpose |
-|---|---|
-| `llm_provider` | Provider type: `openai`, `google`, `bedrock` |
-| `llm_model` | Model identifier |
-| `llm_api_key` | Secret logical name for API key |
-| `embedding_provider` | Embedding provider type |
-| `embedding_model` | Embedding model identifier |
-| `embedding_api_key` | Secret logical name |
+| Config Key           | Purpose                                      |
+| -------------------- | -------------------------------------------- |
+| `llm_provider`       | Provider type: `openai`, `google`, `bedrock` |
+| `llm_model`          | Model identifier                             |
+| `llm_api_key`        | Secret logical name for API key              |
+| `embedding_provider` | Embedding provider type                      |
+| `embedding_model`    | Embedding model identifier                   |
+| `embedding_api_key`  | Secret logical name                          |
 
 Cloud-specific keys: `llm_google_project_id`, `llm_google_location`, `llm_bedrock_region` (and `embedding_*` equivalents).
 

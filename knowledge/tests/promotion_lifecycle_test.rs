@@ -245,7 +245,7 @@ async fn test_create_promotion_request_rejects_company_source() {
 
     let req = make_promotion_request(
         "some/item",
-        KnowledgeLayer::Company,
+        KnowledgeLayer::Tenant,
         KnowledgeLayer::Org,
         PromotionMode::Full,
         &ctx,

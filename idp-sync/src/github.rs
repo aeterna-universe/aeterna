@@ -6,7 +6,7 @@ use chrono::Utc;
 use mk_core::types::PROVIDER_GITHUB;
 use serde::Deserialize;
 use sqlx::PgPool;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
@@ -484,8 +484,9 @@ pub struct GitHubHierarchyMapper {
 /// Initialize the database schema required for GitHub org sync.
 ///
 /// This creates the idp-sync tables (`users`, `memberships`, `idp_group_mappings`)
-/// and extends `organizational_units` with `external_id` and `idp_provider` columns
-/// needed for GitHub-to-Aeterna hierarchy mapping.
+/// and ensures the auxiliary OPAL/code-search stubs and NOTIFY triggers exist.
+/// GitHub hierarchy materialization writes to the modern tenant-root
+/// hierarchy tables.
 pub async fn initialize_github_sync_schema(pool: &PgPool) -> IdpSyncResult<()> {
     sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto")
         .execute(pool)
@@ -576,7 +577,7 @@ pub async fn initialize_github_sync_schema(pool: &PgPool) -> IdpSyncResult<()> {
             delegated_by_agent_id UUID,
             delegation_depth INT NOT NULL DEFAULT 0,
             capabilities JSONB DEFAULT '[]',
-            allowed_company_ids UUID[],
+            allowed_tenant_ids UUID[],
             allowed_org_ids UUID[],
             allowed_team_ids UUID[],
             allowed_project_ids UUID[],
@@ -584,39 +585,6 @@ pub async fn initialize_github_sync_schema(pool: &PgPool) -> IdpSyncResult<()> {
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
-        ",
-    )
-    .execute(pool)
-    .await
-    .map_err(IdpSyncError::DatabaseError)?;
-
-    sqlx::query(
-        r"
-        ALTER TABLE organizational_units
-            ADD COLUMN IF NOT EXISTS external_id TEXT,
-            ADD COLUMN IF NOT EXISTS idp_provider TEXT
-        ",
-    )
-    .execute(pool)
-    .await
-    .map_err(IdpSyncError::DatabaseError)?;
-
-    // Slug column — required for OPAL hierarchy view (company_slug, org_slug, team_slug)
-    sqlx::query(
-        r"
-        ALTER TABLE organizational_units
-            ADD COLUMN IF NOT EXISTS slug TEXT
-        ",
-    )
-    .execute(pool)
-    .await
-    .map_err(IdpSyncError::DatabaseError)?;
-
-    sqlx::query(
-        r"
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_org_units_tenant_external_provider
-            ON organizational_units (tenant_id, external_id, idp_provider)
-            WHERE external_id IS NOT NULL AND idp_provider IS NOT NULL
         ",
     )
     .execute(pool)
@@ -647,7 +615,7 @@ pub async fn initialize_github_sync_schema(pool: &PgPool) -> IdpSyncResult<()> {
 ///   migration `028_tenant_scoped_hierarchy.sql`, and additionally
 ///   fixed a latent bug where the idp-sync definitions pointed at the
 ///   legacy `organizational_units` table with `uuid_generate_v5`-
-///   synthesized IDs that didn't match real `companies.id` values.
+///   synthesized IDs that didn't match real hierarchy row IDs.
 /// - PR #132 (this PR) moves `v_agent_permissions` ownership to
 ///   migration `029_agents_tenant_scope.sql`, which also adds
 ///   `agents.tenant_id` (backfilled + enforced) so that the view can
@@ -758,15 +726,26 @@ async fn initialize_notify_triggers(pool: &PgPool) -> IdpSyncResult<()> {
     .await
     .map_err(IdpSyncError::DatabaseError)?;
 
+    sqlx::query("DROP TRIGGER IF EXISTS trg_organizations_entity_change ON organizations")
+        .execute(pool)
+        .await
+        .map_err(IdpSyncError::DatabaseError)?;
     sqlx::query(
-        "DROP TRIGGER IF EXISTS trg_organizational_units_entity_change ON organizational_units",
+        "CREATE TRIGGER trg_organizations_entity_change \
+         AFTER INSERT OR UPDATE OR DELETE ON organizations \
+         FOR EACH ROW EXECUTE FUNCTION fn_notify_entity_change()",
     )
     .execute(pool)
     .await
     .map_err(IdpSyncError::DatabaseError)?;
+
+    sqlx::query("DROP TRIGGER IF EXISTS trg_teams_entity_change ON teams")
+        .execute(pool)
+        .await
+        .map_err(IdpSyncError::DatabaseError)?;
     sqlx::query(
-        "CREATE TRIGGER trg_organizational_units_entity_change \
-         AFTER INSERT OR UPDATE OR DELETE ON organizational_units \
+        "CREATE TRIGGER trg_teams_entity_change \
+         AFTER INSERT OR UPDATE OR DELETE ON teams \
          FOR EACH ROW EXECUTE FUNCTION fn_notify_entity_change()",
     )
     .execute(pool)
@@ -808,63 +787,92 @@ impl GitHubHierarchyMapper {
         Self { db_pool, tenant_id }
     }
 
+    fn parent_slug(group: &IdpGroup) -> Option<&str> {
+        group
+            .description
+            .as_deref()
+            .and_then(|d| d.strip_prefix("parent:"))
+            .filter(|value| !value.is_empty())
+    }
+
+    fn root_slug<'a>(group: &'a IdpGroup, by_slug: &HashMap<String, &'a IdpGroup>) -> &'a str {
+        let mut current = group;
+        let mut seen: HashSet<&str> = HashSet::new();
+        while let Some(parent_slug) = Self::parent_slug(current) {
+            if !seen.insert(parent_slug) {
+                break;
+            }
+            let Some(parent) = by_slug.get(parent_slug).copied() else {
+                break;
+            };
+            current = parent;
+        }
+        current.id.as_str()
+    }
+
     pub async fn create_hierarchy(
         &self,
         org_name: &str,
         groups: &[IdpGroup],
     ) -> IdpSyncResult<HashMap<String, Uuid>> {
-        let company_id = self
-            .upsert_unit(org_name, "company", None, org_name, org_name)
-            .await?;
-        info!(company_id = %company_id, org = %org_name, "Company unit ensured");
+        info!(tenant_id = %self.tenant_id, org = %org_name, "Ensuring tenant-root GitHub hierarchy");
 
-        let mut slug_to_unit_id: HashMap<String, Uuid> = HashMap::new();
+        let by_slug: HashMap<String, &IdpGroup> = groups
+            .iter()
+            .map(|group| (group.id.clone(), group))
+            .collect();
 
-        let mut top_level: Vec<&IdpGroup> = Vec::new();
-        let mut nested: Vec<&IdpGroup> = Vec::new();
-
+        let mut org_inputs: BTreeMap<String, (String, Vec<(String, String)>)> = BTreeMap::new();
         for group in groups {
-            match group.group_type {
-                GroupType::GitHubTeam => top_level.push(group),
-                GroupType::GitHubNestedTeam => nested.push(group),
-                _ => {}
+            let root_slug = Self::root_slug(group, &by_slug).to_string();
+            let root_group = by_slug.get(&root_slug).copied().ok_or_else(|| {
+                IdpSyncError::ConfigError(format!("Missing root group '{root_slug}'"))
+            })?;
+            let entry = org_inputs
+                .entry(root_slug.clone())
+                .or_insert_with(|| (root_group.name.clone(), Vec::new()));
+            entry.1.push((group.id.clone(), group.name.clone()));
+        }
+
+        let mut org_ids: HashMap<String, Uuid> = HashMap::new();
+        let mut slug_to_team_id: HashMap<String, Uuid> = HashMap::new();
+
+        for (org_slug, (org_name, team_entries)) in org_inputs {
+            let org_id: Uuid = sqlx::query_scalar(
+                "INSERT INTO organizations (tenant_id, slug, name, settings, created_at, updated_at)
+                 VALUES ($1, $2, $3, '{}'::jsonb, NOW(), NOW())
+                 ON CONFLICT (tenant_id, slug)
+                 DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
+                 RETURNING id",
+            )
+            .bind(self.tenant_id)
+            .bind(&org_slug)
+            .bind(&org_name)
+            .fetch_one(&self.db_pool)
+            .await
+            .map_err(IdpSyncError::DatabaseError)?;
+            org_ids.insert(org_slug.clone(), org_id);
+
+            for (team_slug, team_name) in team_entries {
+                let team_id: Uuid = sqlx::query_scalar(
+                    "INSERT INTO teams (org_id, slug, name, settings, created_at, updated_at)
+                     VALUES ($1, $2, $3, '{}'::jsonb, NOW(), NOW())
+                     ON CONFLICT (org_id, slug)
+                     DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
+                     RETURNING id",
+                )
+                .bind(org_id)
+                .bind(&team_slug)
+                .bind(&team_name)
+                .fetch_one(&self.db_pool)
+                .await
+                .map_err(IdpSyncError::DatabaseError)?;
+                slug_to_team_id.insert(team_slug.clone(), team_id);
+                debug!(org_slug = %org_slug, team_slug = %team_slug, team_id = %team_id, "Team ensured in modern hierarchy");
             }
         }
 
-        for team in &top_level {
-            let unit_id = self
-                .upsert_unit(
-                    &team.name,
-                    "organization",
-                    Some(company_id),
-                    &team.id,
-                    &team.id,
-                )
-                .await?;
-            slug_to_unit_id.insert(team.id.clone(), unit_id);
-            debug!(slug = %team.id, unit_id = %unit_id, "Organization unit ensured");
-        }
-
-        for team in &nested {
-            let parent_slug = team
-                .description
-                .as_deref()
-                .and_then(|d| d.strip_prefix("parent:"))
-                .unwrap_or("");
-
-            let parent_id = slug_to_unit_id
-                .get(parent_slug)
-                .copied()
-                .unwrap_or(company_id);
-
-            let unit_id = self
-                .upsert_unit(&team.name, "team", Some(parent_id), &team.id, &team.id)
-                .await?;
-            slug_to_unit_id.insert(team.id.clone(), unit_id);
-            debug!(slug = %team.id, parent = %parent_slug, unit_id = %unit_id, "Team unit ensured");
-        }
-
-        Ok(slug_to_unit_id)
+        Ok(slug_to_team_id)
     }
 
     pub async fn store_group_to_team_mappings(
@@ -890,49 +898,6 @@ impl GitHubHierarchyMapper {
         }
         info!(count = mappings.len(), "Group-to-team mappings stored");
         Ok(())
-    }
-
-    async fn upsert_unit(
-        &self,
-        name: &str,
-        unit_type: &str,
-        parent_id: Option<Uuid>,
-        external_id: &str,
-        slug: &str,
-    ) -> IdpSyncResult<Uuid> {
-        let now_ts = Utc::now();
-        let new_id = Uuid::new_v4().to_string();
-        let tenant_str = self.tenant_id.to_string();
-        let parent_str = parent_id.map(|p| p.to_string());
-
-        let row = sqlx::query_scalar::<_, String>(
-            r"
-            INSERT INTO organizational_units (id, tenant_id, name, type, parent_id, external_id, idp_provider, slug, metadata, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, 'github', $8, '{}', $7, $7)
-            ON CONFLICT (tenant_id, external_id, idp_provider) WHERE external_id IS NOT NULL AND idp_provider IS NOT NULL
-            DO UPDATE SET
-                name = EXCLUDED.name,
-                parent_id = EXCLUDED.parent_id,
-                type = EXCLUDED.type,
-                slug = EXCLUDED.slug,
-                updated_at = EXCLUDED.updated_at
-            RETURNING id
-            ",
-        )
-        .bind(&new_id)
-        .bind(&tenant_str)
-        .bind(name)
-        .bind(unit_type)
-        .bind(&parent_str)
-        .bind(external_id)
-        .bind(now_ts)
-        .bind(slug)
-        .fetch_one(&self.db_pool)
-        .await
-        .map_err(IdpSyncError::DatabaseError)?;
-
-        row.parse::<Uuid>()
-            .map_err(|e| IdpSyncError::ConfigError(format!("Invalid UUID in DB: {e}")))
     }
 }
 
@@ -990,7 +955,7 @@ pub async fn bridge_sync_to_governance(
         WITH synced AS (
             INSERT INTO governance_roles (
                 principal_type, principal_id, role,
-                company_id, org_id, team_id,
+                tenant_id, org_id, team_id,
                 granted_by, granted_at
             )
             SELECT
@@ -998,16 +963,18 @@ pub async fn bridge_sync_to_governance(
                 u.id,
                 m.role,
                 NULL::UUID,
-                NULL::UUID,
-                uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::UUID, team_ou.id),
+                o.id,
+                t.id,
                 u.id,
                 NOW()
             FROM users u
             JOIN memberships m ON m.user_id = u.id
-            JOIN organizational_units team_ou ON team_ou.id = m.team_id::TEXT
+            JOIN teams t ON t.id = m.team_id AND t.deleted_at IS NULL
+            JOIN organizations o ON o.id = t.org_id AND o.deleted_at IS NULL
+            WHERE o.tenant_id = $1
             ON CONFLICT (
                 principal_type, principal_id, role,
-                COALESCE(company_id, '00000000-0000-0000-0000-000000000000'::UUID),
+                COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID),
                 COALESCE(org_id, '00000000-0000-0000-0000-000000000000'::UUID),
                 COALESCE(team_id, '00000000-0000-0000-0000-000000000000'::UUID),
                 COALESCE(project_id, '00000000-0000-0000-0000-000000000000'::UUID)
@@ -1018,6 +985,7 @@ pub async fn bridge_sync_to_governance(
         SELECT COUNT(*) FROM synced
         ",
     )
+    .bind(tenant_id)
     .fetch_one(pool)
     .await
     .map_err(IdpSyncError::DatabaseError)?;
@@ -1028,13 +996,15 @@ pub async fn bridge_sync_to_governance(
             INSERT INTO user_roles (user_id, tenant_id, unit_id, role, created_at)
             SELECT
                 u.id::TEXT,
-                team_ou.tenant_id,
-                team_ou.id,
+                o.tenant_id::TEXT,
+                t.id::TEXT,
                 m.role,
                 NOW()
             FROM users u
             JOIN memberships m ON m.user_id = u.id
-            JOIN organizational_units team_ou ON team_ou.id = m.team_id::TEXT
+            JOIN teams t ON t.id = m.team_id AND t.deleted_at IS NULL
+            JOIN organizations o ON o.id = t.org_id AND o.deleted_at IS NULL
+            WHERE o.tenant_id = $1
             ON CONFLICT (user_id, tenant_id, unit_id, role)
             DO NOTHING
             RETURNING 1
@@ -1042,6 +1012,7 @@ pub async fn bridge_sync_to_governance(
         SELECT COUNT(*) FROM synced
         ",
     )
+    .bind(tenant_id)
     .fetch_one(pool)
     .await
     .map_err(IdpSyncError::DatabaseError)?;

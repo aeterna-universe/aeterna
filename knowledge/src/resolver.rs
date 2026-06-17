@@ -8,7 +8,7 @@
 //! 2. **Groups residuals under their canonical parent** using `Specializes`,
 //!    `ApplicableFrom`, `ExceptionTo`, and `Clarifies` relations (task 6.2).
 //! 3. **Attaches relation metadata** to every returned entry (task 6.3).
-//! 4. **Sorts results** by layer precedence (Company > Org > Team > Project)
+//! 4. **Sorts results** by layer precedence (Tenant > Org > Team > Project)
 //!    and then by variant role rank (Canonical < Specialization < …) so that
 //!    the most authoritative answer always comes first (task 6.4 / CCA prep).
 //!
@@ -50,7 +50,7 @@ pub(crate) const RESIDUAL_RELATION_TYPES: &[KnowledgeRelationType] = &[
 /// # Returns
 ///
 /// A `Vec<KnowledgeQueryResult>` sorted by descending authority:
-///   1. Layer precedence (Company=4 > Org=3 > Team=2 > Project=1)
+///   1. Layer precedence (Tenant=4 > Org=3 > Team=2 > Project=1)
 ///   2. Variant-role rank (Canonical=0 < Specialization=1 < …)
 ///
 /// Each `KnowledgeQueryResult` groups a primary entry with any residual
@@ -292,7 +292,7 @@ mod tests {
         assert_eq!(results.len(), 2);
     }
 
-    // ── 6.1 – Layer precedence: Company ranks above Project ───────────────────
+    // ── 6.1 – Layer precedence: Tenant ranks above Project ───────────────────
 
     #[test]
     fn test_higher_layer_ranks_first() {
@@ -304,8 +304,8 @@ mod tests {
                 None,
             ),
             entry(
-                "c/company",
-                KnowledgeLayer::Company,
+                "t/tenant",
+                KnowledgeLayer::Tenant,
                 KnowledgeStatus::Accepted,
                 None,
             ),
@@ -317,7 +317,7 @@ mod tests {
             ),
         ];
         let results = resolve(entries, HM::new(), false);
-        assert_eq!(results[0].primary.entry.layer, KnowledgeLayer::Company);
+        assert_eq!(results[0].primary.entry.layer, KnowledgeLayer::Tenant);
         assert_eq!(results[1].primary.entry.layer, KnowledgeLayer::Team);
         assert_eq!(results[2].primary.entry.layer, KnowledgeLayer::Project);
     }

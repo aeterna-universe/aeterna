@@ -28,11 +28,11 @@ This guide provides comprehensive troubleshooting steps for common governance is
 
 **Solutions**:
 ```rust
-// Add a mandatory policy at company level
+// Add a mandatory policy at tenant level
 let company_policy = Policy {
     id: "baseline-security".to_string(),
     name: "Baseline Security".to_string(),
-    layer: KnowledgeLayer::Company,
+    layer: KnowledgeLayer::Tenant,
     mode: PolicyMode::Mandatory,  // This is required
     merge_strategy: RuleMergeStrategy::Merge,
     rules: vec![
@@ -54,7 +54,7 @@ engine.add_policy(company_policy);
 
 **Debugging steps**:
 1. Enable verbose logging: `RUST_LOG=debug`
-2. Check policy hierarchy: ensure mandatory policies exist at Company, Org, or Team layers
+2. Check policy hierarchy: ensure mandatory policies exist at Tenant, Org, or Team layers
 3. Verify policy IDs are unique across layers
 4. Check merge strategies don't override mandatory policies incorrectly
 
@@ -173,7 +173,7 @@ merge_strategy: RuleMergeStrategy::Override
 
 #### 2. Mandatory Policy Override Attempt
 ```rust
-// Company mandatory policy - CANNOT be overridden
+// Tenant mandatory policy - CANNOT be overridden
 let company_policy = Policy {
     mode: PolicyMode::Mandatory,
     // ...
@@ -510,7 +510,7 @@ for policy in &active_policies {
 ```rust
 // Manually trace policy hierarchy
 let layers = [
-    KnowledgeLayer::Company,
+    KnowledgeLayer::Tenant,
     KnowledgeLayer::Org,
     KnowledgeLayer::Team,
     KnowledgeLayer::Project,

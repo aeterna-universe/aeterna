@@ -86,7 +86,7 @@ components:
         id: { type: string }
         path: { type: string }
         content: { type: string }
-        layer: { type: string, enum: [company, org, team, project] }
+        layer: { type: string, enum: [tenant, org, team, project] }
         tags: { type: array, items: { type: string } }
         variantRole: { type: string, nullable: true }
         metadata: { type: object }

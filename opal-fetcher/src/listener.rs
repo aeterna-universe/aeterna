@@ -86,7 +86,6 @@ impl ReferentialListener {
 
         // Determine which entity type changed
         let entity_type = match notification.table.as_str() {
-            "companies" => Some("hierarchy"),
             "organizations" => Some("hierarchy"),
             "teams" => Some("hierarchy"),
             "projects" => Some("hierarchy"),
@@ -200,7 +199,6 @@ mod tests {
     fn test_entity_type_mapping() {
         // Test mapping of table names to entity types
         let mappings = vec![
-            ("companies", Some("hierarchy")),
             ("organizations", Some("hierarchy")),
             ("teams", Some("hierarchy")),
             ("projects", Some("hierarchy")),
@@ -213,7 +211,7 @@ mod tests {
 
         for (table, expected) in mappings {
             let result = match table {
-                "companies" | "organizations" | "teams" | "projects" => Some("hierarchy"),
+                "organizations" | "teams" | "projects" => Some("hierarchy"),
                 "users" | "memberships" | "role_assignments" => Some("users"),
                 "agents" => Some("agents"),
                 _ => None,

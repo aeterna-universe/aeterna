@@ -168,7 +168,7 @@ impl Default for AssemblerConfig {
                 MemoryLayer::Project,
                 MemoryLayer::Team,
                 MemoryLayer::Org,
-                MemoryLayer::Company,
+                MemoryLayer::Tenant,
             ],
             min_relevance_score: 0.3,
             enable_caching: true,
@@ -668,7 +668,7 @@ impl ContextAssembler {
         }
 
         // Task 6.4: deterministic ordering
-        //   1. Layer priority (Session > Project > Team > Org > Company by default)
+        //   1. Layer priority (Session > Project > Team > Org > Tenant by default)
         //   2. Variant-role precedence: Canonical first within same layer band
         //   3. Relevance score descending within same role+layer
         entries.sort_by(|a, b| {

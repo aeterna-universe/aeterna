@@ -367,7 +367,7 @@ Return: { iterations: 3, status: "success", output: "All tests passed" }
 
 The Context Architect queries memory layers based on configured priorities:
 
-1. Default layer order: Session → Project → Team → Org → Company
+1. Default layer order: Session → Project → Team → Org → Tenant
 2. Parallel queries if `enable_parallel_queries: true`
 3. Early termination if `enable_early_termination: true` and budget satisfied
 4. Cached results with TTL enforcement

@@ -607,7 +607,7 @@ mod hierarchical_permissions {
 
     #[tokio::test]
     async fn test_memory_layer_hierarchy() {
-        // Memory layers: agent < user < session < project < team < org < company
+        // Memory layers: agent < user < session < project < team < org < tenant
         let policies = r#"
             permit(principal == User::"user1", action == Action::"View", resource == Memory::"user-layer");
             permit(principal == User::"user1", action == Action::"View", resource == Memory::"session-layer");
@@ -989,10 +989,10 @@ mod combined_scenarios {
     #[tokio::test]
     async fn test_complete_governance_scenario() {
         let policies = r#"
-            // Company-level admin
-            permit(principal == User::"company-admin", action == Action::"Admin", resource == Unit::"company");
-            permit(principal == User::"company-admin", action == Action::"View", resource == Knowledge::"company-policy");
-            permit(principal == User::"company-admin", action == Action::"Edit", resource == Knowledge::"company-policy");
+            // Tenant-level admin
+            permit(principal == User::"tenant-admin", action == Action::"Admin", resource == Unit::"tenant");
+            permit(principal == User::"tenant-admin", action == Action::"View", resource == Knowledge::"tenant-policy");
+            permit(principal == User::"tenant-admin", action == Action::"Edit", resource == Knowledge::"tenant-policy");
             
             // Org-level editor
             permit(principal == User::"org-editor", action == Action::"View", resource == Knowledge::"org-pattern");
@@ -1007,23 +1007,23 @@ mod combined_scenarios {
 
         let authorizer = CedarAuthorizer::new(policies, TEST_SCHEMA).unwrap();
 
-        // Company admin has full control
-        let admin_ctx = create_tenant_context("company1", "company-admin");
+        // Tenant admin has full control
+        let admin_ctx = create_tenant_context("tenant1", "tenant-admin");
         assert!(
             authorizer
-                .check_permission(&admin_ctx, "Admin", "Unit::\"company\"")
+                .check_permission(&admin_ctx, "Admin", "Unit::\"tenant\"")
                 .await
                 .unwrap()
         );
         assert!(
             authorizer
-                .check_permission(&admin_ctx, "Edit", "Knowledge::\"company-policy\"")
+                .check_permission(&admin_ctx, "Edit", "Knowledge::\"tenant-policy\"")
                 .await
                 .unwrap()
         );
 
-        // Org editor can edit org patterns but not company policies
-        let editor_ctx = create_tenant_context("company1", "org-editor");
+        // Org editor can edit org patterns but not tenant policies
+        let editor_ctx = create_tenant_context("tenant1", "org-editor");
         assert!(
             authorizer
                 .check_permission(&editor_ctx, "Edit", "Knowledge::\"org-pattern\"")
@@ -1032,13 +1032,13 @@ mod combined_scenarios {
         );
         assert!(
             !authorizer
-                .check_permission(&editor_ctx, "Edit", "Knowledge::\"company-policy\"")
+                .check_permission(&editor_ctx, "Edit", "Knowledge::\"tenant-policy\"")
                 .await
                 .unwrap()
         );
 
         // Project viewer can only view
-        let viewer_ctx = create_tenant_context("company1", "project-viewer");
+        let viewer_ctx = create_tenant_context("tenant1", "project-viewer");
         assert!(
             authorizer
                 .check_permission(&viewer_ctx, "View", "Knowledge::\"project-spec\"")
@@ -1053,7 +1053,7 @@ mod combined_scenarios {
         );
 
         // Automation agent can view as project-viewer
-        let agent_ctx = create_agent_context("company1", "project-viewer", "automation-agent");
+        let agent_ctx = create_agent_context("tenant1", "project-viewer", "automation-agent");
         assert!(
             authorizer
                 .check_permission(&agent_ctx, "View", "Knowledge::\"project-spec\"")

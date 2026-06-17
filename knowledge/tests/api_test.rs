@@ -106,7 +106,6 @@ async fn test_governance_dashboard_api_get_org_report() {
     ));
 
     let tenant_id = TenantId::new(unique_id("t")).unwrap();
-    let company_id = unique_id("c");
     let org_id = unique_id("org");
     let team_id = unique_id("team");
     let project_id = unique_id("p");
@@ -120,9 +119,9 @@ async fn test_governance_dashboard_api_get_org_report() {
     };
 
     let company_unit = OrganizationalUnit {
-        id: company_id.clone(),
-        name: "Company 1".to_string(),
-        unit_type: UnitType::Company,
+        id: tenant_id.as_str().to_string(),
+        name: "Tenant Root".to_string(),
+        unit_type: UnitType::Organization,
         tenant_id: tenant_id.clone(),
         parent_id: None,
         metadata: std::collections::HashMap::new(),
@@ -137,7 +136,7 @@ async fn test_governance_dashboard_api_get_org_report() {
         name: "Org 1".to_string(),
         unit_type: UnitType::Organization,
         tenant_id: tenant_id.clone(),
-        parent_id: Some(company_id.clone()),
+        parent_id: Some(tenant_id.as_str().to_string()),
         metadata: std::collections::HashMap::new(),
         created_at: chrono::DateTime::from_timestamp(1000, 0).unwrap(),
         updated_at: chrono::DateTime::from_timestamp(1000, 0).unwrap(),
@@ -183,10 +182,10 @@ async fn test_governance_dashboard_api_get_org_report() {
     };
     storage.store_drift_result(drift).await.unwrap();
 
-    let report = get_org_report(api.clone(), &ctx, &company_id)
+    let report = get_org_report(api.clone(), &ctx, tenant_id.as_str())
         .await
         .unwrap();
-    assert_eq!(report["orgId"], company_id);
+    assert_eq!(report["orgId"], tenant_id.as_str());
     assert_eq!(report["averageDrift"], 0.5);
     assert_eq!(report["projectCount"], 1);
 }

@@ -30,7 +30,7 @@ pub struct Policy {
 | `id` | `String` | Unique identifier for the policy |
 | `name` | `String` | Human-readable policy name |
 | `description` | `Option<String>` | Optional detailed description |
-| `layer` | `KnowledgeLayer` | Organizational layer (Company, Org, Team, Project) |
+| `layer` | `KnowledgeLayer` | Organizational layer (Tenant, Org, Team, Project) |
 | `mode` | `PolicyMode` | Optional or Mandatory enforcement |
 | `merge_strategy` | `RuleMergeStrategy` | How to combine with parent policies |
 | `rules` | `Vec<PolicyRule>` | List of constraint rules |
@@ -150,7 +150,7 @@ pub struct PolicyRule {
 Policies flow down through organizational layers:
 
 ```
-Company (highest precedence)
+Tenant (highest precedence)
     ↓
 Organization
     ↓
@@ -160,7 +160,7 @@ Project (lowest precedence)
 ```
 
 ### Layer Precedence
-- Company policies have the highest precedence
+- Tenant policies have the highest precedence
 - Project policies have the lowest precedence
 - Lower layers can override higher layers using appropriate merge strategies
 - Mandatory policies from higher layers cannot be overridden (except with Override strategy)
@@ -315,7 +315,7 @@ let security_policy = Policy {
     id: "security-baseline".to_string(),
     name: "Security Baseline".to_string(),
     description: Some("Core security requirements".to_string()),
-    layer: KnowledgeLayer::Company,
+    layer: KnowledgeLayer::Tenant,
     mode: PolicyMode::Mandatory,
     merge_strategy: RuleMergeStrategy::Merge,
     rules: vec![
@@ -457,7 +457,7 @@ pub enum GovernanceEvent {
 
 ### Policy Design
 
-1. **Start with company-level mandatory policies** for core requirements
+1. **Start with tenant-level mandatory policies** for core requirements
 2. **Use org-level policies** for department-specific constraints
 3. **Apply team-level policies** for coding standards and patterns
 4. **Reserve project-level policies** for project-specific requirements

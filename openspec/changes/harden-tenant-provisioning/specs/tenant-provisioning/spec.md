@@ -108,7 +108,7 @@ The first-run bootstrap SHALL be idempotent, produce a machine-readable status r
 
 #### Scenario: Bootstrap success makes pod ready
 - **WHEN** bootstrap runs at pod start with valid environment inputs
-- **AND** creates the PlatformAdmin identity, the bootstrap company / org / team, and initial tenant record
+- **AND** creates the PlatformAdmin identity, the bootstrap tenant / org / team, and initial tenant record
 - **THEN** `/ready` SHALL return 200 once all steps report success
 - **AND** `/api/v1/admin/bootstrap/status` SHALL return `{ok: true, steps: [...]}`
 

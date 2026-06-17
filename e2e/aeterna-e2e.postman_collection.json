@@ -122,7 +122,7 @@
       "type": "string"
     },
     {
-      "key": "authCompanyKnowledgeId",
+      "key": "authTenantKnowledgeId",
       "value": "",
       "type": "string"
     },
@@ -202,7 +202,7 @@
       "type": "string"
     },
     {
-      "key": "tenantAdminCompanyId",
+      "key": "tenantAdminTenantId",
       "value": "",
       "type": "string"
     }
@@ -3650,7 +3650,7 @@
           }
         },
         {
-          "name": "8.3 Create Company-layer entry (PR-track governance)",
+          "name": "8.3 Create Tenant-layer entry (PR-track governance)",
           "event": [
             {
               "listen": "test",
@@ -3708,7 +3708,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"# E2E Company Knowledge\\n\\nCompany-layer entry created by Newman at {{scenarioRunTs}} for PR-track governance test.\",\n  \"path\": \"e2e-company-{{scenarioRunTs}}\",\n  \"layer\": \"company\",\n  \"tags\": [\"e2e\", \"company\", \"governance\"],\n  \"metadata\": {\"source\": \"newman-e2e\", \"track\": \"pr\"}\n}",
+              "raw": "{\n  \"content\": \"# E2E Tenant Knowledge\\n\\nTenant-layer entry created by Newman at {{scenarioRunTs}} for PR-track governance test.\",\n  \"path\": \"e2e-tenant-{{scenarioRunTs}}\",\n  \"layer\": \"tenant\",\n  \"tags\": [\"e2e\", \"tenant\", \"governance\"],\n  \"metadata\": {\"source\": \"newman-e2e\", \"track\": \"pr\"}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -4388,7 +4388,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"jsonrpc\":\"2.0\",\"id\":107,\"method\":\"tools/call\",\"params\":{\"name\":\"governance_hierarchy_navigate\",\"arguments\":{\"direction\":\"children\",\"unit_type\":\"company\"},\"tenantContext\":{\"tenant_id\":\"{{tenantId}}\",\"org_id\":\"e2e-org\",\"team_id\":\"e2e-team\",\"project_id\":\"e2e-project\",\"user_id\":\"{{pluginGithubLogin}}\"}}}",
+              "raw": "{\"jsonrpc\":\"2.0\",\"id\":107,\"method\":\"tools/call\",\"params\":{\"name\":\"governance_hierarchy_navigate\",\"arguments\":{\"direction\":\"children\",\"unit_type\":\"tenant\"},\"tenantContext\":{\"tenant_id\":\"{{tenantId}}\",\"org_id\":\"e2e-org\",\"team_id\":\"e2e-team\",\"project_id\":\"e2e-project\",\"user_id\":\"{{pluginGithubLogin}}\"}}}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -7832,7 +7832,7 @@
           }
         },
         {
-          "name": "20.4 Create Company-layer entry (PR-track, authenticated)",
+          "name": "20.4 Create Tenant-layer entry (PR-track, authenticated)",
           "event": [
             {
               "listen": "test",
@@ -7843,7 +7843,7 @@
                   "pm.test('Commit indicates PR track', () => {",
                   "    const json = pm.response.json();",
                   "    pm.expect(json.commit).to.match(/^pr:/);",
-                  "    pm.collectionVariables.set('authCompanyKnowledgeId', json.id);",
+                  "    pm.collectionVariables.set('authTenantKnowledgeId', json.id);",
                   "});"
                 ]
               }
@@ -7880,7 +7880,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"content\": \"# E2E Auth Company Knowledge\\n\\nCompany-layer entry for PR-track governance test.\", \"path\": \"e2e-auth-company-{{authScenarioTs}}\", \"layer\": \"company\", \"tags\": [\"e2e\", \"auth\", \"company\"], \"metadata\": {\"source\": \"newman-e2e-auth\"}}",
+              "raw": "{\"content\": \"# E2E Auth Tenant Knowledge\\n\\nTenant-layer entry for PR-track governance test.\", \"path\": \"e2e-auth-tenant-{{authScenarioTs}}\", \"layer\": \"tenant\", \"tags\": [\"e2e\", \"auth\", \"tenant\"], \"metadata\": {\"source\": \"newman-e2e-auth\"}}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -11605,7 +11605,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\"jsonrpc\":\"2.0\",\"id\":853,\"method\":\"tools/call\",\"params\":{\"name\":\"aeterna_knowledge_propose\",\"arguments\":{\"description\":\"Production services must not use alpha or beta version dependencies unless explicitly approved by the architect\",\"proposedBy\":\"e2e-user@test.com\",\"knowledgeType\":\"policy\",\"layer\":\"company\"},\"tenantContext\":{\"tenant_id\":\"{{tenantId}}\",\"user_id\":\"{{pluginGithubLogin}}\"}}}",
+              "raw": "{\"jsonrpc\":\"2.0\",\"id\":853,\"method\":\"tools/call\",\"params\":{\"name\":\"aeterna_knowledge_propose\",\"arguments\":{\"description\":\"Production services must not use alpha or beta version dependencies unless explicitly approved by the architect\",\"proposedBy\":\"e2e-user@test.com\",\"knowledgeType\":\"policy\",\"layer\":\"tenant\"},\"tenantContext\":{\"tenant_id\":\"{{tenantId}}\",\"user_id\":\"{{pluginGithubLogin}}\"}}}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -13870,7 +13870,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"principal\": \"11111111-2222-3333-4444-555555555555\",\n  \"principalType\": \"user\",\n  \"role\": \"architect\",\n  \"scope\": \"company\"\n}"
+              "raw": "{\n  \"principal\": \"11111111-2222-3333-4444-555555555555\",\n  \"principalType\": \"user\",\n  \"role\": \"architect\",\n  \"scope\": \"tenant\"\n}"
             }
           },
           "event": [
@@ -13896,11 +13896,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Ensure tenantAdminCompanyId is set for scope resolution",
+                  "// Ensure tenantAdminTenantId is set for scope resolution",
                   "const baseUrl = pm.environment.get('baseUrl') || '';",
                   "const token = pm.collectionVariables.get('pluginAccessToken') || '';",
                   "const tenantId = pm.collectionVariables.get('tenantId') || '';",
-                  "if (!pm.collectionVariables.get('tenantAdminCompanyId') && baseUrl && token) {",
+                  "if (!pm.collectionVariables.get('tenantAdminTenantId') && baseUrl && token) {",
                   "    pm.sendRequest({",
                   "        url: baseUrl + '/api/v1/admin/hierarchy',",
                   "        method: 'GET',",
@@ -13913,8 +13913,8 @@
                   "            try {",
                   "                const data = res.json();",
                   "                const units = data.units || data.items || data || [];",
-                  "                const company = Array.isArray(units) ? units.find(u => u.unitType === 'company' || u.unit_type === 'company') : null;",
-                  "                if (company) pm.collectionVariables.set('tenantAdminCompanyId', company.id);",
+                  "                const tenant = Array.isArray(units) ? units.find(u => u.unitType === 'tenant' || u.unit_type === 'tenant') : null;",
+                  "                if (tenant) pm.collectionVariables.set('tenantAdminTenantId', tenant.id);",
                   "            } catch(e) {}",
                   "        }",
                   "    });",
@@ -14020,7 +14020,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"principal\": \"not-a-uuid\",\n  \"principalType\": \"user\",\n  \"role\": \"architect\",\n  \"scope\": \"company\"\n}"
+              "raw": "{\n  \"principal\": \"not-a-uuid\",\n  \"principalType\": \"user\",\n  \"role\": \"architect\",\n  \"scope\": \"tenant\"\n}"
             }
           },
           "event": [
@@ -14083,7 +14083,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"E2E Organization\",\n  \"unit_type\": \"organization\",\n  \"parent_id\": \"{{tenantAdminCompanyId}}\",\n  \"metadata\": {},\n  \"source_owner\": \"admin\"\n}"
+              "raw": "{\n  \"name\": \"E2E Organization\",\n  \"unit_type\": \"organization\",\n  \"parent_id\": \"{{tenantAdminTenantId}}\",\n  \"metadata\": {},\n  \"source_owner\": \"admin\"\n}"
             }
           },
           "event": [
@@ -14109,7 +14109,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Get company unit ID for 33.1 parent_id",
+                  "// Get tenant unit ID for 33.1 parent_id",
                   "const baseUrl = pm.collectionVariables.get('baseUrl') || pm.environment.get('baseUrl');",
                   "const token = pm.collectionVariables.get('tenantAdminToken') || pm.collectionVariables.get('pluginAccessToken');",
                   "const tenantId = pm.collectionVariables.get('tenantId');",
@@ -14125,9 +14125,9 @@
                   "        try {",
                   "            const data = res.json();",
                   "            const units = data.units || data.items || data || [];",
-                  "            const company = Array.isArray(units) ? units.find(u => u.unit_type === 'company' || u.unitType === 'Company') : null;",
-                  "            if (company) {",
-                  "                pm.collectionVariables.set('tenantAdminCompanyId', company.id);",
+                  "            const tenant = Array.isArray(units) ? units.find(u => u.unit_type === 'tenant' || u.unitType === 'Tenant') : null;",
+                  "            if (tenant) {",
+                  "                pm.collectionVariables.set('tenantAdminTenantId', tenant.id);",
                   "            }",
                   "        } catch(e) {}",
                   "    }",
@@ -16785,7 +16785,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"query\": \"API design standards REST idempotency versioning org policy\", \"limit\": 10, \"layers\": [\"org\", \"company\"]}",
+              "raw": "{\"query\": \"API design standards REST idempotency versioning org policy\", \"limit\": 10, \"layers\": [\"org\", \"tenant\"]}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -17047,7 +17047,7 @@
           "response": []
         },
         {
-          "name": "40.19 [Architect] Assemble company-wide CCA context for design doc",
+          "name": "40.19 [Architect] Assemble tenant-wide CCA context for design doc",
           "request": {
             "method": "POST",
             "header": [
@@ -17064,7 +17064,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\"jsonrpc\": \"2.0\", \"id\": 927, \"method\": \"tools/call\", \"params\": {\"name\": \"context_assemble\", \"arguments\": {\"query\": \"API standards idempotency retry distributed systems company policy\", \"layers\": [\"org\", \"company\"], \"token_budget\": 8000, \"view_mode\": \"AX\"}, \"tenantContext\": {\"tenant_id\": \"{{tenantId}}\", \"org_id\": \"e2e-org\", \"team_id\": \"e2e-team\", \"project_id\": \"e2e-payments\", \"user_id\": \"{{pluginGithubLogin}}\"}}}",
+              "raw": "{\"jsonrpc\": \"2.0\", \"id\": 927, \"method\": \"tools/call\", \"params\": {\"name\": \"context_assemble\", \"arguments\": {\"query\": \"API standards idempotency retry distributed systems tenant policy\", \"layers\": [\"org\", \"tenant\"], \"token_budget\": 8000, \"view_mode\": \"AX\"}, \"tenantContext\": {\"tenant_id\": \"{{tenantId}}\", \"org_id\": \"e2e-org\", \"team_id\": \"e2e-team\", \"project_id\": \"e2e-payments\", \"user_id\": \"{{pluginGithubLogin}}\"}}}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -17089,7 +17089,7 @@
               "script": {
                 "exec": [
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
-                  "pm.test('[Architect] Company-wide CCA context assembled', () => {",
+                  "pm.test('[Architect] Tenant-wide CCA context assembled', () => {",
                   "    const json = pm.response.json();",
                   "    pm.expect(json.jsonrpc).to.eql('2.0');",
                   "    pm.expect(json.id).to.eql(927);",

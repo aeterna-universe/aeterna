@@ -175,9 +175,9 @@ mod postgres_isolation {
             .bind(company_a.to_string())
             .execute(owner_conn.as_mut())
             .await
-            .expect("set company A scope");
+            .expect("set tenant A scope");
 
-        sqlx::query("INSERT INTO governance_configs (id, company_id, approval_mode) VALUES ($1, $2, 'standard')")
+        sqlx::query("INSERT INTO governance_configs (id, tenant_id, approval_mode) VALUES ($1, $2, 'standard')")
             .bind(config_id)
             .bind(company_a)
             .execute(owner_conn.as_mut())
@@ -186,8 +186,8 @@ mod postgres_isolation {
 
         sqlx::query(
             "INSERT INTO approval_requests (
-                id, request_type, target_type, company_id, title, requestor_type, requestor_id
-             ) VALUES ($1, 'policy_change', 'policy', $2, 'Company A change', 'user', $3)",
+                id, request_type, target_type, tenant_id, title, requestor_type, requestor_id
+             ) VALUES ($1, 'policy_change', 'policy', $2, 'Tenant A change', 'user', $3)",
         )
         .bind(request_id)
         .bind(company_a)
@@ -198,7 +198,7 @@ mod postgres_isolation {
 
         sqlx::query(
             "INSERT INTO governance_roles (
-                id, principal_type, principal_id, role, company_id, granted_by
+                id, principal_type, principal_id, role, tenant_id, granted_by
              ) VALUES ($1, 'user', $2, 'Admin', $3, $4)",
         )
         .bind(role_id)
@@ -239,7 +239,7 @@ mod postgres_isolation {
             .bind(company_b.to_string())
             .execute(attacker_conn.as_mut())
             .await
-            .expect("set company B scope");
+            .expect("set tenant B scope");
 
         let hidden_from_other_company: (i64, i64, i64, i64) = sqlx::query_as(
             "SELECT
@@ -250,12 +250,12 @@ mod postgres_isolation {
         )
         .fetch_one(attacker_conn.as_mut())
         .await
-        .expect("cross-company visibility query");
+        .expect("cross-tenant visibility query");
 
         assert_eq!(
             hidden_from_other_company,
             (0, 0, 0, 0),
-            "SECURITY REGRESSION: company-scoped governance rows leaked across companies"
+            "SECURITY REGRESSION: tenant-scoped governance rows leaked across tenants"
         );
     }
 }

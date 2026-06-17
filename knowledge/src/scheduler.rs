@@ -513,7 +513,7 @@ impl GovernanceScheduler {
         let mut total_requeued = 0;
 
         for unit in units {
-            if unit.unit_type == UnitType::Company {
+            if unit.parent_id.is_none() {
                 let ctx = TenantContext::new(unit.tenant_id.clone(), UserId::default());
 
                 let dead_letters = storage
@@ -1476,11 +1476,11 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    fn create_test_company_unit(id: &str, tenant_id: TenantId) -> OrganizationalUnit {
+    fn create_test_root_org_unit(id: &str, tenant_id: TenantId) -> OrganizationalUnit {
         OrganizationalUnit {
             id: id.to_string(),
-            name: format!("Company {}", id),
-            unit_type: UnitType::Company,
+            name: format!("Root Org {}", id),
+            unit_type: UnitType::Organization,
             tenant_id,
             parent_id: None,
             metadata: HashMap::new(),
@@ -1491,9 +1491,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_run_dlq_processing_job_with_company_unit() {
+    async fn test_run_dlq_processing_job_with_root_org_unit() {
         let tenant_id = create_test_tenant();
-        let units = vec![create_test_company_unit("company-1", tenant_id.clone())];
+        let units = vec![create_test_root_org_unit("root-org-1", tenant_id.clone())];
 
         let storage = Arc::new(MockStorage::with_units(units));
         let engine = Arc::new(GovernanceEngine::new().with_storage(storage.clone()));
@@ -1586,7 +1586,7 @@ mod tests {
         let tenant_id = create_test_tenant();
         let units = vec![
             create_test_org_unit("org-1", tenant_id.clone()),
-            create_test_company_unit("company-1", tenant_id.clone()),
+            create_test_root_org_unit("root-org-1", tenant_id.clone()),
         ];
 
         let storage = Arc::new(MockStorage::with_units(units));

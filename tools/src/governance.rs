@@ -47,7 +47,7 @@ impl Tool for UnitCreateTool {
     }
 
     fn description(&self) -> &str {
-        "Create a new organizational unit (Company, Organization, Team, or Project)."
+        "Create a new organizational unit (Organization, Team, or Project)."
     }
 
     fn input_schema(&self) -> Value {
@@ -57,7 +57,7 @@ impl Tool for UnitCreateTool {
                 "name": { "type": "string", "description": "Name of the unit" },
                 "unit_type": {
                     "type": "string",
-                    "enum": ["company", "organization", "team", "project"],
+                    "enum": ["tenant", "organization", "team", "project"],
                     "description": "Type of the unit"
                 },
                 "parent_id": { "type": "string", "description": "Parent unit ID" },
@@ -75,8 +75,7 @@ impl Tool for UnitCreateTool {
         let ctx = p.tenant_context.ok_or("Missing tenant context")?;
 
         let unit_type = match p.unit_type.as_str() {
-            "company" => UnitType::Company,
-            "organization" => UnitType::Organization,
+            "tenant" | "organization" => UnitType::Organization,
             "team" => UnitType::Team,
             "project" => UnitType::Project,
             _ => return Err("Invalid unit type".into()),
@@ -429,7 +428,7 @@ use storage::governance::{
     GovernanceConfig, GovernanceStorage, PrincipalType, RequestFilters, RequestStatus, RiskLevel,
 };
 
-/// Tool to configure governance settings for a scope (company, org, team,
+/// Tool to configure governance settings for a scope (tenant, org, team,
 /// project).
 pub struct GovernanceConfigureTool {
     storage: Arc<GovernanceStorage>,
@@ -447,8 +446,8 @@ impl GovernanceConfigureTool {
 
 #[derive(Serialize, Deserialize, JsonSchema, Validate)]
 pub struct GovernanceConfigureParams {
-    /// Company ID for company-level config
-    pub company_id: Option<String>,
+    /// Tenant ID for tenant-level config
+    pub tenant_id: Option<String>,
     /// Organization ID for org-level config
     pub org_id: Option<String>,
     /// Team ID for team-level config
@@ -493,7 +492,7 @@ impl Tool for GovernanceConfigureTool {
         json!({
             "type": "object",
             "properties": {
-                "company_id": { "type": "string", "description": "Company ID" },
+                "tenant_id": { "type": "string", "description": "Tenant ID" },
                 "org_id": { "type": "string", "description": "Organization ID" },
                 "team_id": { "type": "string", "description": "Team ID" },
                 "project_id": { "type": "string", "description": "Project ID" },
@@ -514,7 +513,7 @@ impl Tool for GovernanceConfigureTool {
                 "tenantContext": { "$ref": "#/definitions/TenantContext" }
             },
             "anyOf": [
-                { "required": ["company_id"] },
+                { "required": ["tenant_id"] },
                 { "required": ["org_id"] },
                 { "required": ["team_id"] },
                 { "required": ["project_id"] }
@@ -532,7 +531,7 @@ impl Tool for GovernanceConfigureTool {
         let existing = self
             .storage
             .get_effective_config(
-                p.company_id.as_ref().and_then(|s| s.parse().ok()),
+                p.tenant_id.as_ref().and_then(|s| s.parse().ok()),
                 p.org_id.as_ref().and_then(|s| s.parse().ok()),
                 p.team_id.as_ref().and_then(|s| s.parse().ok()),
                 p.project_id.as_ref().and_then(|s| s.parse().ok()),
@@ -543,7 +542,7 @@ impl Tool for GovernanceConfigureTool {
         // Build new config with overrides
         let config = GovernanceConfig {
             id: existing.id,
-            company_id: p.company_id.as_ref().and_then(|s| s.parse().ok()),
+            tenant_id: p.tenant_id.as_ref().and_then(|s| s.parse().ok()),
             org_id: p.org_id.as_ref().and_then(|s| s.parse().ok()),
             team_id: p.team_id.as_ref().and_then(|s| s.parse().ok()),
             project_id: p.project_id.as_ref().and_then(|s| s.parse().ok()),
@@ -575,8 +574,8 @@ impl Tool for GovernanceConfigureTool {
             .publish_event(GovernanceEvent::ConfigUpdated {
                 config_id: config_id.to_string(),
                 scope: format!(
-                    "company={:?},org={:?},team={:?},project={:?}",
-                    p.company_id, p.org_id, p.team_id, p.project_id
+                    "tenant={:?},org={:?},team={:?},project={:?}",
+                    p.tenant_id, p.org_id, p.team_id, p.project_id
                 ),
                 tenant_id: ctx.tenant_id.clone(),
                 timestamp: chrono::Utc::now().timestamp(),
@@ -604,7 +603,7 @@ impl GovernanceConfigGetTool {
 
 #[derive(Serialize, Deserialize, JsonSchema, Validate)]
 pub struct GovernanceConfigGetParams {
-    pub company_id: Option<String>,
+    pub tenant_id: Option<String>,
     pub org_id: Option<String>,
     pub team_id: Option<String>,
     pub project_id: Option<String>,
@@ -626,7 +625,7 @@ impl Tool for GovernanceConfigGetTool {
         json!({
             "type": "object",
             "properties": {
-                "company_id": { "type": "string" },
+                "tenant_id": { "type": "string" },
                 "org_id": { "type": "string" },
                 "team_id": { "type": "string" },
                 "project_id": { "type": "string" },
@@ -642,7 +641,7 @@ impl Tool for GovernanceConfigGetTool {
         let config = self
             .storage
             .get_effective_config(
-                p.company_id.as_ref().and_then(|s| s.parse().ok()),
+                p.tenant_id.as_ref().and_then(|s| s.parse().ok()),
                 p.org_id.as_ref().and_then(|s| s.parse().ok()),
                 p.team_id.as_ref().and_then(|s| s.parse().ok()),
                 p.project_id.as_ref().and_then(|s| s.parse().ok()),
@@ -680,7 +679,7 @@ pub struct GovernanceRequestCreateParams {
     /// Optional target ID
     pub target_id: Option<String>,
     /// Scope IDs
-    pub company_id: Option<String>,
+    pub tenant_id: Option<String>,
     pub org_id: Option<String>,
     pub team_id: Option<String>,
     pub project_id: Option<String>,
@@ -721,7 +720,7 @@ impl Tool for GovernanceRequestCreateTool {
                 },
                 "target_type": { "type": "string", "description": "What is being changed" },
                 "target_id": { "type": "string", "description": "ID of target being changed" },
-                "company_id": { "type": "string" },
+                "tenant_id": { "type": "string" },
                 "org_id": { "type": "string" },
                 "team_id": { "type": "string" },
                 "project_id": { "type": "string" },
@@ -751,7 +750,7 @@ impl Tool for GovernanceRequestCreateTool {
         let config = self
             .storage
             .get_effective_config(
-                p.company_id.as_ref().and_then(|s| s.parse().ok()),
+                p.tenant_id.as_ref().and_then(|s| s.parse().ok()),
                 p.org_id.as_ref().and_then(|s| s.parse().ok()),
                 p.team_id.as_ref().and_then(|s| s.parse().ok()),
                 p.project_id.as_ref().and_then(|s| s.parse().ok()),
@@ -772,7 +771,7 @@ impl Tool for GovernanceRequestCreateTool {
                 request_type: p.request_type.parse().map_err(|e: String| e)?,
                 target_type: p.target_type,
                 target_id: p.target_id,
-                company_id: p.company_id.as_ref().and_then(|s| s.parse().ok()),
+                tenant_id: p.tenant_id.as_ref().and_then(|s| s.parse().ok()),
                 org_id: p.org_id.as_ref().and_then(|s| s.parse().ok()),
                 team_id: p.team_id.as_ref().and_then(|s| s.parse().ok()),
                 project_id: p.project_id.as_ref().and_then(|s| s.parse().ok()),
@@ -801,7 +800,7 @@ impl Tool for GovernanceRequestCreateTool {
             request_type: p.request_type.parse().map_err(|e: String| e)?,
             target_type: p.target_type,
             target_id: p.target_id,
-            company_id: p.company_id.as_ref().and_then(|s| s.parse().ok()),
+            tenant_id: p.tenant_id.as_ref().and_then(|s| s.parse().ok()),
             org_id: p.org_id.as_ref().and_then(|s| s.parse().ok()),
             team_id: p.team_id.as_ref().and_then(|s| s.parse().ok()),
             project_id: p.project_id.as_ref().and_then(|s| s.parse().ok()),
@@ -1137,7 +1136,7 @@ impl GovernanceRequestListTool {
 #[derive(Serialize, Deserialize, JsonSchema, Validate)]
 pub struct GovernanceRequestListParams {
     pub request_type: Option<String>,
-    pub company_id: Option<String>,
+    pub tenant_id: Option<String>,
     pub org_id: Option<String>,
     pub team_id: Option<String>,
     pub project_id: Option<String>,
@@ -1165,7 +1164,7 @@ impl Tool for GovernanceRequestListTool {
                     "type": "string",
                     "enum": ["policy", "knowledge", "memory", "role", "config"]
                 },
-                "company_id": { "type": "string" },
+                "tenant_id": { "type": "string" },
                 "org_id": { "type": "string" },
                 "team_id": { "type": "string" },
                 "project_id": { "type": "string" },
@@ -1182,7 +1181,7 @@ impl Tool for GovernanceRequestListTool {
 
         let filters = RequestFilters {
             request_type: p.request_type.as_ref().and_then(|s| s.parse().ok()),
-            company_id: p.company_id.as_ref().and_then(|s| s.parse().ok()),
+            tenant_id: p.tenant_id.as_ref().and_then(|s| s.parse().ok()),
             org_id: p.org_id.as_ref().and_then(|s| s.parse().ok()),
             team_id: p.team_id.as_ref().and_then(|s| s.parse().ok()),
             project_id: p.project_id.as_ref().and_then(|s| s.parse().ok()),
@@ -1409,7 +1408,7 @@ pub struct GovernanceRoleAssignParams {
     /// Role name (e.g., "approver", "admin", "auditor")
     pub role: String,
     /// Scope
-    pub company_id: Option<String>,
+    pub tenant_id: Option<String>,
     pub org_id: Option<String>,
     pub team_id: Option<String>,
     pub project_id: Option<String>,
@@ -1445,7 +1444,7 @@ impl Tool for GovernanceRoleAssignTool {
                     "enum": ["approver", "admin", "auditor", "policy_admin", "knowledge_admin"],
                     "description": "Governance role"
                 },
-                "company_id": { "type": "string" },
+                "tenant_id": { "type": "string" },
                 "org_id": { "type": "string" },
                 "team_id": { "type": "string" },
                 "project_id": { "type": "string" },
@@ -1471,7 +1470,7 @@ impl Tool for GovernanceRoleAssignTool {
             principal_type: p.principal_type.parse().map_err(|e: String| e)?,
             principal_id: p.principal_id.parse()?,
             role: p.role.clone(),
-            company_id: p.company_id.as_ref().and_then(|s| s.parse().ok()),
+            tenant_id: p.tenant_id.as_ref().and_then(|s| s.parse().ok()),
             org_id: p.org_id.as_ref().and_then(|s| s.parse().ok()),
             team_id: p.team_id.as_ref().and_then(|s| s.parse().ok()),
             project_id: p.project_id.as_ref().and_then(|s| s.parse().ok()),
@@ -1599,7 +1598,7 @@ impl GovernanceRoleListTool {
 
 #[derive(Serialize, Deserialize, JsonSchema, Validate)]
 pub struct GovernanceRoleListParams {
-    pub company_id: Option<String>,
+    pub tenant_id: Option<String>,
     pub org_id: Option<String>,
     pub team_id: Option<String>,
     #[serde(rename = "tenantContext")]
@@ -1620,7 +1619,7 @@ impl Tool for GovernanceRoleListTool {
         json!({
             "type": "object",
             "properties": {
-                "company_id": { "type": "string" },
+                "tenant_id": { "type": "string" },
                 "org_id": { "type": "string" },
                 "team_id": { "type": "string" },
                 "tenantContext": { "$ref": "#/definitions/TenantContext" }
@@ -1635,7 +1634,7 @@ impl Tool for GovernanceRoleListTool {
         let roles = self
             .storage
             .list_roles(
-                p.company_id.as_ref().and_then(|s| s.parse().ok()),
+                p.tenant_id.as_ref().and_then(|s| s.parse().ok()),
                 p.org_id.as_ref().and_then(|s| s.parse().ok()),
                 p.team_id.as_ref().and_then(|s| s.parse().ok()),
             )
@@ -1712,7 +1711,7 @@ mod tests {
         let result = tool
             .call(serde_json::json!({
                 "name": "Acme Platform",
-                "unit_type": "company",
+                "unit_type": "tenant",
                 "tenantContext": tenant_ctx_json("acme", "user-1")
             }))
             .await
@@ -1736,7 +1735,7 @@ mod tests {
         // Create parent first
         tool.call(serde_json::json!({
             "name": "Parent Corp",
-            "unit_type": "company",
+            "unit_type": "tenant",
             "tenantContext": tenant_ctx_json("t", "u")
         }))
         .await
@@ -1983,7 +1982,7 @@ mod tests {
         let gp = mk_core::types::OrganizationalUnit {
             id: "gp".to_string(),
             name: "GrandParent".to_string(),
-            unit_type: mk_core::types::UnitType::Company,
+            unit_type: mk_core::types::UnitType::Organization,
             parent_id: None,
             tenant_id: mk_core::types::TenantId::new("t".to_string()).unwrap(),
             metadata: std::collections::HashMap::new(),
@@ -2042,7 +2041,7 @@ mod tests {
         let root = mk_core::types::OrganizationalUnit {
             id: "root".to_string(),
             name: "Root".to_string(),
-            unit_type: mk_core::types::UnitType::Company,
+            unit_type: mk_core::types::UnitType::Organization,
             parent_id: None,
             tenant_id: mk_core::types::TenantId::new("t".to_string()).unwrap(),
             metadata: std::collections::HashMap::new(),

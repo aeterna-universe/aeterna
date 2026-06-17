@@ -200,7 +200,7 @@ fn load_admin_bootstrap_from_env() -> anyhow::Result<crate::config::AdminBootstr
         provider: env::var("AETERNA_ADMIN_BOOTSTRAP_PROVIDER")
             .unwrap_or_else(|_| PROVIDER_GITHUB.to_string()),
         provider_subject: env::var("AETERNA_ADMIN_BOOTSTRAP_PROVIDER_SUBJECT").ok(),
-        company_slug: env::var("AETERNA_BOOTSTRAP_COMPANY_SLUG")
+        tenant_slug: env::var("AETERNA_BOOTSTRAP_TENANT_SLUG")
             .unwrap_or_else(|_| "default".to_string()),
         org_slug: env::var("AETERNA_BOOTSTRAP_ORG_SLUG").unwrap_or_else(|_| "platform".to_string()),
         team_slug: env::var("AETERNA_BOOTSTRAP_TEAM_SLUG").unwrap_or_else(|_| "admins".to_string()),

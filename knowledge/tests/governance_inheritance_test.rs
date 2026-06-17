@@ -13,7 +13,7 @@ async fn test_policy_shadowing_and_inheritance() {
         id: "security".to_string(),
         name: "Security".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {
@@ -105,7 +105,7 @@ async fn test_policy_shadowing_and_inheritance() {
     let result = engine.validate(KnowledgeLayer::Project, &context_with_secret);
     assert!(
         !result.is_valid,
-        "Company mandatory policy should NOT be overridable"
+        "Tenant mandatory policy should NOT be overridable"
     );
 }
 
@@ -117,7 +117,7 @@ async fn test_rule_type_deny_precedence() {
         id: "lib-checks".to_string(),
         name: "Lib Checks".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Optional,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {
@@ -148,9 +148,9 @@ async fn test_layer_hierarchy_order() {
 
     let company_policy = Policy {
         id: "layer-test".to_string(),
-        name: "Company Layer Test".to_string(),
+        name: "Tenant Layer Test".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Optional,
         merge_strategy: RuleMergeStrategy::Override,
         rules: vec![PolicyRule {
@@ -158,9 +158,9 @@ async fn test_layer_hierarchy_order() {
             rule_type: RuleType::Allow,
             target: ConstraintTarget::Code,
             operator: ConstraintOperator::MustMatch,
-            value: serde_json::json!("company"),
+            value: serde_json::json!("tenant"),
             severity: ConstraintSeverity::Warn,
-            message: "Must contain company".to_string(),
+            message: "Must contain tenant".to_string(),
         }],
         metadata: HashMap::new(),
     };
@@ -193,18 +193,18 @@ async fn test_layer_hierarchy_order() {
     let result = engine.validate(KnowledgeLayer::Org, &context);
     assert!(
         result.is_valid,
-        "Org policy should override company for Org layer validation"
+        "Org policy should override tenant for Org layer validation"
     );
 
     let mut context_company = HashMap::new();
     context_company.insert(
         "content".to_string(),
-        serde_json::json!("company content here"),
+        serde_json::json!("tenant content here"),
     );
-    let result_company = engine.validate(KnowledgeLayer::Company, &context_company);
+    let result_company = engine.validate(KnowledgeLayer::Tenant, &context_company);
     assert!(
         result_company.is_valid,
-        "Company layer validation should only use company policies"
+        "Tenant layer validation should only use tenant policies"
     );
 }
 
@@ -213,14 +213,14 @@ async fn test_team_layer_inheritance() {
     let mut engine = GovernanceEngine::new();
 
     let company_policy = Policy {
-        id: "company-rule".to_string(),
-        name: "Company Rule".to_string(),
+        id: "tenant-rule".to_string(),
+        name: "Tenant Rule".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {
-            id: "company-check".to_string(),
+            id: "tenant-check".to_string(),
             rule_type: RuleType::Allow,
             target: ConstraintTarget::Code,
             operator: ConstraintOperator::MustNotMatch,
@@ -261,7 +261,7 @@ async fn test_team_layer_inheritance() {
     let result = engine.validate(KnowledgeLayer::Team, &valid_context);
     assert!(
         result.is_valid,
-        "Content meeting both company and team requirements should pass"
+        "Content meeting both tenant and team requirements should pass"
     );
 
     let mut forbidden_context = HashMap::new();
@@ -272,7 +272,7 @@ async fn test_team_layer_inheritance() {
     let result = engine.validate(KnowledgeLayer::Team, &forbidden_context);
     assert!(
         !result.is_valid,
-        "Company mandatory policy should still apply at team layer"
+        "Tenant mandatory policy should still apply at team layer"
     );
 
     let mut missing_marker_context = HashMap::new();
@@ -292,7 +292,7 @@ async fn test_merge_strategy_merge_accumulates_rules() {
         id: "multi-rule".to_string(),
         name: "Multi Rule".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Optional,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {
@@ -334,7 +334,7 @@ async fn test_merge_strategy_merge_accumulates_rules() {
     let result = engine.validate(KnowledgeLayer::Org, &context_rule1);
     assert!(
         !result.is_valid,
-        "Rule 1 from company should still apply after merge"
+        "Rule 1 from tenant should still apply after merge"
     );
 
     let mut context_rule2 = HashMap::new();
@@ -366,7 +366,7 @@ async fn test_severity_levels_in_hierarchy() {
         id: "severity-test".to_string(),
         name: "Severity Test".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Optional,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![
@@ -473,7 +473,7 @@ async fn test_multiple_policies_same_layer() {
         id: "policy-a".to_string(),
         name: "Policy A".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Optional,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {
@@ -492,7 +492,7 @@ async fn test_multiple_policies_same_layer() {
         id: "policy-b".to_string(),
         name: "Policy B".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Optional,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {
@@ -532,7 +532,7 @@ async fn test_dependency_constraint_inheritance() {
         id: "dependency-policy".to_string(),
         name: "Dependency Policy".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {
@@ -598,7 +598,7 @@ async fn test_config_constraint_target() {
         id: "config-policy".to_string(),
         name: "Config Policy".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {
@@ -632,7 +632,7 @@ async fn test_config_constraint_target() {
         id: "no-config-policy".to_string(),
         name: "No Config Policy".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {

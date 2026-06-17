@@ -48,7 +48,7 @@ Aeterna provides a comprehensive governance framework for AI agents operating in
 1. **Delegation-Based Access**: Agents inherit permissions from a delegating user
 2. **Capability Tokens**: Explicit, auditable permissions like `memory:read`, `knowledge:propose`
 3. **Cedar Policies**: Fine-grained authorization rules evaluated in real-time
-4. **Scope Constraints**: Access limited by organizational hierarchy (company/org/team/project)
+4. **Scope Constraints**: Access limited by organizational hierarchy (tenant/org/team/project)
 
 ### Why Agent Governance Matters
 
@@ -78,7 +78,7 @@ Human User (alice@acme.com)
     └── has role: developer
         └── in team: api-team
             └── in org: platform-engineering
-                └── in company: acme-corp
+                └── in tenant: acme-corp
 ```
 
 Key properties:
@@ -162,7 +162,7 @@ Delegation chain:
   alice@acme.com
     → team:api-team
     → org:platform-engineering
-    → company:acme-corp
+    → tenant:acme-corp
 
 Capabilities (delegated from alice@acme.com):
   • memory:read    - Search and retrieve memories

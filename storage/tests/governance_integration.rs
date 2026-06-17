@@ -64,29 +64,15 @@ async fn test_full_governance_workflow() {
     let user_id = UserId::new(unique_id("user")).unwrap();
     let agent_id = unique_id("agent");
 
-    let comp_id = unique_id("comp");
     let org_id = unique_id("org");
     let team_id = unique_id("team");
     let proj_id = unique_id("proj");
-
-    let company = OrganizationalUnit {
-        id: comp_id.clone(),
-        name: "Company 1".into(),
-        unit_type: mk_core::types::UnitType::Company,
-        parent_id: None,
-        tenant_id: tenant_id.clone(),
-        metadata: std::collections::HashMap::new(),
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
-        source_owner: RecordSource::Admin,
-    };
-    pg_backend.create_unit(&company).await.unwrap();
 
     let org = OrganizationalUnit {
         id: org_id.clone(),
         name: "Organization 1".into(),
         unit_type: mk_core::types::UnitType::Organization,
-        parent_id: Some(comp_id.clone()),
+        parent_id: None,
         tenant_id: tenant_id.clone(),
         metadata: std::collections::HashMap::new(),
         created_at: chrono::Utc::now(),

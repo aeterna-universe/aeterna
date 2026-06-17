@@ -29,7 +29,7 @@ use storage::governance::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PolicyLayer {
-    Company,
+    Tenant,
     Org,
     Team,
     Project,
@@ -238,7 +238,7 @@ impl MockGovernanceStorage {
 
     pub async fn get_effective_config(
         &self,
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
         project_id: Option<Uuid>,
@@ -246,7 +246,7 @@ impl MockGovernanceStorage {
         let configs = self.configs.read().await;
         let key = format!(
             "{:?}:{:?}:{:?}:{:?}",
-            company_id, org_id, team_id, project_id
+            tenant_id, org_id, team_id, project_id
         );
 
         if let Some(config) = configs.get(&key) {
@@ -260,7 +260,7 @@ impl MockGovernanceStorage {
         let mut configs = self.configs.write().await;
         let key = format!(
             "{:?}:{:?}:{:?}:{:?}",
-            config.company_id, config.org_id, config.team_id, config.project_id
+            config.tenant_id, config.org_id, config.team_id, config.project_id
         );
         let id = config.id.unwrap_or_else(Uuid::new_v4);
         let mut stored = config.clone();
@@ -289,7 +289,7 @@ impl MockGovernanceStorage {
             request_type: request.request_type,
             target_type: request.target_type.clone(),
             target_id: request.target_id.clone(),
-            company_id: request.company_id,
+            tenant_id: request.tenant_id,
             org_id: request.org_id,
             team_id: request.team_id,
             project_id: request.project_id,
@@ -372,7 +372,7 @@ impl MockGovernanceStorage {
             principal_type: role.principal_type,
             principal_id: role.principal_id,
             role: role.role.clone(),
-            company_id: role.company_id,
+            tenant_id: role.tenant_id,
             org_id: role.org_id,
             team_id: role.team_id,
             project_id: role.project_id,
@@ -409,7 +409,7 @@ impl MockGovernanceStorage {
         &self,
         principal_id: Uuid,
         role: &str,
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
     ) -> Result<bool, String> {
@@ -420,7 +420,7 @@ impl MockGovernanceStorage {
                 && r.role == role
                 && r.revoked_at.is_none()
                 && r.expires_at.is_none_or(|exp| exp > now)
-                && (company_id.is_none() || r.company_id == company_id)
+                && (tenant_id.is_none() || r.tenant_id == tenant_id)
                 && (org_id.is_none() || r.org_id == org_id)
                 && (team_id.is_none() || r.team_id == team_id)
         });
@@ -616,7 +616,7 @@ async fn test_performance_context_resolution_under_load() {
         #[allow(dead_code)]
         org: Option<String>,
         #[allow(dead_code)]
-        company: Option<String>,
+        tenant: Option<String>,
         #[allow(dead_code)]
         user: Option<String>,
     }
@@ -633,7 +633,7 @@ async fn test_performance_context_resolution_under_load() {
                 project: Some(format!("project-{}", i)),
                 team: Some(format!("team-{}", i % 5)),
                 org: Some(format!("org-{}", i % 3)),
-                company: Some("test-company".to_string()),
+                tenant: Some("test-tenant".to_string()),
                 user: Some(format!("user{}@example.com", i)),
                 tenant_id: format!("tenant-{}", i % 10),
             };
@@ -757,7 +757,7 @@ async fn test_performance_memory_search_large_corpus() {
 #[tokio::test]
 async fn test_security_agent_cannot_bypass_delegation() {
     let governance_storage = Arc::new(MockGovernanceStorage::new());
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let agent_id = Uuid::new_v4();
     let granter_id = Uuid::new_v4();
 
@@ -766,7 +766,7 @@ async fn test_security_agent_cannot_bypass_delegation() {
         principal_type: PrincipalType::Agent,
         principal_id: agent_id,
         role: "policy-proposer".to_string(), // Can propose, but NOT approve
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -778,14 +778,14 @@ async fn test_security_agent_cannot_bypass_delegation() {
 
     // Step 2: Verify agent has proposer role
     let can_propose = governance_storage
-        .check_has_role(agent_id, "policy-proposer", Some(company_id), None, None)
+        .check_has_role(agent_id, "policy-proposer", Some(tenant_id), None, None)
         .await
         .unwrap();
     assert!(can_propose, "Agent should have policy-proposer role");
 
     // Step 3: Verify agent does NOT have approver role
     let can_approve = governance_storage
-        .check_has_role(agent_id, "policy-approver", Some(company_id), None, None)
+        .check_has_role(agent_id, "policy-approver", Some(tenant_id), None, None)
         .await
         .unwrap();
     assert!(!can_approve, "Agent should NOT have policy-approver role");
@@ -795,7 +795,7 @@ async fn test_security_agent_cannot_bypass_delegation() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: Some("policy-123".to_string()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -853,7 +853,7 @@ async fn test_security_agent_cannot_bypass_delegation() {
 #[tokio::test]
 async fn test_security_role_escalation_prevention() {
     let governance_storage = Arc::new(MockGovernanceStorage::new());
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
 
     // Step 1: Create regular user
     let regular_user = Uuid::new_v4();
@@ -864,7 +864,7 @@ async fn test_security_role_escalation_prevention() {
         principal_type: PrincipalType::User,
         principal_id: regular_user,
         role: "viewer".to_string(),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -876,14 +876,14 @@ async fn test_security_role_escalation_prevention() {
 
     // Step 3: Verify regular user has viewer role
     let has_viewer = governance_storage
-        .check_has_role(regular_user, "viewer", Some(company_id), None, None)
+        .check_has_role(regular_user, "viewer", Some(tenant_id), None, None)
         .await
         .unwrap();
     assert!(has_viewer);
 
     // Step 4: Verify regular user does NOT have admin role
     let has_admin = governance_storage
-        .check_has_role(regular_user, "admin", Some(company_id), None, None)
+        .check_has_role(regular_user, "admin", Some(tenant_id), None, None)
         .await
         .unwrap();
     assert!(!has_admin, "Regular user should not have admin role");
@@ -895,7 +895,7 @@ async fn test_security_role_escalation_prevention() {
         principal_type: PrincipalType::User,
         principal_id: regular_user, // Trying to grant to self
         role: "admin".to_string(),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -928,7 +928,7 @@ async fn test_security_role_escalation_prevention() {
 
     // Step 6: Verify user still doesn't have admin
     let still_no_admin = governance_storage
-        .check_has_role(regular_user, "admin", Some(company_id), None, None)
+        .check_has_role(regular_user, "admin", Some(tenant_id), None, None)
         .await
         .unwrap();
     assert!(!still_no_admin, "Role escalation should be prevented");
@@ -947,7 +947,7 @@ async fn test_security_cross_tenant_isolation() {
         id: "policy-tenant-a".to_string(),
         name: "Tenant A Policy".to_string(),
         description: Some("Confidential policy for tenant A".to_string()),
-        layer: PolicyLayer::Company,
+        layer: PolicyLayer::Tenant,
         mode: PolicyMode::Mandatory,
         rules: vec![PolicyRule {
             id: "rule-a".to_string(),
@@ -969,7 +969,7 @@ async fn test_security_cross_tenant_isolation() {
         id: "policy-tenant-b".to_string(),
         name: "Tenant B Policy".to_string(),
         description: Some("Confidential policy for tenant B".to_string()),
-        layer: PolicyLayer::Company,
+        layer: PolicyLayer::Tenant,
         mode: PolicyMode::Mandatory,
         rules: vec![PolicyRule {
             id: "rule-b".to_string(),
@@ -1044,7 +1044,7 @@ async fn test_security_cross_tenant_isolation() {
 #[tokio::test]
 async fn test_security_token_expiration_and_revocation() {
     let governance_storage = Arc::new(MockGovernanceStorage::new());
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
 
     // Step 1: Assign role with expiration (simulating token-based auth)
@@ -1055,7 +1055,7 @@ async fn test_security_token_expiration_and_revocation() {
         principal_type: PrincipalType::User,
         principal_id: user_id,
         role: "temporary-approver".to_string(),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1070,7 +1070,7 @@ async fn test_security_token_expiration_and_revocation() {
 
     // Step 2: Verify role is active
     let has_role = governance_storage
-        .check_has_role(user_id, "temporary-approver", Some(company_id), None, None)
+        .check_has_role(user_id, "temporary-approver", Some(tenant_id), None, None)
         .await
         .unwrap();
     assert!(has_role, "Role should be active");
@@ -1084,7 +1084,7 @@ async fn test_security_token_expiration_and_revocation() {
 
     // Step 4: Verify role is no longer active
     let has_revoked_role = governance_storage
-        .check_has_role(user_id, "temporary-approver", Some(company_id), None, None)
+        .check_has_role(user_id, "temporary-approver", Some(tenant_id), None, None)
         .await
         .unwrap();
     assert!(!has_revoked_role, "Role should be revoked");
@@ -1116,7 +1116,7 @@ async fn test_security_token_expiration_and_revocation() {
         principal_type: PrincipalType::User,
         principal_id: user_id,
         role: "short-lived".to_string(),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1128,7 +1128,7 @@ async fn test_security_token_expiration_and_revocation() {
 
     // Step 7: Verify expired role is not active
     let has_expired = governance_storage
-        .check_has_role(user_id, "short-lived", Some(company_id), None, None)
+        .check_has_role(user_id, "short-lived", Some(tenant_id), None, None)
         .await
         .unwrap();
     assert!(!has_expired, "Expired role should not be active");

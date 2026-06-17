@@ -139,7 +139,7 @@ All shapes come from `cli/src/server/tenant_api.rs`. Field names in JSON use `ca
 | `secrets[]`     | [Secret](#45-secrets)    | — | Secret entries bound to this tenant |
 | `providers`     | [Providers](#46-providers) | — | Declarative LLM / embedding / memory-layer providers |
 | `repository`    | [Repository](#47-repository) | — | Tenant knowledge-repo binding (GitHub / Local) |
-| `hierarchy[]`   | Company        | — | Initial org hierarchy (companies / orgs / teams / members) |
+| `hierarchy[]`   | Tenant        | — | Initial org hierarchy (root orgs / orgs / teams / members) |
 | `roles[]`       | RoleAssignment | — | Role grants bundled with this tenant |
 
 ### 4.2 `metadata`

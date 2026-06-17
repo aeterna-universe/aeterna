@@ -394,10 +394,10 @@ fn create_unit(
 async fn test_e2e_complete_governance_workflow() {
     let storage = Arc::new(MockGovernanceStorage::new());
 
-    let company = create_unit(
+    let tenant = create_unit(
         "acme-corp",
-        "Acme Corporation",
-        UnitType::Company,
+        "Acme Tenant",
+        UnitType::Organization,
         None,
         "tenant-1",
     );
@@ -423,16 +423,16 @@ async fn test_e2e_complete_governance_workflow() {
         "tenant-1",
     );
 
-    storage.add_unit(company).await;
+    storage.add_unit(tenant).await;
     storage.add_unit(org).await;
     storage.add_unit(team).await;
     storage.add_unit(project).await;
 
-    let company_policy = Policy {
+    let tenant_policy = Policy {
         id: "security-baseline".to_string(),
-        name: "Company Security Baseline".to_string(),
+        name: "Tenant Security Baseline".to_string(),
         description: Some("Mandatory security requirements".to_string()),
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Merge,
         rules: vec![PolicyRule {
@@ -467,7 +467,7 @@ async fn test_e2e_complete_governance_workflow() {
     };
 
     storage
-        .add_policy_for_unit("acme-corp", company_policy)
+        .add_policy_for_unit("acme-corp", tenant_policy)
         .await;
     storage
         .add_policy_for_unit("platform-team", team_policy)
@@ -517,16 +517,16 @@ async fn test_e2e_multi_tenant_isolation() {
     let storage = Arc::new(MockGovernanceStorage::new());
 
     let tenant1_company = create_unit(
-        "company-a",
-        "Company A",
-        UnitType::Company,
+        "tenant-a",
+        "Tenant A",
+        UnitType::Organization,
         None,
         "tenant-1",
     );
     let tenant2_company = create_unit(
-        "company-b",
-        "Company B",
-        UnitType::Company,
+        "tenant-b",
+        "Tenant B",
+        UnitType::Organization,
         None,
         "tenant-2",
     );
@@ -538,7 +538,7 @@ async fn test_e2e_multi_tenant_isolation() {
         id: "t1-policy".to_string(),
         name: "Tenant 1 Policy".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Override,
         rules: vec![PolicyRule {
@@ -557,7 +557,7 @@ async fn test_e2e_multi_tenant_isolation() {
         id: "t2-policy".to_string(),
         name: "Tenant 2 Policy".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Override,
         rules: vec![PolicyRule {
@@ -573,10 +573,10 @@ async fn test_e2e_multi_tenant_isolation() {
     };
 
     storage
-        .add_policy_for_unit("company-a", tenant1_policy)
+        .add_policy_for_unit("tenant-a", tenant1_policy)
         .await;
     storage
-        .add_policy_for_unit("company-b", tenant2_policy)
+        .add_policy_for_unit("tenant-b", tenant2_policy)
         .await;
 
     let engine = GovernanceEngine::new().with_storage(storage);
@@ -585,25 +585,25 @@ async fn test_e2e_multi_tenant_isolation() {
     let ctx2 = create_tenant_context("tenant-2", "user-2");
 
     let mut context1 = HashMap::new();
-    context1.insert("unitId".to_string(), serde_json::json!("company-a"));
+    context1.insert("unitId".to_string(), serde_json::json!("tenant-a"));
     context1.insert(
         "dependencies".to_string(),
         serde_json::json!(["tenant1-lib"]),
     );
 
     let mut context2 = HashMap::new();
-    context2.insert("unitId".to_string(), serde_json::json!("company-b"));
+    context2.insert("unitId".to_string(), serde_json::json!("tenant-b"));
     context2.insert(
         "dependencies".to_string(),
         serde_json::json!(["tenant2-lib"]),
     );
 
     let score1 = engine
-        .check_drift(&ctx1, "company-a", &context1)
+        .check_drift(&ctx1, "tenant-a", &context1)
         .await
         .unwrap();
     let score2 = engine
-        .check_drift(&ctx2, "company-b", &context2)
+        .check_drift(&ctx2, "tenant-b", &context2)
         .await
         .unwrap();
 
@@ -611,14 +611,14 @@ async fn test_e2e_multi_tenant_isolation() {
     assert_eq!(score2, 0.0, "Tenant 2 compliant with tenant2-lib");
 
     let mut cross_context = HashMap::new();
-    cross_context.insert("unitId".to_string(), serde_json::json!("company-a"));
+    cross_context.insert("unitId".to_string(), serde_json::json!("tenant-a"));
     cross_context.insert(
         "dependencies".to_string(),
         serde_json::json!(["tenant2-lib"]),
     );
 
     let cross_score = engine
-        .check_drift(&ctx1, "company-a", &cross_context)
+        .check_drift(&ctx1, "tenant-a", &cross_context)
         .await
         .unwrap();
     assert!(
@@ -631,7 +631,7 @@ async fn test_e2e_multi_tenant_isolation() {
 async fn test_e2e_policy_inheritance_chain() {
     let storage = Arc::new(MockGovernanceStorage::new());
 
-    let company = create_unit("corp", "Corporation", UnitType::Company, None, "t1");
+    let tenant = create_unit("corp", "Corporation", UnitType::Organization, None, "t1");
     let org = create_unit(
         "org",
         "Organization",
@@ -642,7 +642,7 @@ async fn test_e2e_policy_inheritance_chain() {
     let team = create_unit("team", "Team", UnitType::Team, Some("org"), "t1");
     let project = create_unit("proj", "Project", UnitType::Project, Some("team"), "t1");
 
-    storage.add_unit(company).await;
+    storage.add_unit(tenant).await;
     storage.add_unit(org).await;
     storage.add_unit(team).await;
     storage.add_unit(project).await;
@@ -651,10 +651,10 @@ async fn test_e2e_policy_inheritance_chain() {
         .add_policy_for_unit(
             "corp",
             Policy {
-                id: "company-rule".to_string(),
-                name: "Company Rule".to_string(),
+                id: "tenant-rule".to_string(),
+                name: "Tenant Rule".to_string(),
                 description: None,
-                layer: KnowledgeLayer::Company,
+                layer: KnowledgeLayer::Tenant,
                 mode: PolicyMode::Mandatory,
                 merge_strategy: RuleMergeStrategy::Merge,
                 rules: vec![PolicyRule {
@@ -664,7 +664,7 @@ async fn test_e2e_policy_inheritance_chain() {
                     operator: ConstraintOperator::MustUse,
                     value: serde_json::json!("lib-a"),
                     severity: ConstraintSeverity::Info,
-                    message: "Company requires lib-a".to_string(),
+                    message: "Tenant requires lib-a".to_string(),
                 }],
                 metadata: HashMap::new(),
             },
@@ -807,10 +807,10 @@ async fn test_e2e_drift_result_persistence() {
 async fn test_e2e_policy_override_at_lower_layer() {
     let storage = Arc::new(MockGovernanceStorage::new());
 
-    let company = create_unit("corp", "Corp", UnitType::Company, None, "t1");
+    let tenant = create_unit("corp", "Corp", UnitType::Organization, None, "t1");
     let project = create_unit("proj", "Project", UnitType::Project, Some("corp"), "t1");
 
-    storage.add_unit(company).await;
+    storage.add_unit(tenant).await;
     storage.add_unit(project).await;
 
     storage
@@ -818,19 +818,19 @@ async fn test_e2e_policy_override_at_lower_layer() {
             "corp",
             Policy {
                 id: "shared-policy".to_string(),
-                name: "Company Policy".to_string(),
+                name: "Tenant Policy".to_string(),
                 description: None,
-                layer: KnowledgeLayer::Company,
+                layer: KnowledgeLayer::Tenant,
                 mode: PolicyMode::Mandatory,
                 merge_strategy: RuleMergeStrategy::Override,
                 rules: vec![PolicyRule {
-                    id: "company-rule".to_string(),
+                    id: "tenant-rule".to_string(),
                     rule_type: RuleType::Allow,
                     target: ConstraintTarget::Dependency,
                     operator: ConstraintOperator::MustUse,
                     value: serde_json::json!("old-lib"),
                     severity: ConstraintSeverity::Block,
-                    message: "Company requires old-lib".to_string(),
+                    message: "Tenant requires old-lib".to_string(),
                 }],
                 metadata: HashMap::new(),
             },
@@ -880,7 +880,7 @@ async fn test_e2e_validation_result_structure() {
         id: "test-policy".to_string(),
         name: "Test Policy".to_string(),
         description: Some("Test description".to_string()),
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Override,
         rules: vec![
@@ -909,7 +909,7 @@ async fn test_e2e_validation_result_structure() {
     let mut context = HashMap::new();
     context.insert("dependencies".to_string(), serde_json::json!([]));
 
-    let result = engine.validate(KnowledgeLayer::Company, &context);
+    let result = engine.validate(KnowledgeLayer::Tenant, &context);
 
     assert!(!result.is_valid, "Should be invalid with violations");
     assert_eq!(result.violations.len(), 2, "Should have 2 violations");

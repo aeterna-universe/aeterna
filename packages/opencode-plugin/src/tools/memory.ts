@@ -8,7 +8,7 @@ export const createMemoryTools = (client: AeternaClient): Record<string, ToolDef
     description: "Add a memory entry to Aeterna. Use this to capture learnings, solutions, or important context.",
     args: {
       content: z.string().describe("The content to remember"),
-      layer: z.enum(["agent", "user", "session", "project", "team", "org", "company"] as const)
+      layer: z.enum(["agent", "user", "session", "project", "team", "org", "tenant"] as const)
         .optional()
         .describe("Memory layer (default: working)"),
       tags: z.array(z.string()).optional()
@@ -37,7 +37,7 @@ export const createMemoryTools = (client: AeternaClient): Record<string, ToolDef
     description: "Search memories for relevant context. Returns semantically similar memories.",
     args: {
       query: z.string().describe("Search query"),
-      layers: z.array(z.enum(["agent", "user", "session", "project", "team", "org", "company"] as const)).optional()
+      layers: z.array(z.enum(["agent", "user", "session", "project", "team", "org", "tenant"] as const)).optional()
         .describe("Layers to search (default: all)"),
       limit: z.number().min(1).max(20).optional()
         .describe("Max results (default: 5)"),
@@ -95,7 +95,7 @@ export const createMemoryTools = (client: AeternaClient): Record<string, ToolDef
     description: "Promote a memory to a higher layer (e.g., session -> project -> team)",
     args: {
       memoryId: z.string().describe("Memory ID to promote"),
-      targetLayer: z.enum(["session", "project", "team", "org", "company"] as const)
+      targetLayer: z.enum(["session", "project", "team", "org", "tenant"] as const)
         .describe("Target layer (must be higher than current)"),
       reason: z.string().optional()
         .describe("Reason for promotion"),

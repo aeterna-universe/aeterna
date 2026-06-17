@@ -1,6 +1,6 @@
 # Admin Provisioning Guide
 
-End-to-end walkthrough for bootstrapping a PlatformAdmin, authenticating, creating tenants, managing users and roles, and building organizational hierarchy — using both the CLI and REST API.
+End-to-end walkthrough for bootstrapping a PlatformAdmin, authenticating, creating account-owned tenants, managing users and roles, and building tenant-root organizational hierarchy — using both the CLI and REST API.
 
 **Prerequisites:** A running Aeterna deployment (see the Helm Quickstart guide).
 
@@ -45,16 +45,16 @@ Deploy Aeterna (Helm) ──► Bootstrap PlatformAdmin ──► Authenticate C
   Configure Tenant ──► Set Secrets ──► Bind Repository ──► Done
 ```
 
-| Step | Who | How |
-|------|-----|-----|
-| Deploy | Ops / Infra | Helm chart |
-| Bootstrap PlatformAdmin | Ops / Infra | Environment variables at startup |
-| Authenticate | PlatformAdmin | CLI device-code flow |
-| Create tenants | PlatformAdmin | CLI or API |
-| Register users | PlatformAdmin / TenantAdmin | CLI or API |
-| Assign roles | PlatformAdmin / TenantAdmin | CLI or API |
-| Build hierarchy | PlatformAdmin / TenantAdmin | CLI or API |
-| Configure tenant | PlatformAdmin / TenantAdmin | CLI or API |
+| Step                    | Who                         | How                              |
+| ----------------------- | --------------------------- | -------------------------------- |
+| Deploy                  | Ops / Infra                 | Helm chart                       |
+| Bootstrap PlatformAdmin | Ops / Infra                 | Environment variables at startup |
+| Authenticate            | PlatformAdmin               | CLI device-code flow             |
+| Create tenants          | PlatformAdmin               | CLI or API                       |
+| Register users          | PlatformAdmin / TenantAdmin | CLI or API                       |
+| Assign roles            | PlatformAdmin / TenantAdmin | CLI or API                       |
+| Build hierarchy         | PlatformAdmin / TenantAdmin | CLI or API                       |
+| Configure tenant        | PlatformAdmin / TenantAdmin | CLI or API                       |
 
 ---
 
@@ -64,11 +64,11 @@ The first PlatformAdmin is created automatically at server startup via environme
 
 ### Required Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `AETERNA_ADMIN_BOOTSTRAP_EMAIL` | Admin user's email | `admin@acme-corp.com` |
-| `AETERNA_ADMIN_BOOTSTRAP_PROVIDER` | Identity provider type (default: `github`) | `github` |
-| `AETERNA_ADMIN_BOOTSTRAP_PROVIDER_SUBJECT` | Provider-specific subject (e.g. GitHub login) | `admin-user` |
+| Variable                                   | Description                                   | Example               |
+| ------------------------------------------ | --------------------------------------------- | --------------------- |
+| `AETERNA_ADMIN_BOOTSTRAP_EMAIL`            | Admin user's email                            | `admin@acme-corp.com` |
+| `AETERNA_ADMIN_BOOTSTRAP_PROVIDER`         | Identity provider type (default: `github`)    | `github`              |
+| `AETERNA_ADMIN_BOOTSTRAP_PROVIDER_SUBJECT` | Provider-specific subject (e.g. GitHub login) | `admin-user`          |
 
 ### Helm Values
 
@@ -76,10 +76,10 @@ In your `values.yaml`:
 
 ```yaml
 server:
-  env:
-    AETERNA_ADMIN_BOOTSTRAP_EMAIL: "admin@acme-corp.com"
-    AETERNA_ADMIN_BOOTSTRAP_PROVIDER: "github"
-    AETERNA_ADMIN_BOOTSTRAP_PROVIDER_SUBJECT: "admin-user"
+    env:
+        AETERNA_ADMIN_BOOTSTRAP_EMAIL: "admin@acme-corp.com"
+        AETERNA_ADMIN_BOOTSTRAP_PROVIDER: "github"
+        AETERNA_ADMIN_BOOTSTRAP_PROVIDER_SUBJECT: "admin-user"
 ```
 
 ### What Happens at Startup
@@ -87,8 +87,8 @@ server:
 When the server starts with valid bootstrap configuration:
 
 1. **Organizational unit** — creates the instance-scope organizational unit (`__root__`)
-2. **Company** — creates the root company record
-3. **Organization** — creates a `platform` organization under the company
+2. **Tenant** — ensures the default bootstrap tenant row exists
+3. **Organization** — creates a tenant-root `platform` organization
 4. **Team** — creates an `admins` team within the platform organization
 5. **User** — upserts a user row with the configured email, provider, and subject
 6. **Membership** — adds the user to the `admins` team with `admin` role
@@ -126,12 +126,12 @@ aeterna profile add \
   --github-client-id <GITHUB_APP_CLIENT_ID>
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--name` | Local profile name (you pick this) |
-| `--server-url` | URL of your Aeterna server |
-| `--auth-method` | Authentication method (`device-code`, `pat`, `api-key`) |
-| `--github-client-id` | GitHub App client ID for device-code flow |
+| Flag                 | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `--name`             | Local profile name (you pick this)                      |
+| `--server-url`       | URL of your Aeterna server                              |
+| `--auth-method`      | Authentication method (`device-code`, `pat`, `api-key`) |
+| `--github-client-id` | GitHub App client ID for device-code flow               |
 
 ### Profile Management
 
@@ -194,7 +194,7 @@ Waiting for authorization...
 If device-code flow is not available, use a GitHub Personal Access Token:
 
 ```bash
-aeterna auth login --github-token ghp_xxxxxxxxxxxx
+aeterna auth login --github-token "$GITHUB_TOKEN"
 ```
 
 ### Token Refresh
@@ -224,13 +224,15 @@ Only PlatformAdmin can create tenants.
 ### CLI
 
 ```bash
-aeterna tenant create --slug acme --name "Acme Corp"
+aeterna tenant create --slug acme-prod --name "Acme Prod" --account acme --environment prod
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--slug` | URL-friendly identifier (kebab-case, immutable) |
-| `--name` | Human-readable display name |
+| Flag            | Description                                                            |
+| --------------- | ---------------------------------------------------------------------- |
+| `--slug`        | URL-friendly identifier (kebab-case, immutable)                        |
+| `--name`        | Human-readable display name                                            |
+| `--account`     | Optional account slug/ID to attach the tenant to                       |
+| `--environment` | Optional environment label such as `dev`, `test`, `staging`, or `prod` |
 
 ### API
 
@@ -239,8 +241,10 @@ curl -X POST https://aeterna.example.com/api/v1/admin/tenants \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "slug": "acme",
-    "name": "Acme Corp"
+    "slug": "acme-prod",
+    "name": "Acme Prod",
+    "accountRef": "acme",
+    "environment": "prod"
   }'
 ```
 
@@ -329,15 +333,15 @@ aeterna user whoami
 
 ### Role Hierarchy
 
-| Role | Precedence | Scope | Description |
-|------|------------|-------|-------------|
-| PlatformAdmin | 6 | Instance (`__root__`) | Cross-tenant administration |
-| TenantAdmin | 5 | Single tenant | Tenant-scoped administration |
-| Admin | 4 | Single tenant | Full tenant access |
-| Architect | 3 | Single tenant | Design policies, manage knowledge |
-| TechLead | 2 | Single tenant | Manage team resources |
-| Developer | 1 | Single tenant | Standard development access |
-| Agent | 0 | Delegated | AI agent with delegated permissions |
+| Role          | Precedence | Scope                 | Description                         |
+| ------------- | ---------- | --------------------- | ----------------------------------- |
+| PlatformAdmin | 6          | Instance (`__root__`) | Cross-tenant administration         |
+| TenantAdmin   | 5          | Single tenant         | Tenant-scoped administration        |
+| Admin         | 4          | Single tenant         | Full tenant access                  |
+| Architect     | 3          | Single tenant         | Design policies, manage knowledge   |
+| TechLead      | 2          | Single tenant         | Manage team resources               |
+| Developer     | 1          | Single tenant         | Standard development access         |
+| Agent         | 0          | Delegated             | AI agent with delegated permissions |
 
 ### Assign a Role
 
@@ -384,7 +388,7 @@ aeterna permissions matrix
 
 ## 8. Organizational Hierarchy
 
-Aeterna uses a four-level hierarchy: **Company → Organization → Team → Project**.
+Aeterna uses a tenant-root hierarchy: **Tenant → Organization → Team → Project**.
 
 ### Create an Organization
 
@@ -486,10 +490,10 @@ aeterna tenant secret delete --key webhook_secret
 
 ### Ownership Model
 
-| Owner | Who can modify | Examples |
-|-------|---------------|----------|
-| **tenant** | TenantAdmin, PlatformAdmin | Runtime settings, integration credentials |
-| **platform** | PlatformAdmin only | Deployment fields, bootstrap secrets |
+| Owner        | Who can modify             | Examples                                  |
+| ------------ | -------------------------- | ----------------------------------------- |
+| **tenant**   | TenantAdmin, PlatformAdmin | Runtime settings, integration credentials |
+| **platform** | PlatformAdmin only         | Deployment fields, bootstrap secrets      |
 
 ---
 
@@ -574,45 +578,45 @@ apiVersion: aeterna.io/v1
 kind: TenantManifest
 
 tenant:
-  slug: acme
-  name: "Acme Corp"
+    slug: acme
+    name: "Acme Corp"
 
 config:
-  fields:
-    default_embedding_model: "text-embedding-3-small"
-    memory_ttl_days: "90"
+    fields:
+        default_embedding_model: "text-embedding-3-small"
+        memory_ttl_days: "90"
 
 secrets:
-  webhook_secret: "whsec_xxxxxxxxxxx"
-  api_key: "sk-xxxxxxxxxxxx"
+    inbound_webhook_reference: "example-webhook-ref"
+    provider_reference: "example-provider-ref"
 
 repository:
-  provider: github
-  owner: acme-corp
-  repo: main-monorepo
-  git_provider_connection_id: conn_abc123  # optional
+    provider: github
+    owner: acme-corp
+    repo: main-monorepo
+    git_provider_connection_id: conn_abc123 # optional
 
 hierarchy:
-  organizations:
-    - slug: engineering
-      name: "Engineering"
-      teams:
-        - slug: api-team
-          name: "API Team"
-          projects:
-            - slug: auth-service
-              name: "Auth Service"
-            - slug: payments-api
-              name: "Payments API"
-        - slug: data-team
-          name: "Data Platform"
+    organizations:
+        - slug: engineering
+          name: "Engineering"
+          teams:
+              - slug: api-team
+                name: "API Team"
+                projects:
+                    - slug: auth-service
+                      name: "Auth Service"
+                    - slug: payments-api
+                      name: "Payments API"
+              - slug: data-team
+                name: "Data Platform"
 
 roles:
-  - user_email: alice@acme-corp.com
-    role: TenantAdmin
-  - user_email: bob@acme-corp.com
-    role: Architect
-    scope: engineering/api-team
+    - user_email: alice@acme-corp.com
+      role: TenantAdmin
+    - user_email: bob@acme-corp.com
+      role: Architect
+      scope: engineering/api-team
 ```
 
 ### Apply the Manifest
@@ -682,52 +686,52 @@ Authorization: Bearer <aeterna-jwt>
 
 ### Endpoint Summary
 
-| Operation | Method | Endpoint |
-|-----------|--------|----------|
-| **Tenants** | | |
-| Create tenant | `POST` | `/api/v1/admin/tenants` |
-| List tenants | `GET` | `/api/v1/admin/tenants` |
-| Show tenant | `GET` | `/api/v1/admin/tenants/:slug` |
-| Update tenant | `PATCH` | `/api/v1/admin/tenants/:slug` |
-| Deactivate tenant | `POST` | `/api/v1/admin/tenants/:slug/deactivate` |
-| Provision from manifest | `POST` | `/api/v1/admin/tenants/provision` |
-| **Users** | | |
-| Register user | `POST` | `/api/v1/users` |
-| List users | `GET` | `/api/v1/users` |
-| Show user | `GET` | `/api/v1/users/:id` |
-| Invite user | `POST` | `/api/v1/users/invite` |
-| **Roles** | | |
-| Assign role | `POST` | `/api/v1/govern/roles/assign` |
-| Revoke role | `POST` | `/api/v1/govern/roles/revoke` |
-| **Hierarchy** | | |
-| Create org | `POST` | `/api/v1/orgs` |
-| Create team | `POST` | `/api/v1/teams` |
-| Create project | `POST` | `/api/v1/projects` |
-| **Config** | | |
-| Inspect config | `GET` | `/api/v1/tenants/:slug/config` |
-| Upsert config | `PUT` | `/api/v1/tenants/:slug/config` |
-| Set secret | `PUT` | `/api/v1/tenants/:slug/secrets/:key` |
-| Delete secret | `DELETE` | `/api/v1/tenants/:slug/secrets/:key` |
-| **Repo Binding** | | |
-| Show binding | `GET` | `/api/v1/tenants/:slug/repo-binding` |
-| Set binding | `PUT` | `/api/v1/tenants/:slug/repo-binding` |
-| Validate binding | `POST` | `/api/v1/tenants/:slug/repo-binding/validate` |
-| **Permissions** | | |
-| Permission matrix | `GET` | `/api/v1/permissions/matrix` |
-| Effective permissions | `GET` | `/api/v1/permissions/effective` |
-| **Connections** | | |
-| List connections | `GET` | `/api/v1/admin/connections` |
-| Create connection | `POST` | `/api/v1/admin/connections` |
-| Grant tenant access | `POST` | `/api/v1/admin/connections/:id/grant` |
-| Revoke tenant access | `POST` | `/api/v1/admin/connections/:id/revoke` |
-| **Admin** | | |
-| Health check | `GET` | `/api/v1/admin/health` |
-| Validate config | `POST` | `/api/v1/admin/validate` |
-| Run migrations | `POST` | `/api/v1/admin/migrate` |
-| Drift detection | `GET` | `/api/v1/admin/drift` |
-| Export data | `GET` | `/api/v1/admin/export` |
-| Import data | `POST` | `/api/v1/admin/import` |
-| Sync | `POST` | `/api/v1/admin/sync` |
+| Operation               | Method   | Endpoint                                      |
+| ----------------------- | -------- | --------------------------------------------- |
+| **Tenants**             |          |                                               |
+| Create tenant           | `POST`   | `/api/v1/admin/tenants`                       |
+| List tenants            | `GET`    | `/api/v1/admin/tenants`                       |
+| Show tenant             | `GET`    | `/api/v1/admin/tenants/:slug`                 |
+| Update tenant           | `PATCH`  | `/api/v1/admin/tenants/:slug`                 |
+| Deactivate tenant       | `POST`   | `/api/v1/admin/tenants/:slug/deactivate`      |
+| Provision from manifest | `POST`   | `/api/v1/admin/tenants/provision`             |
+| **Users**               |          |                                               |
+| Register user           | `POST`   | `/api/v1/users`                               |
+| List users              | `GET`    | `/api/v1/users`                               |
+| Show user               | `GET`    | `/api/v1/users/:id`                           |
+| Invite user             | `POST`   | `/api/v1/users/invite`                        |
+| **Roles**               |          |                                               |
+| Assign role             | `POST`   | `/api/v1/govern/roles/assign`                 |
+| Revoke role             | `POST`   | `/api/v1/govern/roles/revoke`                 |
+| **Hierarchy**           |          |                                               |
+| Create org              | `POST`   | `/api/v1/orgs`                                |
+| Create team             | `POST`   | `/api/v1/teams`                               |
+| Create project          | `POST`   | `/api/v1/projects`                            |
+| **Config**              |          |                                               |
+| Inspect config          | `GET`    | `/api/v1/tenants/:slug/config`                |
+| Upsert config           | `PUT`    | `/api/v1/tenants/:slug/config`                |
+| Set secret              | `PUT`    | `/api/v1/tenants/:slug/secrets/:key`          |
+| Delete secret           | `DELETE` | `/api/v1/tenants/:slug/secrets/:key`          |
+| **Repo Binding**        |          |                                               |
+| Show binding            | `GET`    | `/api/v1/tenants/:slug/repo-binding`          |
+| Set binding             | `PUT`    | `/api/v1/tenants/:slug/repo-binding`          |
+| Validate binding        | `POST`   | `/api/v1/tenants/:slug/repo-binding/validate` |
+| **Permissions**         |          |                                               |
+| Permission matrix       | `GET`    | `/api/v1/permissions/matrix`                  |
+| Effective permissions   | `GET`    | `/api/v1/permissions/effective`               |
+| **Connections**         |          |                                               |
+| List connections        | `GET`    | `/api/v1/admin/connections`                   |
+| Create connection       | `POST`   | `/api/v1/admin/connections`                   |
+| Grant tenant access     | `POST`   | `/api/v1/admin/connections/:id/grant`         |
+| Revoke tenant access    | `POST`   | `/api/v1/admin/connections/:id/revoke`        |
+| **Admin**               |          |                                               |
+| Health check            | `GET`    | `/api/v1/admin/health`                        |
+| Validate config         | `POST`   | `/api/v1/admin/validate`                      |
+| Run migrations          | `POST`   | `/api/v1/admin/migrate`                       |
+| Drift detection         | `GET`    | `/api/v1/admin/drift`                         |
+| Export data             | `GET`    | `/api/v1/admin/export`                        |
+| Import data             | `POST`   | `/api/v1/admin/import`                        |
+| Sync                    | `POST`   | `/api/v1/admin/sync`                          |
 
 ---
 
@@ -748,6 +752,7 @@ Authorization: Bearer <aeterna-jwt>
 **Symptom:** Server starts but PlatformAdmin user is not created.
 
 **Check:**
+
 - `AETERNA_ADMIN_BOOTSTRAP_EMAIL` is set and non-empty
 - `AETERNA_ADMIN_BOOTSTRAP_PROVIDER_SUBJECT` is set (otherwise bootstrap logs a warning and skips)
 - Check server logs for `bootstrap` messages
@@ -773,6 +778,7 @@ aeterna tenant use <tenant-slug>
 **Symptom:** CLI cannot connect to the server.
 
 **Check:**
+
 - Server URL in your profile is correct: `aeterna profile list`
 - Server is running: `curl https://aeterna.example.com/api/v1/admin/health`
 - TLS certificates are valid (if using HTTPS)

@@ -400,7 +400,7 @@ SELECT
     memory_layer,
     -- Priority score: recent + frequently accessed + higher layers
     (CASE memory_layer 
-        WHEN 'company' THEN 100
+        WHEN 'tenant' THEN 100
         WHEN 'org' THEN 80
         WHEN 'team' THEN 60
         WHEN 'project' THEN 40

@@ -110,7 +110,7 @@ memory-knowledge-export-{timestamp}/
 
 ```jsonl
 {"id":"adr-001-typescript-standard","type":"adr","layer":"org","title":"Use TypeScript for All New Projects","summary":"Standardize on TypeScript for improved type safety and developer experience","content":"# ADR-001: TypeScript Standard\n\n## Status\nAccepted\n\n## Context\n...","contentHash":"sha256:abc123def456...","severity":"info","status":"accepted","tags":["typescript","standards","tooling"],"constraints":[{"operator":"must_use","target":"file","pattern":"*.ts","appliesTo":["src/**"],"severity":"warn","message":"Use TypeScript for source files"}],"metadata":{"author":"tech-lead","reviewers":["architect","security"]},"version":3,"createdAt":"2025-06-15T09:00:00Z","updatedAt":"2026-01-02T16:30:00Z","promotedAt":"2025-07-01T10:00:00Z","promotedFrom":"project"}
-{"id":"policy-auth-jwt","type":"policy","layer":"company","title":"JWT Authentication Required","summary":"All API endpoints must use JWT for authentication","content":"# Policy: JWT Authentication\n\n## Scope\n...","contentHash":"sha256:def789ghi012...","severity":"block","status":"active","tags":["security","authentication","api"],"constraints":[{"operator":"must_match","target":"code","pattern":"@Authenticated|@JwtAuth|requireAuth","appliesTo":["**/controllers/**","**/routes/**"],"severity":"block","message":"API endpoints must have authentication"}],"metadata":{"complianceRef":"SOC2-AC-1"},"version":1,"createdAt":"2025-03-10T11:00:00Z","updatedAt":"2025-03-10T11:00:00Z","promotedAt":null,"promotedFrom":null}
+{"id":"policy-auth-jwt","type":"policy","layer":"tenant","title":"JWT Authentication Required","summary":"All API endpoints must use JWT for authentication","content":"# Policy: JWT Authentication\n\n## Scope\n...","contentHash":"sha256:def789ghi012...","severity":"block","status":"active","tags":["security","authentication","api"],"constraints":[{"operator":"must_match","target":"code","pattern":"@Authenticated|@JwtAuth|requireAuth","appliesTo":["**/controllers/**","**/routes/**"],"severity":"block","message":"API endpoints must have authentication"}],"metadata":{"complianceRef":"SOC2-AC-1"},"version":1,"createdAt":"2025-03-10T11:00:00Z","updatedAt":"2025-03-10T11:00:00Z","promotedAt":null,"promotedFrom":null}
 ```
 
 ### Embeddings Format
@@ -615,7 +615,7 @@ const validationRules: ValidationRule[] = [
   },
   {
     field: 'layer',
-    check: (v) => ['agent', 'user', 'session', 'project', 'team', 'org', 'company'].includes(v),
+    check: (v) => ['agent', 'user', 'session', 'project', 'team', 'org', 'tenant'].includes(v),
     severity: 'error',
     message: 'Layer must be valid hierarchy level'
   },

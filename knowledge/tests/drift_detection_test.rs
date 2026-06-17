@@ -46,7 +46,7 @@ fn create_mandatory_policy(id: &str, rules: Vec<PolicyRule>) -> Policy {
         id: id.to_string(),
         name: format!("Policy {}", id),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Override,
         rules,
@@ -59,7 +59,7 @@ fn create_advisory_policy(id: &str, rules: Vec<PolicyRule>) -> Policy {
         id: id.to_string(),
         name: format!("Policy {}", id),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Optional,
         merge_strategy: RuleMergeStrategy::Override,
         rules,
@@ -714,20 +714,20 @@ async fn test_drift_layer_filtering() {
     let ctx = create_test_context();
 
     let company_policy = Policy {
-        id: "company-policy".to_string(),
-        name: "Company Policy".to_string(),
+        id: "tenant-policy".to_string(),
+        name: "Tenant Policy".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Override,
         rules: vec![PolicyRule {
-            id: "company-rule".to_string(),
+            id: "tenant-rule".to_string(),
             rule_type: RuleType::Allow,
             target: ConstraintTarget::Dependency,
             operator: ConstraintOperator::MustUse,
-            value: serde_json::json!("company-lib"),
+            value: serde_json::json!("tenant-lib"),
             severity: ConstraintSeverity::Block,
-            message: "Company lib required".to_string(),
+            message: "Tenant lib required".to_string(),
         }],
         metadata: HashMap::new(),
     };
@@ -757,7 +757,7 @@ async fn test_drift_layer_filtering() {
     let mut context = HashMap::new();
     context.insert(
         "dependencies".to_string(),
-        serde_json::json!(["company-lib"]),
+        serde_json::json!(["tenant-lib"]),
     );
 
     let drift_score = engine
@@ -1029,7 +1029,7 @@ async fn test_drift_auto_suppress_info_filters_info_violations() {
         id: format!("auto-suppress-policy-{}", test_id),
         name: "Auto Suppress Policy".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Override,
         rules: vec![
@@ -1104,7 +1104,7 @@ async fn test_drift_without_auto_suppress_includes_info_violations() {
         id: format!("no-suppress-policy-{}", test_id),
         name: "No Suppress Policy".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Override,
         rules: vec![
@@ -1180,7 +1180,7 @@ async fn test_drift_stores_result_with_suppressions() {
         id: "store-result-policy".to_string(),
         name: "Store Result Policy".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: PolicyMode::Mandatory,
         merge_strategy: RuleMergeStrategy::Override,
         rules: vec![PolicyRule {

@@ -68,7 +68,7 @@ Current observations:
 {}
 
 Available actions (as JSON):
-1. {{"SearchLayer": {{"layer": "Session|Project|Team|Org|Company", "query": "..."}}}} - Search a specific memory layer.
+1. {{"SearchLayer": {{"layer": "Session|Project|Team|Org|Tenant", "query": "..."}}}} - Search a specific memory layer.
 2. {{"DrillDown": {{"memory_id": "...", "query": "..."}}}} - Explore a specific memory in detail.
 3. {{"Filter": {{"criteria": "regex", "results": ["...", "..."]}}}} - Filter current observations using a regex criteria.
 4. {{"RecursiveCall": {{"sub_query": "..."}}}} - Execute a sub-query.

@@ -117,6 +117,7 @@ async fn main() -> Result<()> {
         Commands::Memory(cmd) => commands::memory::run(cmd).await,
         Commands::Knowledge(cmd) => commands::knowledge::run(cmd).await,
         Commands::Policy(cmd) => commands::policy::run(cmd).await,
+        Commands::Account(cmd) => commands::account::run(cmd).await,
         Commands::Org(cmd) => commands::org::run(cmd).await,
         Commands::Team(cmd) => commands::team::run(cmd).await,
         Commands::Tenant(cmd) => commands::tenant::run(cmd).await,

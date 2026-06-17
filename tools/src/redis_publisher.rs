@@ -403,7 +403,7 @@ mod tests {
         let events: Vec<GovernanceEvent> = vec![
             GovernanceEvent::UnitCreated {
                 unit_id: "unit-1".to_string(),
-                unit_type: UnitType::Company,
+                unit_type: UnitType::Organization,
                 tenant_id: tenant_id.clone(),
                 parent_id: None,
                 timestamp: 1234567890,
@@ -420,7 +420,7 @@ mod tests {
             },
             GovernanceEvent::PolicyUpdated {
                 policy_id: "policy-1".to_string(),
-                layer: KnowledgeLayer::Company,
+                layer: KnowledgeLayer::Tenant,
                 tenant_id: tenant_id.clone(),
                 timestamp: 1234567893,
             },
@@ -522,7 +522,7 @@ mod tests {
 
         let event = GovernanceEvent::UnitCreated {
             unit_id: "unit-1".to_string(),
-            unit_type: UnitType::Company,
+            unit_type: UnitType::Organization,
             tenant_id: tenant_id.clone(),
             parent_id: None,
             timestamp: 1234567890,
@@ -571,7 +571,7 @@ mod tests {
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
 
         let unit_types = vec![
-            UnitType::Company,
+            UnitType::Organization,
             UnitType::Organization,
             UnitType::Team,
             UnitType::Project,
@@ -640,7 +640,7 @@ mod tests {
         let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
 
         let layers = vec![
-            KnowledgeLayer::Company,
+            KnowledgeLayer::Tenant,
             KnowledgeLayer::Org,
             KnowledgeLayer::Team,
             KnowledgeLayer::Project,

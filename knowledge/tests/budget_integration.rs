@@ -236,10 +236,7 @@ fn test_tiered_model_selection() {
     );
     assert_eq!(config.model_for_layer(MemoryLayer::Team), "gpt-3.5-turbo");
     assert_eq!(config.model_for_layer(MemoryLayer::Org), "gpt-3.5-turbo");
-    assert_eq!(
-        config.model_for_layer(MemoryLayer::Company),
-        "gpt-3.5-turbo"
-    );
+    assert_eq!(config.model_for_layer(MemoryLayer::Tenant), "gpt-3.5-turbo");
 }
 
 #[test]
@@ -250,7 +247,7 @@ fn test_tiered_model_custom_configuration() {
 
     assert_eq!(config.model_for_layer(MemoryLayer::User), "claude-3-opus");
     assert_eq!(
-        config.model_for_layer(MemoryLayer::Company),
+        config.model_for_layer(MemoryLayer::Tenant),
         "claude-3-haiku"
     );
 }
@@ -363,8 +360,8 @@ async fn test_batched_summarizer_layer_prioritization() {
             personalization_context: None,
         },
         BudgetAwareSummaryRequest {
-            content: "Company content that is long enough to process.".to_string(),
-            layer: MemoryLayer::Company,
+            content: "Tenant content that is long enough to process.".to_string(),
+            layer: MemoryLayer::Tenant,
             depth: SummaryDepth::Sentence,
             context: None,
             personalization_context: None,
@@ -382,11 +379,11 @@ async fn test_batched_summarizer_layer_prioritization() {
 
     let layer_order: Vec<_> = batch_result.layer_results.iter().map(|r| r.layer).collect();
 
-    let company_idx = layer_order.iter().position(|&l| l == MemoryLayer::Company);
+    let tenant_idx = layer_order.iter().position(|&l| l == MemoryLayer::Tenant);
     let team_idx = layer_order.iter().position(|&l| l == MemoryLayer::Team);
     let user_idx = layer_order.iter().position(|&l| l == MemoryLayer::User);
 
-    assert!(company_idx < team_idx);
+    assert!(tenant_idx < team_idx);
     assert!(team_idx < user_idx);
 }
 
@@ -411,7 +408,7 @@ async fn test_batched_summarizer_partial_budget() {
     let requests = vec![
         BudgetAwareSummaryRequest {
             content: "First content that is long enough.".to_string(),
-            layer: MemoryLayer::Company,
+            layer: MemoryLayer::Tenant,
             depth: SummaryDepth::Sentence,
             context: None,
             personalization_context: None,
@@ -511,8 +508,8 @@ async fn test_budget_generator_model_selection_by_layer() {
     assert_eq!(result.model_used, "expensive-model");
 
     let company_request = BudgetAwareSummaryRequest {
-        content: "Company content that is long enough to process.".to_string(),
-        layer: MemoryLayer::Company,
+        content: "Tenant content that is long enough to process.".to_string(),
+        layer: MemoryLayer::Tenant,
         depth: SummaryDepth::Sentence,
         context: None,
         personalization_context: None,
@@ -601,7 +598,7 @@ fn test_layer_default_limits() {
         Some(&500_000)
     );
     assert_eq!(
-        budget.per_layer_limits.get(&MemoryLayer::Company),
+        budget.per_layer_limits.get(&MemoryLayer::Tenant),
         Some(&1_000_000)
     );
 }

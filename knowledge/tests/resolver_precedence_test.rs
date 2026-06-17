@@ -3,7 +3,7 @@
 //! Verifies that `query_with_precedence` and `query_enriched` apply the
 //! canonical-vs-residual precedence rules defined in tasks 6.1–6.2:
 //!
-//! * Company entries rank before Project entries (layer authority ordering).
+//! * Tenant entries rank before Project entries (layer authority ordering).
 //! * Canonical entries rank before Specialization/Exception at the same layer.
 //! * `query_enriched` groups a canonical primary with its residual entries that
 //!   are linked via Specializes / ApplicableFrom / ExceptionTo / Clarifies.
@@ -95,13 +95,13 @@ fn make_relation(
 
 // ── Task 6.1 — Layer authority ordering ───────────────────────────────────────
 
-/// `query_with_precedence` must return Company entries before Project entries.
+/// `query_with_precedence` must return Tenant entries before Project entries.
 #[tokio::test]
 async fn test_layer_authority_company_before_project() {
     let (ctx, dir) = test_ctx();
     let manager = make_manager(&dir);
 
-    // Project entry seeded first so repository order is project-then-company
+    // Project entry seeded first so repository order is project-then-tenant
     let project_entry = make_entry(
         "resolver/project-entry",
         "project knowledge",
@@ -110,9 +110,9 @@ async fn test_layer_authority_company_before_project() {
         1000,
     );
     let company_entry = make_entry(
-        "resolver/company-entry",
-        "company knowledge",
-        KnowledgeLayer::Company,
+        "resolver/tenant-entry",
+        "tenant knowledge",
+        KnowledgeLayer::Tenant,
         None,
         1000,
     );
@@ -124,7 +124,7 @@ async fn test_layer_authority_company_before_project() {
         .query_with_precedence(
             ctx,
             "knowledge",
-            vec![KnowledgeLayer::Company, KnowledgeLayer::Project],
+            vec![KnowledgeLayer::Tenant, KnowledgeLayer::Project],
             10,
         )
         .await
@@ -136,15 +136,15 @@ async fn test_layer_authority_company_before_project() {
         results.len()
     );
 
-    // Company entry must be first
+    // Tenant entry must be first
     assert_eq!(
         results[0].layer,
-        KnowledgeLayer::Company,
-        "Company layer must rank before Project layer"
+        KnowledgeLayer::Tenant,
+        "Tenant layer must rank before Project layer"
     );
 }
 
-/// Full layer ordering: Company > Org > Team > Project.
+/// Full layer ordering: Tenant > Org > Team > Project.
 #[tokio::test]
 async fn test_layer_authority_full_ordering() {
     let (ctx, dir) = test_ctx();
@@ -155,7 +155,7 @@ async fn test_layer_authority_full_ordering() {
         ("resolver/proj", KnowledgeLayer::Project),
         ("resolver/team", KnowledgeLayer::Team),
         ("resolver/org", KnowledgeLayer::Org),
-        ("resolver/co", KnowledgeLayer::Company),
+        ("resolver/co", KnowledgeLayer::Tenant),
     ] {
         let e = make_entry(path, "ordering content", *layer, None, 1000);
         seed(&manager, ctx.clone(), e).await;
@@ -166,7 +166,7 @@ async fn test_layer_authority_full_ordering() {
             ctx,
             "ordering content",
             vec![
-                KnowledgeLayer::Company,
+                KnowledgeLayer::Tenant,
                 KnowledgeLayer::Org,
                 KnowledgeLayer::Team,
                 KnowledgeLayer::Project,
@@ -180,7 +180,7 @@ async fn test_layer_authority_full_ordering() {
 
     let layers: Vec<KnowledgeLayer> = results.iter().map(|e| e.layer).collect();
     let expected = [
-        KnowledgeLayer::Company,
+        KnowledgeLayer::Tenant,
         KnowledgeLayer::Org,
         KnowledgeLayer::Team,
         KnowledgeLayer::Project,

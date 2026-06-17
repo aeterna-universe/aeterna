@@ -222,7 +222,7 @@ mod tests {
     fn test_record_promotion_approved() {
         let t = KnowledgeTelemetry;
         t.record_promotion_approved("org", 1234.5);
-        t.record_promotion_approved("company", 5678.9);
+        t.record_promotion_approved("tenant", 5678.9);
     }
 
     #[test]

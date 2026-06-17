@@ -225,7 +225,7 @@ Defined in `mk_core/src/types.rs` as the `MemoryLayer` enum:
 | Project | 4 | Project-level shared knowledge |
 | Team | 5 | Team-wide conventions |
 | Org | 6 | Organization policies |
-| Company | 7 (highest) | Company-wide standards |
+| Tenant | 7 (highest) | Tenant-wide standards |
 
 ### Storage Tiers (Physical)
 
@@ -255,7 +255,7 @@ Defined in `mk_core/src/types.rs` as the `MemoryLayer` enum:
 Knowledge is stored in Git-backed repositories with a hierarchical override model:
 
 ```
-Company -> Organization -> Team -> Project
+Tenant -> Organization -> Team -> Project
 ```
 
 Policies flow downward; projects can override using `Merge` or `Override` strategies.

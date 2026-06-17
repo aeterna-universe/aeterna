@@ -68,7 +68,7 @@ All tools generate JSON Schema for input validation:
     },
     "layer": {
       "type": "string",
-      "enum": ["agent", "user", "session", "project", "team", "org", "company"],
+      "enum": ["agent", "user", "session", "project", "team", "org", "tenant"],
       "default": "user",
       "description": "Memory scope"
     }

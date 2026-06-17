@@ -1,6 +1,8 @@
+> Superseded by `refactor-account-tenant-hierarchy`, which establishes `Account -> Tenant -> Organization -> Team -> Project` as the canonical model.
+
 ## Why
 
-Aeterna treasury customers operate as **corporate groups** — a holding company plus N
+Aeterna treasury customers operate as **corporate groups** — a holding tenant plus N
 subsidiaries that may run different ERPs, different cash-management workflows, different
 compliance regimes, and different geographic data-residency requirements. Today the
 platform has no first-class concept for this:
@@ -9,13 +11,13 @@ platform has no first-class concept for this:
    boundary, our backup boundary, our quota boundary. That is correct — each subsidiary
    should keep its data isolated from siblings, and "one tenant per subsidiary" is the
    right answer for data plane concerns.
-2. **There is no rollup *above* tenant.** Sales, billing, customer success, and the
+2. **There is no rollup _above_ tenant.** Sales, billing, customer success, and the
    admin UI all need to know "all the tenants belonging to Acme Holding", but nothing in
    the schema captures that fact. Today the only signal is the
    `tenants.legal_entity_name` text column added in v1.5.x by migration 033 — a
    metadata seed precisely so this proposal could land without losing pre-existing data.
 3. **An alternative was considered and rejected.** Modelling subsidiaries as recursive
-   `Company → Company` parenting *inside* a single tenant was the obvious shortcut. It
+   `Tenant → Tenant` parenting _inside_ a single tenant was the obvious shortcut. It
    was rejected during the rc.9 architecture review because (a) it forces all
    subsidiaries to share RLS, schema, migrations, backups, and retention; (b) it
    conflates a corporate-structure question with a data-isolation question that already
@@ -39,7 +41,7 @@ platform has no first-class concept for this:
 - Add a **`LegalEntityAdmin`** principal type that can read across all tenants of one
   legal entity. Critically, this is **NOT an RLS bypass** — the principal cannot
   observe row-level data in any tenant directly. The handler walks
-  `legal_entities → tenants` and runs *separate* per-tenant scoped queries, then
+  `legal_entities → tenants` and runs _separate_ per-tenant scoped queries, then
   aggregates results. RLS remains enforced unchanged at the tenant boundary.
 - Add a **cross-tenant rollup API** under `/api/v1/legal-entities/{id}/...` exposing
   read-only aggregations (tenant list, health summary, open-incident count, storage
@@ -57,6 +59,7 @@ platform has no first-class concept for this:
 ## Capabilities
 
 ### New Capabilities
+
 - `legal-entity-grouping`: First-class corporate-entity layer above the tenant
   boundary. Owns the `legal_entities` table, the `LegalEntityAdmin` principal, the
   cross-tenant rollup API, the admin-ui Legal Entity navigation, and the CLI commands.
@@ -64,6 +67,7 @@ platform has no first-class concept for this:
   N per-tenant scoped queries, not as a privileged join.
 
 ### Modified Capabilities
+
 - `tenant-management`: `tenants` table gains a nullable `legal_entity_id` FK; the
   `legal_entity_name` text column added in v1.5.x by migration 033 is migrated into
   rows of `legal_entities` and then dropped. `TenantRecord` gains an optional

@@ -7,7 +7,7 @@ How AI agents interact with the Aeterna memory and knowledge framework.
 ## 🔴 HARD CONSTRAINT — Public vs Internal Repository Split
 
 **This repository is a PUBLIC OSS codebase.** A **separate internal repository**
-owns everything related to deploying it on company infrastructure.
+owns everything related to deploying it on internal infrastructure.
 
 Agents MUST respect this split at all times — in code, configuration, commit
 messages, PR titles, PR bodies, issue bodies, review comments, filenames,
@@ -20,10 +20,10 @@ would itself be a leak. The **authoritative list** is maintained in the
 internal repo and enforced mechanically by the leak-guard (see below).
 Categorically, nothing from any of these classes belongs here:
 
-- Any identifier naming a specific company-operated environment, cluster,
+- Any identifier naming a specific internally operated environment, cluster,
   namespace, tenant, customer, region, or availability zone
-- Any company-owned domain, hostname, subdomain, or private DNS zone
-- Any company-owned IP range, CIDR block, VPC/subnet identifier, or VPN
+- Any internally owned domain, hostname, subdomain, or private DNS zone
+- Any internally owned IP range, CIDR block, VPC/subnet identifier, or VPN
   endpoint
 - Cloud account identifiers, resource ARNs/URNs, bucket names, database
   identifiers, managed-cluster names
@@ -96,73 +96,73 @@ Aeterna exposes tools via the Model Context Protocol (MCP), defined in `tools/sr
 
 ### Memory Tools
 
-| Tool | Cedar Action | Description |
-|---|---|---|
-| `memory_add` | AddMemory | Store a new memory entry with embedding |
-| `memory_search` | SearchMemory | Semantic search across memory layers |
-| `memory_delete` | DeleteMemory | Remove a memory entry |
-| `memory_feedback` | FeedbackMemory | Provide relevance feedback on search results |
-| `memory_optimize` | OptimizeMemory | Trigger memory optimization (dedup, promotion) |
-| `memory_reason` | ReasonMemory | R1-style reflective reasoning over memories |
-| `memory_close` | CloseMemory | Close a working memory session |
-| `aeterna_memory_promote` | AddMemory | Promote memory to a higher layer |
-| `aeterna_memory_auto_promote` | OptimizeMemory | Auto-promote based on importance scoring |
+| Tool                          | Cedar Action   | Description                                    |
+| ----------------------------- | -------------- | ---------------------------------------------- |
+| `memory_add`                  | AddMemory      | Store a new memory entry with embedding        |
+| `memory_search`               | SearchMemory   | Semantic search across memory layers           |
+| `memory_delete`               | DeleteMemory   | Remove a memory entry                          |
+| `memory_feedback`             | FeedbackMemory | Provide relevance feedback on search results   |
+| `memory_optimize`             | OptimizeMemory | Trigger memory optimization (dedup, promotion) |
+| `memory_reason`               | ReasonMemory   | R1-style reflective reasoning over memories    |
+| `memory_close`                | CloseMemory    | Close a working memory session                 |
+| `aeterna_memory_promote`      | AddMemory      | Promote memory to a higher layer               |
+| `aeterna_memory_auto_promote` | OptimizeMemory | Auto-promote based on importance scoring       |
 
 ### Knowledge Tools
 
-| Tool | Cedar Action | Description |
-|---|---|---|
-| `knowledge_query` | QueryKnowledge | Search knowledge entries |
-| `knowledge_get` | QueryKnowledge | Retrieve a specific knowledge entry |
-| `knowledge_list` | QueryKnowledge | List knowledge entries with filters |
-| `knowledge_propose` | ProposeKnowledge | Submit a knowledge proposal |
-| `knowledge_promote` | PromoteKnowledge | Promote knowledge through governance |
-| `knowledge_approve` | ApproveKnowledge | Approve a pending knowledge proposal |
-| `knowledge_reject` | RejectKnowledge | Reject a pending knowledge proposal |
-| `knowledge_link` | ModifyKnowledge | Link knowledge entries together |
-| `knowledge_review_pending` | QueryKnowledge | List pending proposals for review |
+| Tool                       | Cedar Action     | Description                          |
+| -------------------------- | ---------------- | ------------------------------------ |
+| `knowledge_query`          | QueryKnowledge   | Search knowledge entries             |
+| `knowledge_get`            | QueryKnowledge   | Retrieve a specific knowledge entry  |
+| `knowledge_list`           | QueryKnowledge   | List knowledge entries with filters  |
+| `knowledge_propose`        | ProposeKnowledge | Submit a knowledge proposal          |
+| `knowledge_promote`        | PromoteKnowledge | Promote knowledge through governance |
+| `knowledge_approve`        | ApproveKnowledge | Approve a pending knowledge proposal |
+| `knowledge_reject`         | RejectKnowledge  | Reject a pending knowledge proposal  |
+| `knowledge_link`           | ModifyKnowledge  | Link knowledge entries together      |
+| `knowledge_review_pending` | QueryKnowledge   | List pending proposals for review    |
 
 ### Graph Tools
 
-| Tool | Cedar Action | Description |
-|---|---|---|
-| `graph_query` | QueryGraph | Query the memory relationship graph |
-| `graph_neighbors` | QueryGraph | Find neighbors of a graph node |
-| `graph_path` | QueryGraph | Find shortest path between nodes |
-| `graph_link` | ModifyGraph | Create a relationship between nodes |
-| `graph_unlink` | ModifyGraph | Remove a relationship |
-| `graph_traverse` | QueryGraph | Traverse the graph from a starting node |
-| `graph_find_path` | QueryGraph | Find paths with constraints |
-| `graph_violations` | QueryGraph | Detect constraint violations in the graph |
-| `graph_implementations` | QueryGraph | Find implementation nodes |
+| Tool                    | Cedar Action | Description                               |
+| ----------------------- | ------------ | ----------------------------------------- |
+| `graph_query`           | QueryGraph   | Query the memory relationship graph       |
+| `graph_neighbors`       | QueryGraph   | Find neighbors of a graph node            |
+| `graph_path`            | QueryGraph   | Find shortest path between nodes          |
+| `graph_link`            | ModifyGraph  | Create a relationship between nodes       |
+| `graph_unlink`          | ModifyGraph  | Remove a relationship                     |
+| `graph_traverse`        | QueryGraph   | Traverse the graph from a starting node   |
+| `graph_find_path`       | QueryGraph   | Find paths with constraints               |
+| `graph_violations`      | QueryGraph   | Detect constraint violations in the graph |
+| `graph_implementations` | QueryGraph   | Find implementation nodes                 |
 
 ### Governance Tools
 
-| Tool | Description |
-|---|---|
-| `governance_request_create` | Create a governance request |
-| `governance_request_get` | Get governance request details |
-| `governance_request_list` | List governance requests |
-| `governance_approve` | Approve a governance request |
-| `governance_reject` | Reject a governance request |
-| `governance_configure` | Configure governance settings |
-| `governance_config_get` | Get governance configuration |
-| `governance_role_assign` | Assign a governance role |
-| `governance_role_revoke` | Revoke a governance role |
-| `governance_role_list` | List governance roles |
-| `governance_audit_list` | List audit events |
+| Tool                        | Description                    |
+| --------------------------- | ------------------------------ |
+| `governance_request_create` | Create a governance request    |
+| `governance_request_get`    | Get governance request details |
+| `governance_request_list`   | List governance requests       |
+| `governance_approve`        | Approve a governance request   |
+| `governance_reject`         | Reject a governance request    |
+| `governance_configure`      | Configure governance settings  |
+| `governance_config_get`     | Get governance configuration   |
+| `governance_role_assign`    | Assign a governance role       |
+| `governance_role_revoke`    | Revoke a governance role       |
+| `governance_role_list`      | List governance roles          |
+| `governance_audit_list`     | List audit events              |
 
 ### Sync and Context Tools
 
-| Tool | Description |
-|---|---|
-| `sync_now` | Trigger immediate memory-knowledge sync |
-| `sync_status` | Check sync status |
-| `resolve_federation_conflict` | Resolve conflicts during sync |
-| `context_assemble` | Assemble context from multiple memory layers |
-| `hindsight_query` | Query past decisions and reasoning |
-| `meta_loop_status` | Check meta-reasoning loop status |
-| `note_capture` | Capture a note for later processing |
+| Tool                          | Description                                  |
+| ----------------------------- | -------------------------------------------- |
+| `sync_now`                    | Trigger immediate memory-knowledge sync      |
+| `sync_status`                 | Check sync status                            |
+| `resolve_federation_conflict` | Resolve conflicts during sync                |
+| `context_assemble`            | Assemble context from multiple memory layers |
+| `hindsight_query`             | Query past decisions and reasoning           |
+| `meta_loop_status`            | Check meta-reasoning loop status             |
+| `note_capture`                | Capture a note for later processing          |
 
 ### Tool Interface
 
@@ -179,6 +179,7 @@ pub trait Tool: Send + Sync + 'static {
 ```
 
 Tools are registered in the `ToolRegistry` which provides:
+
 - JSON Schema validation of inputs
 - Cedar authorization check before execution
 - Timeout enforcement
@@ -231,7 +232,7 @@ Published as `@aeterna-org/opencode-plugin`, this provides the primary integrati
 
 ## Agent Memory Hierarchy
 
-Agents interact with a 7-layer memory system that spans from volatile agent-local context to permanent company-wide knowledge.
+Agents interact with a 7-layer memory system that spans from volatile agent-local context to durable tenant-wide knowledge.
 
 ### Layers (lowest to highest precedence)
 
@@ -242,7 +243,7 @@ Session (3)  -- Session-scoped working memory
 Project (4)  -- Project-level shared knowledge
 Team (5)     -- Team-wide conventions
 Org (6)      -- Organization policies
-Company (7)  -- Company-wide standards
+Tenant (7)   -- Tenant-wide standards
 ```
 
 ### Promotion Rules
@@ -251,11 +252,12 @@ Memories can be promoted from lower layers to higher layers through:
 
 1. **Manual promotion**: Via `aeterna_memory_promote` tool with governance approval
 2. **Auto-promotion**: Via `aeterna_memory_auto_promote` based on importance scoring
-3. **Governance gates**: Promotions to Team/Org/Company layers require approval from users with appropriate roles
+3. **Governance gates**: Promotions to Team/Org/Tenant layers require approval from users with appropriate roles
 
 ### Importance Scoring
 
 The `memory_optimize` tool triggers importance scoring that considers:
+
 - Access frequency
 - Relevance feedback (from `memory_feedback`)
 - Age decay
@@ -288,6 +290,7 @@ Aeterna runs as a Kubernetes ReplicaSet. Agents connecting via MCP or A2A must a
 ### LangChain Adapter
 
 The `adapters/src/langchain.rs` module provides a LangChain-compatible interface:
+
 - Memory backend adapter for LangChain's memory abstraction
 - Tool wrappers for LangChain's tool interface
 - Chain-of-thought integration with the reasoning engine
@@ -295,6 +298,7 @@ The `adapters/src/langchain.rs` module provides a LangChain-compatible interface
 ### OpenCode Adapter
 
 The `adapters/src/opencode.rs` module provides:
+
 - Plugin configuration and lifecycle management
 - Hook registration for memory capture
 - Context window optimization via CCA (Context Compression Architecture)
@@ -380,43 +384,43 @@ Phase 2 of `optimize-duckdb-graph-store` adds event-sourced write coordination a
 
 ### Feature Flags
 
-| Flag | Default | Description |
-|---|---|---|
-| `providers.graph.event_sourcing_enabled` | `true` | Dual-write mutations to Postgres event log + local DuckDB |
+| Flag                                     | Default | Description                                               |
+| ---------------------------------------- | ------- | --------------------------------------------------------- |
+| `providers.graph.event_sourcing_enabled` | `true`  | Dual-write mutations to Postgres event log + local DuckDB |
 
 ### Metrics (Prometheus)
 
-| Metric | Type | Description |
-|---|---|---|
-| `graph_nodes_total` | Gauge | Total live nodes per tenant |
-| `graph_edges_total` | Gauge | Total live edges per tenant |
-| `graph_traversal_depth` | Histogram | Traversal depth per query |
-| `graph_duckdb_lock_wait_ms` | Histogram | Writer lock acquisition latency |
-| `graph_partition_load_ms` | Histogram | Cold-start partition load latency |
-| `graph_snapshot_bytes` | Counter | Bytes written in snapshot uploads |
+| Metric                      | Type      | Description                       |
+| --------------------------- | --------- | --------------------------------- |
+| `graph_nodes_total`         | Gauge     | Total live nodes per tenant       |
+| `graph_edges_total`         | Gauge     | Total live edges per tenant       |
+| `graph_traversal_depth`     | Histogram | Traversal depth per query         |
+| `graph_duckdb_lock_wait_ms` | Histogram | Writer lock acquisition latency   |
+| `graph_partition_load_ms`   | Histogram | Cold-start partition load latency |
+| `graph_snapshot_bytes`      | Counter   | Bytes written in snapshot uploads |
 
 ### Key Modules
 
-| Module | Purpose |
-|---|---|
-| `storage::graph_event_log` | Postgres event log: `append()`, `tail()`, `head_seq()` |
+| Module                     | Purpose                                                       |
+| -------------------------- | ------------------------------------------------------------- |
+| `storage::graph_event_log` | Postgres event log: `append()`, `tail()`, `head_seq()`        |
 | `storage::graph_projector` | Per-tenant tokio task that tails events and applies to DuckDB |
-| `storage::graph_verify` | SHA-256 digest computation for divergence detection |
+| `storage::graph_verify`    | SHA-256 digest computation for divergence detection           |
 
 ### Server Endpoints
 
-| Endpoint | Method | Auth | Description |
-|---|---|---|---|
-| `/api/v1/internal/graph/digest` | GET | PlatformAdmin | Returns SHA-256 digest of a tenant's graph state (`?tenant_id=X`) |
+| Endpoint                        | Method | Auth          | Description                                                       |
+| ------------------------------- | ------ | ------------- | ----------------------------------------------------------------- |
+| `/api/v1/internal/graph/digest` | GET    | PlatformAdmin | Returns SHA-256 digest of a tenant's graph state (`?tenant_id=X`) |
 
 ### Cron Jobs
 
-| Job | Schedule | Description |
-|---|---|---|
-| `verify_graph_consistency` | Hourly | Iterates all active tenants, computes SHA-256 digests via `graph_verify`, emits `graph_consistency_divergences_total` counter on mismatch |
+| Job                        | Schedule | Description                                                                                                                               |
+| -------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `verify_graph_consistency` | Hourly   | Iterates all active tenants, computes SHA-256 digests via `graph_verify`, emits `graph_consistency_divergences_total` counter on mismatch |
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|---|---|---|
-| `GR_EVENT_SOURCING_ENABLED` | `true` | Enable event-sourced dual-write |
+| Variable                    | Default | Description                     |
+| --------------------------- | ------- | ------------------------------- |
+| `GR_EVENT_SOURCING_ENABLED` | `true`  | Enable event-sourced dual-write |

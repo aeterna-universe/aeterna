@@ -1,156 +1,134 @@
-//! Round-trip tests for the `tenants.legal_entity_name` metadata column
-//! introduced by migration 033_tenant_legal_entity.sql.
+//! Regression tests for tenant metadata after the account/environment refactor.
 //!
-//! See migration 033's header for the full rationale; in short, this is
-//! the v1.5.x stepping stone to the `add-legal-entity-tenant-grouping`
-//! proposal. Today the column is pure metadata: nullable text, no FK,
-//! no auth implications. The tests here lock in:
-//!
-//!   - new tenants are created with `legal_entity_name = NULL`
-//!     (back-compat: existing callers don't pass this field)
-//!   - the storage update path can SET the column
-//!   - the storage update path can leave the column UNTOUCHED
-//!     (the `Option<Option<&str>>::None` case)
-//!   - the storage update path can CLEAR the column to NULL
-//!     (the `Option<Option<&str>>::Some(None)` case) — the API does
-//!     not yet expose this capability but the storage layer must
-//!     correctly support it for the future API extension
-//!   - the partial index `idx_tenants_legal_entity_name` lookup works
-//!     for the future "all tenants of legal entity X" query.
+//! This file intentionally keeps its historical filename to preserve the
+//! original test target path, but the semantics now validate the canonical
+//! account-owned tenant model instead of the removed `legal_entity_name`
+//! stepping-stone field.
 
 use mk_core::types::RecordSource;
+use storage::account_store::AccountStore;
 use storage::postgres::PostgresBackend;
 use storage::tenant_store::TenantStore;
 use testing::{postgres, unique_id};
 
-async fn create_tenant_store() -> Option<TenantStore> {
+async fn create_stores() -> Option<(TenantStore, AccountStore)> {
     let fixture = postgres().await?;
     let backend = PostgresBackend::new(fixture.url()).await.ok()?;
     backend.initialize_schema().await.ok()?;
-    Some(TenantStore::new(backend.pool().clone()))
+    let pool = backend.pool().clone();
+    Some((TenantStore::new(pool.clone()), AccountStore::new(pool)))
 }
 
 #[tokio::test]
-async fn legal_entity_name_defaults_to_null_on_create() {
-    let Some(store) = create_tenant_store().await else {
+async fn tenant_metadata_defaults_to_no_account_and_no_environment_on_create() {
+    let Some((tenant_store, _account_store)) = create_stores().await else {
         eprintln!("Skipping Postgres test: Docker not available");
         return;
     };
 
     let slug = unique_id("t-default");
-    let created = store
+    let created = tenant_store
         .create_tenant_with_source(&slug, "Default Tenant", RecordSource::Admin)
         .await
         .expect("create_tenant_with_source");
 
-    assert_eq!(
-        created.legal_entity_name, None,
-        "new tenants must start with legal_entity_name = NULL for back-compat"
-    );
+    assert_eq!(created.account, None);
+    assert_eq!(created.environment, None);
 
-    // Round-trip via get_tenant.
-    let fetched = store
+    let fetched = tenant_store
         .get_tenant(&slug)
         .await
         .expect("get_tenant")
         .expect("tenant exists");
-    assert_eq!(fetched.legal_entity_name, None);
+    assert_eq!(fetched.account, None);
+    assert_eq!(fetched.environment, None);
 }
 
 #[tokio::test]
-async fn legal_entity_name_can_be_set_via_update() {
-    let Some(store) = create_tenant_store().await else {
+async fn tenant_environment_can_be_set_via_update() {
+    let Some((tenant_store, _account_store)) = create_stores().await else {
         eprintln!("Skipping Postgres test: Docker not available");
         return;
     };
 
-    let slug = unique_id("t-set");
-    store
-        .create_tenant_with_source(&slug, "Acme EU SAS", RecordSource::Admin)
+    let slug = unique_id("t-env");
+    tenant_store
+        .create_tenant_with_source(&slug, "Acme Prod", RecordSource::Admin)
         .await
         .unwrap();
 
-    let updated = store
-        .update_tenant(&slug, None, None, Some(Some("Acme Holding")))
+    let updated = tenant_store
+        .update_tenant(&slug, None, None, Some("prod"))
         .await
         .expect("update_tenant")
         .expect("tenant exists");
 
-    assert_eq!(
-        updated.legal_entity_name.as_deref(),
-        Some("Acme Holding"),
-        "setting legal_entity_name via Some(Some(_)) must persist"
-    );
+    assert_eq!(updated.environment.as_deref(), Some("prod"));
 }
 
 #[tokio::test]
-async fn legal_entity_name_left_alone_when_omitted() {
-    let Some(store) = create_tenant_store().await else {
+async fn tenant_environment_is_left_alone_when_omitted() {
+    let Some((tenant_store, _account_store)) = create_stores().await else {
         eprintln!("Skipping Postgres test: Docker not available");
         return;
     };
 
     let slug = unique_id("t-keep");
-    store
+    tenant_store
         .create_tenant_with_source(&slug, "Keep Tenant", RecordSource::Admin)
         .await
         .unwrap();
 
-    // Set it once.
-    store
-        .update_tenant(&slug, None, None, Some(Some("Initial Holding")))
+    tenant_store
+        .update_tenant(&slug, None, None, Some("staging"))
         .await
         .unwrap()
         .unwrap();
 
-    // Now patch slug only — legal_entity_name omitted (None) must not
-    // be touched. This is the back-compat case for callers that don't
-    // know about the field yet.
-    let after = store
+    let after = tenant_store
         .update_tenant(&slug, None, Some("Renamed Tenant"), None)
         .await
         .expect("update_tenant")
         .expect("tenant exists");
 
     assert_eq!(after.name, "Renamed Tenant");
-    assert_eq!(
-        after.legal_entity_name.as_deref(),
-        Some("Initial Holding"),
-        "omitting legal_entity_name (None) must leave the column untouched"
-    );
+    assert_eq!(after.environment.as_deref(), Some("staging"));
 }
 
 #[tokio::test]
-async fn legal_entity_name_can_be_explicitly_cleared() {
-    let Some(store) = create_tenant_store().await else {
+async fn tenant_can_attach_and_detach_account() {
+    let Some((tenant_store, account_store)) = create_stores().await else {
         eprintln!("Skipping Postgres test: Docker not available");
         return;
     };
 
-    let slug = unique_id("t-clear");
-    store
-        .create_tenant_with_source(&slug, "Clear Tenant", RecordSource::Admin)
+    let slug = unique_id("t-account");
+    tenant_store
+        .create_tenant_with_source(&slug, "Account Tenant", RecordSource::Admin)
         .await
         .unwrap();
 
-    // Set it.
-    store
-        .update_tenant(&slug, None, None, Some(Some("Some Holding")))
+    let account = account_store
+        .create(&unique_id("acct"), "Acme")
         .await
-        .unwrap()
-        .unwrap();
+        .expect("create account");
 
-    // Now explicitly clear it via Some(None). The API doesn't currently
-    // expose this distinction; the storage layer must support it for
-    // the future cleanup path.
-    let cleared = store
-        .update_tenant(&slug, None, None, Some(None))
+    let attached = tenant_store
+        .attach_account(&slug, &account.id)
         .await
-        .expect("update_tenant")
+        .expect("attach_account")
         .expect("tenant exists");
 
-    assert_eq!(
-        cleared.legal_entity_name, None,
-        "Some(None) must clear the column to NULL"
-    );
+    let attached_account = attached.account.expect("attached account metadata");
+    assert_eq!(attached_account.id, account.id);
+    assert_eq!(attached_account.slug, account.slug);
+    assert_eq!(attached_account.name, account.name);
+
+    let detached = tenant_store
+        .detach_account(&slug)
+        .await
+        .expect("detach_account")
+        .expect("tenant exists");
+
+    assert_eq!(detached.account, None);
 }

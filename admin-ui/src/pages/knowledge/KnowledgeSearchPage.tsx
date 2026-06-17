@@ -7,7 +7,7 @@ import { apiClient } from "@/api/client"
 import type { KnowledgeEntry, KnowledgeType, KnowledgeLayer } from "@/api/types"
 
 const KNOWLEDGE_TYPES: KnowledgeType[] = ["Adr", "Policy", "Pattern", "Spec", "Hindsight"]
-const KNOWLEDGE_LAYERS: KnowledgeLayer[] = ["Company", "Organization", "Team", "Project"]
+const KNOWLEDGE_LAYERS: KnowledgeLayer[] = ["Tenant", "Organization", "Team", "Project"]
 
 const typeBadgeColor: Record<string, string> = {
   Adr: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
@@ -18,7 +18,7 @@ const typeBadgeColor: Record<string, string> = {
 }
 
 const layerBadgeColor: Record<string, string> = {
-  Company: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
+  Tenant: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
   Organization: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",
   Team: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
   Project: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",

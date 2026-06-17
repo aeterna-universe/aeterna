@@ -100,6 +100,29 @@ pub enum CredentialKind {
     GitHubApp,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountRef {
+    pub id: String,
+    pub slug: String,
+    pub name: String,
+}
+
+/// Canonical account/customer-organization record persisted above tenants.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountRecord {
+    pub id: String,
+    pub slug: String,
+    pub name: String,
+    #[schema(value_type = String, format = DateTime, example = "2026-04-30T15:34:00Z")]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    #[schema(value_type = String, format = DateTime, example = "2026-04-30T15:34:00Z")]
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    #[schema(value_type = Option<String>, format = DateTime, example = "2026-04-30T15:34:00Z")]
+    pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 /// Canonical tenant record as persisted in the database.
 ///
 /// Timestamps are RFC 3339 / ISO 8601 strings on the wire (e.g.
@@ -114,15 +137,11 @@ pub struct TenantRecord {
     pub name: String,
     pub status: TenantStatus,
     pub source_owner: RecordSource,
-    /// Optional human-readable name of the corporate legal entity that owns
-    /// this tenant (e.g. `"Acme Holding"`). Pure metadata in v1.5.x \u2014 no
-    /// auth, no RLS, no FK \u2014 surfaced so sales/ops can record customer
-    /// hierarchy today. Promoted to a FK against a first-class
-    /// `legal_entities` table when the
-    /// `add-legal-entity-tenant-grouping` proposal lands.
-    #[schema(example = "Acme Holding")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub legal_entity_name: Option<String>,
+    pub account: Option<AccountRef>,
+    #[schema(example = "prod")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub environment: Option<String>,
     #[schema(value_type = String, format = DateTime, example = "2026-04-30T15:34:00Z")]
     pub created_at: chrono::DateTime<chrono::Utc>,
     #[schema(value_type = String, format = DateTime, example = "2026-04-30T15:34:00Z")]
@@ -346,7 +365,6 @@ fn contains_raw_secret_material(field_name: &str, value: &serde_json::Value) -> 
 )]
 #[strum(serialize_all = "camelCase")]
 pub enum UnitType {
-    Company,
     Organization,
     Team,
     Project,
@@ -559,43 +577,43 @@ impl TenantContext {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
 pub struct HierarchyPath {
-    pub company: String,
+    pub tenant: String,
     pub org: Option<String>,
     pub team: Option<String>,
     pub project: Option<String>,
 }
 
 impl HierarchyPath {
-    pub fn company(id: String) -> Self {
+    pub fn tenant(id: String) -> Self {
         Self {
-            company: id,
+            tenant: id,
             org: None,
             team: None,
             project: None,
         }
     }
 
-    pub fn org(company: String, id: String) -> Self {
+    pub fn org(tenant: String, id: String) -> Self {
         Self {
-            company,
+            tenant,
             org: Some(id),
             team: None,
             project: None,
         }
     }
 
-    pub fn team(company: String, org: String, id: String) -> Self {
+    pub fn team(tenant: String, org: String, id: String) -> Self {
         Self {
-            company,
+            tenant,
             org: Some(org),
             team: Some(id),
             project: None,
         }
     }
 
-    pub fn project(company: String, org: String, team: String, id: String) -> Self {
+    pub fn project(tenant: String, org: String, team: String, id: String) -> Self {
         Self {
-            company,
+            tenant,
             org: Some(org),
             team: Some(team),
             project: Some(id),
@@ -615,7 +633,7 @@ impl HierarchyPath {
     }
 
     pub fn path_string(&self) -> String {
-        let mut parts = vec![self.company.clone()];
+        let mut parts = vec![self.tenant.clone()];
         if let Some(o) = &self.org {
             parts.push(o.clone());
         }
@@ -970,7 +988,7 @@ pub struct PromotionRequest {
     JsonSchema,
 )]
 pub enum KnowledgeLayer {
-    Company,
+    Tenant,
     Org,
     Team,
     Project,
@@ -983,15 +1001,15 @@ impl KnowledgeLayer {
             KnowledgeLayer::Project => 1,
             KnowledgeLayer::Team => 2,
             KnowledgeLayer::Org => 3,
-            KnowledgeLayer::Company => 4,
+            KnowledgeLayer::Tenant => 4,
         }
     }
 }
 
 impl PromotionRequest {
     pub fn validate_layer_direction(&self) -> Result<(), String> {
-        if self.source_layer == KnowledgeLayer::Company {
-            return Err("company-layer knowledge cannot be promoted higher".to_string());
+        if self.source_layer == KnowledgeLayer::Tenant {
+            return Err("tenant-layer knowledge cannot be promoted higher".to_string());
         }
 
         if self.target_layer.precedence() <= self.source_layer.precedence() {
@@ -1009,7 +1027,7 @@ impl PromotionRequest {
 impl From<MemoryLayer> for Option<KnowledgeLayer> {
     fn from(layer: MemoryLayer) -> Self {
         match layer {
-            MemoryLayer::Company => Some(KnowledgeLayer::Company),
+            MemoryLayer::Tenant => Some(KnowledgeLayer::Tenant),
             MemoryLayer::Org => Some(KnowledgeLayer::Org),
             MemoryLayer::Team => Some(KnowledgeLayer::Team),
             MemoryLayer::Project => Some(KnowledgeLayer::Project),
@@ -1082,7 +1100,7 @@ pub enum MemoryLayer {
     Project,
     Team,
     Org,
-    Company,
+    Tenant,
 }
 
 impl MemoryLayer {
@@ -1095,7 +1113,7 @@ impl MemoryLayer {
             MemoryLayer::Project => 4,
             MemoryLayer::Team => 5,
             MemoryLayer::Org => 6,
-            MemoryLayer::Company => 7,
+            MemoryLayer::Tenant => 7,
         }
     }
 
@@ -1108,7 +1126,7 @@ impl MemoryLayer {
             MemoryLayer::Project => "Project",
             MemoryLayer::Team => "Team",
             MemoryLayer::Org => "Organization",
-            MemoryLayer::Company => "Company",
+            MemoryLayer::Tenant => "Tenant",
         }
     }
 }
@@ -1130,8 +1148,8 @@ pub struct LayerIdentifiers {
     pub team_id: Option<String>,
     #[validate(custom(function = "validate_org_id"))]
     pub org_id: Option<String>,
-    #[validate(custom(function = "validate_company_id"))]
-    pub company_id: Option<String>,
+    #[validate(custom(function = "validate_tenant_id"))]
+    pub tenant_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, ToSchema)]
@@ -2159,11 +2177,9 @@ pub fn validate_org_id(id: &&String) -> Result<(), validator::ValidationError> {
     Ok(())
 }
 
-pub fn validate_company_id(id: &&String) -> Result<(), validator::ValidationError> {
+pub fn validate_tenant_id(id: &&String) -> Result<(), validator::ValidationError> {
     if id.is_empty() {
-        return Err(validator::ValidationError::new(
-            "Company ID cannot be empty",
-        ));
+        return Err(validator::ValidationError::new("Tenant ID cannot be empty"));
     }
     Ok(())
 }
@@ -2581,12 +2597,12 @@ mod tests {
 
     #[test]
     fn test_knowledge_layer_serialization() {
-        let company = KnowledgeLayer::Company;
-        let json = serde_json::to_string(&company).unwrap();
-        assert_eq!(json, "\"Company\"");
+        let tenant = KnowledgeLayer::Tenant;
+        let json = serde_json::to_string(&tenant).unwrap();
+        assert_eq!(json, "\"Tenant\"");
 
         let deserialized: KnowledgeLayer = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized, KnowledgeLayer::Company);
+        assert_eq!(deserialized, KnowledgeLayer::Tenant);
     }
 
     #[test]
@@ -2594,7 +2610,7 @@ mod tests {
         assert_eq!(KnowledgeLayer::Project.precedence(), 1);
         assert_eq!(KnowledgeLayer::Team.precedence(), 2);
         assert_eq!(KnowledgeLayer::Org.precedence(), 3);
-        assert_eq!(KnowledgeLayer::Company.precedence(), 4);
+        assert_eq!(KnowledgeLayer::Tenant.precedence(), 4);
     }
 
     #[test]
@@ -2669,9 +2685,9 @@ mod tests {
         let request = PromotionRequest {
             id: "prom-1".to_string(),
             source_item_id: "item-1".to_string(),
-            source_layer: KnowledgeLayer::Company,
+            source_layer: KnowledgeLayer::Tenant,
             source_status: KnowledgeStatus::Accepted,
-            target_layer: KnowledgeLayer::Company,
+            target_layer: KnowledgeLayer::Tenant,
             promotion_mode: PromotionMode::Full,
             shared_content: "shared".to_string(),
             residual_content: None,
@@ -2690,7 +2706,7 @@ mod tests {
 
         assert_eq!(
             request.validate_layer_direction().unwrap_err(),
-            "company-layer knowledge cannot be promoted higher"
+            "tenant-layer knowledge cannot be promoted higher"
         );
     }
 
@@ -2732,7 +2748,7 @@ mod tests {
         assert_eq!(MemoryLayer::Project.precedence(), 4);
         assert_eq!(MemoryLayer::Team.precedence(), 5);
         assert_eq!(MemoryLayer::Org.precedence(), 6);
-        assert_eq!(MemoryLayer::Company.precedence(), 7);
+        assert_eq!(MemoryLayer::Tenant.precedence(), 7);
     }
 
     #[test]
@@ -2833,7 +2849,7 @@ mod tests {
             id: "policy_1".to_string(),
             name: "Security Policy".to_string(),
             description: Some("Security constraints".to_string()),
-            layer: KnowledgeLayer::Company,
+            layer: KnowledgeLayer::Tenant,
             mode: PolicyMode::Mandatory,
             merge_strategy: RuleMergeStrategy::Merge,
             rules: vec![rule],
@@ -2841,7 +2857,7 @@ mod tests {
         };
 
         assert_eq!(policy.id, "policy_1");
-        assert_eq!(policy.layer, KnowledgeLayer::Company);
+        assert_eq!(policy.layer, KnowledgeLayer::Tenant);
         assert_eq!(policy.rules.len(), 1);
         assert_eq!(policy.rules[0].target, ConstraintTarget::Dependency);
     }
@@ -2916,9 +2932,9 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_company_id_valid() {
-        let company_id = "company_123".to_string();
-        let result = validate_company_id(&&company_id);
+    fn test_validate_tenant_id_valid() {
+        let tenant_id = "tenant_123".to_string();
+        let result = validate_tenant_id(&&tenant_id);
         assert!(result.is_ok());
     }
 
@@ -2931,7 +2947,7 @@ mod tests {
             project_id: Some("project_789".to_string()),
             team_id: Some("team_abc".to_string()),
             org_id: Some("org_xyz".to_string()),
-            company_id: Some("company_123".to_string()),
+            tenant_id: Some("tenant_123".to_string()),
         };
 
         let result = identifiers.validate();
@@ -2947,7 +2963,7 @@ mod tests {
             project_id: None,
             team_id: None,
             org_id: None,
-            company_id: None,
+            tenant_id: None,
         };
 
         let result = identifiers.validate();
@@ -2962,7 +2978,7 @@ mod tests {
         assert_eq!(MemoryLayer::Project.display_name(), "Project");
         assert_eq!(MemoryLayer::Team.display_name(), "Team");
         assert_eq!(MemoryLayer::Org.display_name(), "Organization");
-        assert_eq!(MemoryLayer::Company.display_name(), "Company");
+        assert_eq!(MemoryLayer::Tenant.display_name(), "Tenant");
     }
 
     #[test]
@@ -3011,9 +3027,9 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_company_id_empty() {
+    fn test_validate_tenant_id_empty() {
         let id = "".to_string();
-        assert!(validate_company_id(&&id).is_err());
+        assert!(validate_tenant_id(&&id).is_err());
     }
 
     #[test]
@@ -3035,7 +3051,7 @@ mod tests {
         assert_eq!(format!("{}", MemoryLayer::Project), "Project");
         assert_eq!(format!("{}", MemoryLayer::Team), "Team");
         assert_eq!(format!("{}", MemoryLayer::Org), "Org");
-        assert_eq!(format!("{}", MemoryLayer::Company), "Company");
+        assert_eq!(format!("{}", MemoryLayer::Tenant), "Tenant");
     }
 
     #[test]
@@ -3092,17 +3108,17 @@ mod tests {
 
     #[test]
     fn test_hierarchy_path_depth() {
-        let company = HierarchyPath::company("c1".to_string());
-        assert_eq!(company.depth(), 1);
+        let tenant = HierarchyPath::tenant("t1".to_string());
+        assert_eq!(tenant.depth(), 1);
 
-        let org = HierarchyPath::org("c1".to_string(), "o1".to_string());
+        let org = HierarchyPath::org("t1".to_string(), "o1".to_string());
         assert_eq!(org.depth(), 2);
 
-        let team = HierarchyPath::team("c1".to_string(), "o1".to_string(), "t1".to_string());
+        let team = HierarchyPath::team("t1".to_string(), "o1".to_string(), "t1".to_string());
         assert_eq!(team.depth(), 3);
 
         let project = HierarchyPath::project(
-            "c1".to_string(),
+            "t1".to_string(),
             "o1".to_string(),
             "t1".to_string(),
             "p1".to_string(),
@@ -3113,12 +3129,12 @@ mod tests {
     #[test]
     fn test_hierarchy_path_string() {
         let project = HierarchyPath::project(
-            "c1".to_string(),
+            "t1".to_string(),
             "o1".to_string(),
             "t1".to_string(),
             "p1".to_string(),
         );
-        assert_eq!(project.path_string(), "c1 > o1 > t1 > p1");
+        assert_eq!(project.path_string(), "t1 > o1 > t1 > p1");
     }
 
     #[test]
@@ -3189,7 +3205,7 @@ mod tests {
         let events = vec![
             GovernanceEvent::UnitCreated {
                 unit_id: "u1".to_string(),
-                unit_type: UnitType::Company,
+                unit_type: UnitType::Organization,
                 tenant_id: tenant_id.clone(),
                 parent_id: None,
                 timestamp: 0,
@@ -3220,7 +3236,7 @@ mod tests {
             },
             GovernanceEvent::PolicyUpdated {
                 policy_id: "p1".to_string(),
-                layer: KnowledgeLayer::Company,
+                layer: KnowledgeLayer::Tenant,
                 tenant_id: tenant_id.clone(),
                 timestamp: 0,
             },
@@ -3634,7 +3650,7 @@ mod tests {
         let tenant_id = TenantId::new("acme".to_string()).unwrap();
         let event = GovernanceEvent::UnitCreated {
             unit_id: "u1".to_string(),
-            unit_type: UnitType::Company,
+            unit_type: UnitType::Organization,
             tenant_id: tenant_id.clone(),
             parent_id: None,
             timestamp: 0,
@@ -3654,7 +3670,7 @@ mod tests {
         let tenant_id = TenantId::new("acme".to_string()).unwrap();
         let event = GovernanceEvent::UnitCreated {
             unit_id: "u1".to_string(),
-            unit_type: UnitType::Company,
+            unit_type: UnitType::Organization,
             tenant_id: tenant_id.clone(),
             parent_id: None,
             timestamp: 0,
@@ -3672,7 +3688,7 @@ mod tests {
         let tenant_id = TenantId::new("acme".to_string()).unwrap();
         let event = GovernanceEvent::UnitCreated {
             unit_id: "u1".to_string(),
-            unit_type: UnitType::Company,
+            unit_type: UnitType::Organization,
             tenant_id: tenant_id.clone(),
             parent_id: None,
             timestamp: 0,
@@ -3695,7 +3711,7 @@ mod tests {
         let tenant_id = TenantId::new("acme".to_string()).unwrap();
         let event = GovernanceEvent::UnitCreated {
             unit_id: "u1".to_string(),
-            unit_type: UnitType::Company,
+            unit_type: UnitType::Organization,
             tenant_id: tenant_id.clone(),
             parent_id: None,
             timestamp: 0,
@@ -3716,7 +3732,7 @@ mod tests {
         let tenant_id = TenantId::new("acme".to_string()).unwrap();
         let event = GovernanceEvent::UnitCreated {
             unit_id: "u1".to_string(),
-            unit_type: UnitType::Company,
+            unit_type: UnitType::Organization,
             tenant_id: tenant_id.clone(),
             parent_id: None,
             timestamp: 0,
@@ -3957,7 +3973,7 @@ mod tests {
     #[test]
     fn test_summary_config_serialization_roundtrip() {
         let config = SummaryConfig {
-            layer: MemoryLayer::Company,
+            layer: MemoryLayer::Tenant,
             update_interval_secs: Some(86400),
             update_on_changes: Some(100),
             skip_if_unchanged: true,
@@ -4119,7 +4135,7 @@ mod tests {
             MemoryLayer::Project,
             MemoryLayer::Team,
             MemoryLayer::Org,
-            MemoryLayer::Company,
+            MemoryLayer::Tenant,
         ];
 
         for layer in layers {

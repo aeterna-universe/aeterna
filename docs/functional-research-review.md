@@ -16,8 +16,8 @@ When evaluated against the 2024-2026 State-of-the-Art (SOTA) research landscape,
 Most academic research (e.g., MemGPT, EVOLVE-MEM) treats agents as isolated entities operating in a vacuum. Aeterna's most significant innovation is treating AI memory as a **governed enterprise asset**.
 
 ### 1.1 Multi-Tenant Memory Precedence (Beyond H-MEM)
-While papers like H-MEM focus purely on *semantic* abstraction (grouping memories by topic), Aeterna structures memory by *organizational hierarchy* (Agent > User > Session > Project > Team > Org > Company). 
-*   **The SOTA Gap**: Current SOTA struggles with conflicting context (e.g., a company policy vs. a user's specific preference). Aeterna solves this deterministically through its **precedence merging rules**: more specific layers override broader layers prior to semantic sorting.
+While papers like H-MEM focus purely on *semantic* abstraction (grouping memories by topic), Aeterna structures memory by *organizational hierarchy* (Agent > User > Session > Project > Team > Org > Tenant). 
+*   **The SOTA Gap**: Current SOTA struggles with conflicting context (e.g., a tenant policy vs. a user's specific preference). Aeterna solves this deterministically through its **precedence merging rules**: more specific layers override broader layers prior to semantic sorting.
 *   **Verdict**: **Ahead of SOTA.** Aeterna's 7-layer precedence provides fine-grained scoping control that academic models currently ignore.
 
 ### 1.2 OPAL/Cedar ReBAC for AI Agents
@@ -63,7 +63,7 @@ While Aeterna's infrastructure is enterprise-ready, its theoretical AI mechanism
 
 ### 3.3 Lack of Positional Index Routing (Behind H-MEM)
 *   **SOTA Paradigm**: Exhaustive vector similarity search is slow at scale. H-MEM uses Positional Index Encoding, where high-level summary vectors act as direct routing pointers to child vectors in lower layers.
-*   **Aeterna's Gap**: Aeterna searches layers independently and merges them based on precedence. It does not natively use the "Company" layer summary to route directly to a specific "Project" layer embedding.
+*   **Aeterna's Gap**: Aeterna searches layers independently and merges them based on precedence. It does not natively use the "Tenant" layer summary to route directly to a specific "Project" layer embedding.
 *   **Recommendation**: Encode parent-child positional metadata into the embedding vectors to prune search spaces early.
 
 ---

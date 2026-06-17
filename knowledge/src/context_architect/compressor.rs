@@ -45,7 +45,7 @@ impl Default for CompressorConfig {
         Self {
             base_token_budget: 4000,
             layer_order: vec![
-                MemoryLayer::Company,
+                MemoryLayer::Tenant,
                 MemoryLayer::Org,
                 MemoryLayer::Team,
                 MemoryLayer::Project,
@@ -452,7 +452,7 @@ mod tests {
     fn test_compress_multiple_layers() {
         let compressor = HierarchicalCompressor::new(CompressorConfig::default());
         let layers = vec![
-            sample_layer(MemoryLayer::Company, &["company1"]),
+            sample_layer(MemoryLayer::Tenant, &["company1"]),
             sample_layer(MemoryLayer::Team, &["team1"]),
             sample_layer(MemoryLayer::Session, &["session1"]),
         ];
@@ -467,13 +467,13 @@ mod tests {
         let compressor = HierarchicalCompressor::new(CompressorConfig::default());
         let layers = vec![
             sample_layer(MemoryLayer::Session, &["session1"]),
-            sample_layer(MemoryLayer::Company, &["company1"]),
+            sample_layer(MemoryLayer::Tenant, &["company1"]),
             sample_layer(MemoryLayer::Team, &["team1"]),
         ];
 
         let result = compressor.compress(&layers, ViewMode::Dx, None);
 
-        assert_eq!(result.layers[0].layer, MemoryLayer::Company);
+        assert_eq!(result.layers[0].layer, MemoryLayer::Tenant);
         assert_eq!(result.layers[1].layer, MemoryLayer::Team);
         assert_eq!(result.layers[2].layer, MemoryLayer::Session);
     }
@@ -513,7 +513,7 @@ mod tests {
         };
         let compressor = HierarchicalCompressor::new(config);
         let layers = vec![
-            sample_layer(MemoryLayer::Company, &["company1"]),
+            sample_layer(MemoryLayer::Tenant, &["company1"]),
             sample_layer(MemoryLayer::Team, &["team1"]),
         ];
 
@@ -530,7 +530,7 @@ mod tests {
         };
         let compressor = HierarchicalCompressor::new(config);
         let layers = vec![
-            sample_layer(MemoryLayer::Company, &["company1"]),
+            sample_layer(MemoryLayer::Tenant, &["company1"]),
             sample_layer(MemoryLayer::Team, &["team1"]),
         ];
 
@@ -579,7 +579,7 @@ mod tests {
     fn test_combined_content() {
         let compressor = HierarchicalCompressor::new(CompressorConfig::default());
         let layers = vec![
-            sample_layer(MemoryLayer::Company, &["company1"]),
+            sample_layer(MemoryLayer::Tenant, &["company1"]),
             sample_layer(MemoryLayer::Session, &["session1"]),
         ];
 

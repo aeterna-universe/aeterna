@@ -3,8 +3,8 @@
 //!
 //! Pre-v1.5.0 `update_unit` skipped *all* validation — the matrix check
 //! that `create_unit` performed was missing on the update path, so it was
-//! possible to silently move a Project directly under a Company, or to
-//! make a non-Company a root, or (in principle) to create a self-parent
+//! possible to silently move a Project directly under an Organization, or to
+//! make a non-Organization/non-root unit parentless, or (in principle) to create a self-parent
 //! cycle. The rc.9 sweep extracts a shared `validate_unit_invariants`
 //! validator and routes both create and update through it; these tests
 //! lock in the update-side coverage that did not previously exist.
@@ -12,9 +12,9 @@
 //! What's covered here:
 //!   - matrix violation on update (the original latent bug)
 //!   - self-parent on update (cycle rule 3a)
-//!   - non-Company set as root on update (root rule)
+//!   - non-root Team/Project set as root on update (root rule)
 //!   - legitimate reparent across same-type parents succeeds
-//!   - dropping parent on a Company succeeds (root → root)
+//!   - keeping an Organization root on update succeeds
 //!
 //! What's *not* covered, by design:
 //!   - multi-step ancestor cycle (rule 3b). With the strict-by-type
@@ -60,7 +60,7 @@ fn unit(
 
 // ---------------------------------------------------------------------------
 // Test: the original latent bug — update_unit used to allow a Project to
-// be moved directly under a Company, which the matrix forbids on create.
+// be moved directly under an Organization, which the matrix forbids on create.
 // Now the same matrix runs on update.
 // ---------------------------------------------------------------------------
 #[tokio::test]
@@ -71,21 +71,16 @@ async fn update_unit_rejects_matrix_violation() {
     };
 
     let tenant_id = TenantId::new(unique_id("t")).unwrap();
-    let comp_id = unique_id("comp");
     let org_id = unique_id("org");
     let team_id = unique_id("team");
     let proj_id = unique_id("proj");
 
     storage
-        .create_unit(&unit(&comp_id, "C", UnitType::Company, None, &tenant_id))
-        .await
-        .unwrap();
-    storage
         .create_unit(&unit(
             &org_id,
             "O",
             UnitType::Organization,
-            Some(comp_id.clone()),
+            None,
             &tenant_id,
         ))
         .await
@@ -111,13 +106,13 @@ async fn update_unit_rejects_matrix_violation() {
         .await
         .unwrap();
 
-    // Try to move the Project directly under the Company. This was the
-    // original silent-acceptance bug. Now must fail.
+    // Try to move the Project directly under the Organization. This was the
+    // original silent-acceptance bug class. Now must fail.
     let mut bad = unit(
         &proj_id,
         "P",
         UnitType::Project,
-        Some(comp_id.clone()),
+        Some(org_id.clone()),
         &tenant_id,
     );
     bad.updated_at = chrono::DateTime::from_timestamp(2000, 0).unwrap();
@@ -125,7 +120,7 @@ async fn update_unit_rejects_matrix_violation() {
     let result = storage.update_unit(&bad).await;
     assert!(
         result.is_err(),
-        "update_unit must reject moving a Project directly under a Company"
+        "update_unit must reject moving a Project directly under an Organization"
     );
     let msg = format!("{:?}", result.unwrap_err());
     assert!(
@@ -145,19 +140,25 @@ async fn update_unit_rejects_self_parent() {
     };
 
     let tenant_id = TenantId::new(unique_id("t")).unwrap();
-    let comp_id = unique_id("comp");
+    let org_id = unique_id("org");
 
     storage
-        .create_unit(&unit(&comp_id, "C", UnitType::Company, None, &tenant_id))
+        .create_unit(&unit(
+            &org_id,
+            "O",
+            UnitType::Organization,
+            None,
+            &tenant_id,
+        ))
         .await
         .unwrap();
 
-    // Try to set Company as its own parent.
+    // Try to set Organization as its own parent.
     let mut bad = unit(
-        &comp_id,
-        "C",
-        UnitType::Company,
-        Some(comp_id.clone()),
+        &org_id,
+        "O",
+        UnitType::Organization,
+        Some(org_id.clone()),
         &tenant_id,
     );
     bad.updated_at = chrono::DateTime::from_timestamp(2000, 0).unwrap();
@@ -175,53 +176,59 @@ async fn update_unit_rejects_self_parent() {
 }
 
 // ---------------------------------------------------------------------------
-// Test: root rule — only Company may be a root. Updating an Org to have
-// no parent must be rejected.
+// Test: root rule — only Organization may be a root. Updating a Team to
+// have no parent must be rejected.
 // ---------------------------------------------------------------------------
 #[tokio::test]
-async fn update_unit_rejects_non_company_as_root() {
+async fn update_unit_rejects_team_as_root() {
     let Some(storage) = create_test_backend().await else {
         eprintln!("Skipping Postgres test: Docker not available");
         return;
     };
 
     let tenant_id = TenantId::new(unique_id("t")).unwrap();
-    let comp_id = unique_id("comp");
     let org_id = unique_id("org");
+    let team_id = unique_id("team");
 
-    storage
-        .create_unit(&unit(&comp_id, "C", UnitType::Company, None, &tenant_id))
-        .await
-        .unwrap();
     storage
         .create_unit(&unit(
             &org_id,
             "O",
             UnitType::Organization,
-            Some(comp_id.clone()),
+            None,
+            &tenant_id,
+        ))
+        .await
+        .unwrap();
+    storage
+        .create_unit(&unit(
+            &team_id,
+            "T",
+            UnitType::Team,
+            Some(org_id.clone()),
             &tenant_id,
         ))
         .await
         .unwrap();
 
-    // Try to make the Org a root.
-    let mut bad = unit(&org_id, "O", UnitType::Organization, None, &tenant_id);
+    // Try to make the Team a root.
+    let mut bad = unit(&team_id, "T", UnitType::Team, None, &tenant_id);
     bad.updated_at = chrono::DateTime::from_timestamp(2000, 0).unwrap();
 
     let result = storage.update_unit(&bad).await;
     assert!(
         result.is_err(),
-        "update_unit must reject making a non-Company a root"
+        "update_unit must reject making a Team a root"
     );
     let msg = format!("{:?}", result.unwrap_err());
     assert!(
-        msg.contains("Company") && msg.contains("root"),
+        msg.contains("Organization") && msg.contains("root"),
         "error must mention the root rule; got: {msg}"
     );
 }
 
 // ---------------------------------------------------------------------------
-// Test: a *legitimate* reparent (Organization moves between two Companies
+// Test: a *legitimate* reparent (Team moves between two Organizations
 // in the same tenant) must succeed.
 // ---------------------------------------------------------------------------
 #[tokio::test]
@@ -232,35 +239,35 @@ async fn update_unit_allows_legitimate_reparent() {
     };
 
     let tenant_id = TenantId::new(unique_id("t")).unwrap();
-    let c1 = unique_id("c1");
-    let c2 = unique_id("c2");
-    let org_id = unique_id("org");
+    let org1 = unique_id("org1");
+    let org2 = unique_id("org2");
+    let team_id = unique_id("team");
 
     storage
-        .create_unit(&unit(&c1, "C1", UnitType::Company, None, &tenant_id))
+        .create_unit(&unit(&org1, "O1", UnitType::Organization, None, &tenant_id))
         .await
         .unwrap();
     storage
-        .create_unit(&unit(&c2, "C2", UnitType::Company, None, &tenant_id))
+        .create_unit(&unit(&org2, "O2", UnitType::Organization, None, &tenant_id))
         .await
         .unwrap();
     storage
         .create_unit(&unit(
-            &org_id,
-            "O",
-            UnitType::Organization,
-            Some(c1.clone()),
+            &team_id,
+            "T",
+            UnitType::Team,
+            Some(org1.clone()),
             &tenant_id,
         ))
         .await
         .unwrap();
 
-    // Move Org from C1 to C2.
+    // Move Team from O1 to O2.
     let mut moved = unit(
-        &org_id,
-        "O",
-        UnitType::Organization,
-        Some(c2.clone()),
+        &team_id,
+        "T",
+        UnitType::Team,
+        Some(org2.clone()),
         &tenant_id,
     );
     moved.updated_at = chrono::DateTime::from_timestamp(2000, 0).unwrap();
@@ -268,33 +275,45 @@ async fn update_unit_allows_legitimate_reparent() {
     storage
         .update_unit(&moved)
         .await
-        .expect("reparent between Companies in the same tenant must be allowed");
+        .expect("reparent between Organizations in the same tenant must be allowed");
 }
 
 // ---------------------------------------------------------------------------
-// Test: Company.parent_id may legitimately be None on update (root → root
+// Test: Organization.parent_id may legitimately be None on update (root → root
 // rewrite, e.g. to update name or metadata).
 // ---------------------------------------------------------------------------
 #[tokio::test]
-async fn update_unit_allows_company_root() {
+async fn update_unit_allows_organization_root() {
     let Some(storage) = create_test_backend().await else {
         eprintln!("Skipping Postgres test: Docker not available");
         return;
     };
 
     let tenant_id = TenantId::new(unique_id("t")).unwrap();
-    let comp_id = unique_id("comp");
+    let org_id = unique_id("org");
 
     storage
-        .create_unit(&unit(&comp_id, "C", UnitType::Company, None, &tenant_id))
+        .create_unit(&unit(
+            &org_id,
+            "O",
+            UnitType::Organization,
+            None,
+            &tenant_id,
+        ))
         .await
         .unwrap();
 
-    let mut renamed = unit(&comp_id, "C-renamed", UnitType::Company, None, &tenant_id);
+    let mut renamed = unit(
+        &org_id,
+        "O-renamed",
+        UnitType::Organization,
+        None,
+        &tenant_id,
+    );
     renamed.updated_at = chrono::DateTime::from_timestamp(2000, 0).unwrap();
 
     storage
         .update_unit(&renamed)
         .await
-        .expect("renaming a root Company must be allowed");
+        .expect("renaming a root Organization must be allowed");
 }

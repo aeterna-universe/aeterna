@@ -11,7 +11,7 @@ const features = [
     title: '7-Layer Memory',
     emoji: '🧠',
     description:
-      'Hierarchical memory from agent-level to company-wide, giving AI agents persistent context across sessions, teams, and organizations.',
+      'Hierarchical memory from agent-level to tenant-wide, giving AI agents persistent context across sessions, teams, and organizations.',
     link: '/docs/specs/memory-system',
   },
   {
@@ -61,7 +61,7 @@ function HomepageHeader() {
         </Heading>
         <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
         <p className={styles.heroDescription}>
-          Built for companies deploying AI coding assistants, autonomous agents,
+          Built for organizations deploying AI coding assistants, autonomous agents,
           and intelligent automation across hundreds of engineers and thousands
           of projects.
         </p>
@@ -115,13 +115,13 @@ function ArchitectureSection() {
         </Heading>
         <p className={styles.sectionDescription}>
           Aeterna's organizational hierarchy enables enterprise-scale deployment
-          with policy inheritance flowing from company level down to individual projects.
+          with policy inheritance flowing from tenant level down to individual projects.
         </p>
         <div className={styles.hierarchyGrid}>
           <div className={styles.hierarchyColumn}>
             <Heading as="h4">Memory Layers (7)</Heading>
             <div className={styles.layerStack}>
-              {['Company', 'Organization', 'Team', 'Project', 'Session', 'User', 'Agent'].map(
+              {['Tenant', 'Organization', 'Team', 'Project', 'Session', 'User', 'Agent'].map(
                 (layer, i) => (
                   <div
                     key={layer}
@@ -136,7 +136,7 @@ function ArchitectureSection() {
           <div className={styles.hierarchyColumn}>
             <Heading as="h4">Knowledge Layers (4)</Heading>
             <div className={styles.layerStack}>
-              {['Company', 'Organization', 'Team', 'Project'].map(
+              {['Tenant', 'Organization', 'Team', 'Project'].map(
                 (layer, i) => (
                   <div
                     key={layer}

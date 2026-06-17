@@ -32,9 +32,12 @@ use super::{
 const OWNERSHIP_PLATFORM: &str = "platform";
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateTenantRequest {
     pub slug: String,
     pub name: String,
+    pub account_id: Option<String>,
+    pub environment: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -42,21 +45,7 @@ pub struct CreateTenantRequest {
 pub struct UpdateTenantRequest {
     pub slug: Option<String>,
     pub name: Option<String>,
-    /// Optional human-readable legal entity name (e.g. "Acme Holding").
-    /// See `mk_core::types::TenantRecord::legal_entity_name` and migration
-    /// 033 for the full rationale.
-    ///
-    /// Wire shape today: `{"legalEntityName": "Acme Holding"}` to set,
-    /// or omit the field entirely to leave the column untouched. There
-    /// is deliberately no way to *clear* the column via this endpoint
-    /// in v1.5.x \u2014 the storage layer supports it
-    /// (`Option<Option<&str>>`) but the API does not yet expose it
-    /// because clearing is a destructive op that should require a more
-    /// explicit gesture (and an audit trail). When the
-    /// `add-legal-entity-tenant-grouping` proposal lands, clearing will
-    /// be handled via `DELETE /tenants/{slug}/legal-entity` against the
-    /// FK relationship rather than via this PATCH.
-    pub legal_entity_name: Option<String>,
+    pub environment: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -183,8 +172,40 @@ struct TenantResponse<T> {
     tenant: T,
 }
 
+#[derive(Debug, Serialize)]
+struct AccountResponse<T> {
+    success: bool,
+    account: T,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateAccountRequest {
+    slug: String,
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateAccountRequest {
+    slug: Option<String>,
+    name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AttachAccountRequest {
+    account_id: String,
+}
+
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
+        .route("/admin/accounts", get(list_accounts).post(create_account))
+        .route(
+            "/admin/accounts/{account}",
+            get(show_account).patch(update_account).delete(delete_account),
+        )
+        .route("/admin/accounts/{account}/tenants", get(list_account_tenants))
         .route("/admin/tenants", get(list_tenants).post(create_tenant))
         .route(
             "/admin/tenants/{tenant}",
@@ -193,6 +214,10 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/admin/tenants/{tenant}/deactivate",
             post(deactivate_tenant),
+        )
+        .route(
+            "/admin/tenants/{tenant}/account",
+            post(attach_tenant_account).delete(detach_tenant_account),
         )
         .route(
             "/admin/tenants/{tenant}/purge",
@@ -1057,6 +1082,302 @@ async fn delete_my_tenant_secret(
     }
 }
 
+async fn create_account(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<CreateAccountRequest>,
+) -> impl IntoResponse {
+    let ctx = match require_platform_admin(&state, &headers).await {
+        Ok(ctx) => ctx,
+        Err(response) => return response,
+    };
+
+    let store = storage::AccountStore::new(state.postgres.pool().clone());
+    match store.create(&req.slug, &req.name).await {
+        Ok(record) => {
+            audit_tenant_action(
+                &state,
+                &ctx,
+                "account_create",
+                Some(&record.id),
+                json!({ "slug": record.slug, "name": record.name }),
+            )
+            .await;
+            (
+                StatusCode::CREATED,
+                Json(AccountResponse {
+                    success: true,
+                    account: record,
+                }),
+            )
+                .into_response()
+        }
+        Err(err) => error_response(
+            StatusCode::BAD_REQUEST,
+            "account_create_failed",
+            &err.to_string(),
+        ),
+    }
+}
+
+async fn list_accounts(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    if let Err(response) = require_platform_admin_or_scope(&state, &headers, "tenants:read").await {
+        return response;
+    }
+
+    let store = storage::AccountStore::new(state.postgres.pool().clone());
+    match store.list().await {
+        Ok(accounts) => (
+            StatusCode::OK,
+            Json(json!({ "success": true, "accounts": accounts })),
+        )
+            .into_response(),
+        Err(err) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "account_list_failed",
+            &err.to_string(),
+        ),
+    }
+}
+
+async fn show_account(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(account): Path<String>,
+) -> impl IntoResponse {
+    if let Err(response) = require_platform_admin_or_scope(&state, &headers, "tenants:read").await {
+        return response;
+    }
+
+    let store = storage::AccountStore::new(state.postgres.pool().clone());
+    match store.get(&account).await {
+        Ok(Some(record)) => (
+            StatusCode::OK,
+            Json(AccountResponse {
+                success: true,
+                account: record,
+            }),
+        )
+            .into_response(),
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "account_not_found",
+            "Account not found",
+        ),
+        Err(err) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "account_show_failed",
+            &err.to_string(),
+        ),
+    }
+}
+
+async fn update_account(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(account): Path<String>,
+    Json(req): Json<UpdateAccountRequest>,
+) -> impl IntoResponse {
+    let ctx = match require_platform_admin(&state, &headers).await {
+        Ok(ctx) => ctx,
+        Err(response) => return response,
+    };
+
+    let store = storage::AccountStore::new(state.postgres.pool().clone());
+    match store
+        .update(&account, req.slug.as_deref(), req.name.as_deref())
+        .await
+    {
+        Ok(Some(record)) => {
+            audit_tenant_action(
+                &state,
+                &ctx,
+                "account_update",
+                Some(&record.id),
+                json!({ "slug": record.slug, "name": record.name }),
+            )
+            .await;
+            (
+                StatusCode::OK,
+                Json(AccountResponse {
+                    success: true,
+                    account: record,
+                }),
+            )
+                .into_response()
+        }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "account_not_found",
+            "Account not found",
+        ),
+        Err(err) => error_response(
+            StatusCode::BAD_REQUEST,
+            "account_update_failed",
+            &err.to_string(),
+        ),
+    }
+}
+
+async fn delete_account(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(account): Path<String>,
+) -> impl IntoResponse {
+    let ctx = match require_platform_admin(&state, &headers).await {
+        Ok(ctx) => ctx,
+        Err(response) => return response,
+    };
+
+    let store = storage::AccountStore::new(state.postgres.pool().clone());
+    match store.soft_delete(&account).await {
+        Ok(Some(record)) => {
+            audit_tenant_action(
+                &state,
+                &ctx,
+                "account_delete",
+                Some(&record.id),
+                json!({ "slug": record.slug, "name": record.name }),
+            )
+            .await;
+            (
+                StatusCode::OK,
+                Json(AccountResponse {
+                    success: true,
+                    account: record,
+                }),
+            )
+                .into_response()
+        }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "account_not_found",
+            "Account not found",
+        ),
+        Err(err) => error_response(
+            StatusCode::BAD_REQUEST,
+            "account_delete_failed",
+            &err.to_string(),
+        ),
+    }
+}
+
+async fn list_account_tenants(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(account): Path<String>,
+) -> impl IntoResponse {
+    if let Err(response) = require_platform_admin_or_scope(&state, &headers, "tenants:read").await {
+        return response;
+    }
+
+    let store = storage::AccountStore::new(state.postgres.pool().clone());
+    match store.list_tenants(&account).await {
+        Ok(tenants) => (
+            StatusCode::OK,
+            Json(json!({ "success": true, "tenants": tenants })),
+        )
+            .into_response(),
+        Err(err) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "account_tenant_list_failed",
+            &err.to_string(),
+        ),
+    }
+}
+
+async fn attach_tenant_account(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(tenant): Path<String>,
+    Json(req): Json<AttachAccountRequest>,
+) -> impl IntoResponse {
+    let ctx = match require_platform_admin(&state, &headers).await {
+        Ok(ctx) => ctx,
+        Err(response) => return response,
+    };
+
+    match state
+        .tenant_store
+        .attach_account(&tenant, &req.account_id)
+        .await
+    {
+        Ok(Some(record)) => {
+            audit_tenant_action(
+                &state,
+                &ctx,
+                "tenant_account_attach",
+                Some(record.id.as_str()),
+                json!({ "tenant": record.slug, "account": record.account }),
+            )
+            .await;
+            (
+                StatusCode::OK,
+                Json(TenantResponse {
+                    success: true,
+                    tenant: record,
+                }),
+            )
+                .into_response()
+        }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "tenant_or_account_not_found",
+            "Tenant or account not found",
+        ),
+        Err(err) => error_response(
+            StatusCode::BAD_REQUEST,
+            "tenant_account_attach_failed",
+            &err.to_string(),
+        ),
+    }
+}
+
+async fn detach_tenant_account(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(tenant): Path<String>,
+) -> impl IntoResponse {
+    let ctx = match require_platform_admin(&state, &headers).await {
+        Ok(ctx) => ctx,
+        Err(response) => return response,
+    };
+
+    match state.tenant_store.detach_account(&tenant).await {
+        Ok(Some(record)) => {
+            audit_tenant_action(
+                &state,
+                &ctx,
+                "tenant_account_detach",
+                Some(record.id.as_str()),
+                json!({ "tenant": record.slug }),
+            )
+            .await;
+            (
+                StatusCode::OK,
+                Json(TenantResponse {
+                    success: true,
+                    tenant: record,
+                }),
+            )
+                .into_response()
+        }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "tenant_not_found",
+            "Tenant not found",
+        ),
+        Err(err) => error_response(
+            StatusCode::BAD_REQUEST,
+            "tenant_account_detach_failed",
+            &err.to_string(),
+        ),
+    }
+}
+
 async fn create_tenant(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -1067,7 +1388,17 @@ async fn create_tenant(
         Err(response) => return response,
     };
 
-    match state.tenant_store.create_tenant(&req.slug, &req.name).await {
+    match state
+        .tenant_store
+        .create_tenant_with_metadata(
+            &req.slug,
+            &req.name,
+            RecordSource::Admin,
+            req.account_id.as_deref(),
+            req.environment.as_deref(),
+        )
+        .await
+    {
         Ok(record) => {
             let now = chrono::Utc::now().timestamp();
             let tenant_event = GovernanceEvent::TenantCreated {
@@ -1082,7 +1413,12 @@ async fn create_tenant(
                 &ctx,
                 "tenant_create",
                 Some(record.id.as_str()),
-                json!({ "slug": record.slug, "name": record.name }),
+                json!({
+                    "slug": record.slug,
+                    "name": record.name,
+                    "account": record.account,
+                    "environment": record.environment,
+                }),
             )
             .await;
             (
@@ -1182,20 +1518,13 @@ async fn update_tenant(
         Err(response) => return response,
     };
 
-    // Map `Option<String>` from the wire to the storage's
-    // `Option<Option<&str>>` "leave alone vs. set vs. clear" shape. In
-    // v1.5.x the API only supports "leave alone" (None) and "set" (Some).
-    // Clearing is intentionally not exposed yet \u2014 see
-    // UpdateTenantRequest::legal_entity_name doc comment.
-    let legal_entity_update: Option<Option<&str>> = req.legal_entity_name.as_deref().map(Some);
-
     match state
         .tenant_store
         .update_tenant(
             &tenant,
             req.slug.as_deref(),
             req.name.as_deref(),
-            legal_entity_update,
+            req.environment.as_deref(),
         )
         .await
     {
@@ -1215,7 +1544,8 @@ async fn update_tenant(
                 json!({
                     "slug": record.slug,
                     "name": record.name,
-                    "legalEntityName": record.legal_entity_name,
+                    "account": record.account,
+                    "environment": record.environment,
                 }),
             )
             .await;
@@ -2004,8 +2334,8 @@ async fn assign_unit_role(
         Err(response) => return response,
     };
 
-    // Gate: caller must have AssignRoles permission on the tenant company resource.
-    let authz_resource = format!("Aeterna::Company::\"{}\"", ctx.tenant_id.as_str());
+    // Gate: caller must have AssignRoles permission on the tenant resource.
+    let authz_resource = format!("Aeterna::Tenant::\"{}\"", ctx.tenant_id.as_str());
     match state
         .auth_service
         .check_permission(&ctx, "AssignRoles", &authz_resource)
@@ -2128,8 +2458,8 @@ async fn remove_unit_role(
         Err(response) => return response,
     };
 
-    // Gate: caller must have AssignRoles permission on the tenant company resource.
-    let authz_resource = format!("Aeterna::Company::\"{}\"", ctx.tenant_id.as_str());
+    // Gate: caller must have AssignRoles permission on the tenant resource.
+    let authz_resource = format!("Aeterna::Tenant::\"{}\"", ctx.tenant_id.as_str());
     match state
         .auth_service
         .check_permission(&ctx, "AssignRoles", &authz_resource)
@@ -3506,7 +3836,7 @@ async fn get_effective_permissions(
 
     let resource = query
         .resource
-        .unwrap_or_else(|| format!("Aeterna::Company::\"{}\"", admin_ctx.tenant_id.as_str()));
+        .unwrap_or_else(|| format!("Aeterna::Tenant::\"{}\"", admin_ctx.tenant_id.as_str()));
 
     let actions: Vec<String> = query
         .actions
@@ -3975,7 +4305,7 @@ pub struct TenantManifest {
     #[serde(default)]
     pub repository: Option<SetTenantRepositoryBindingRequest>,
     #[serde(default)]
-    pub hierarchy: Option<Vec<ManifestCompany>>,
+    pub hierarchy: Option<Vec<ManifestOrg>>,
     #[serde(default)]
     pub roles: Option<Vec<ManifestRoleAssignment>>,
 }
@@ -4051,6 +4381,10 @@ pub struct ManifestTenant {
     pub slug: String,
     pub name: String,
     #[serde(default)]
+    pub account_ref: Option<String>,
+    #[serde(default)]
+    pub environment: Option<String>,
+    #[serde(default)]
     pub domain_mappings: Option<Vec<String>>,
 }
 
@@ -4075,14 +4409,6 @@ pub struct ManifestSecret {
     #[serde(default = "default_tenant_ownership")]
     pub ownership: TenantConfigOwnership,
     pub secret_value: mk_core::SecretBytes,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ManifestCompany {
-    pub name: String,
-    #[serde(default)]
-    pub orgs: Option<Vec<ManifestOrg>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -4253,22 +4579,15 @@ fn validate_manifest(m: &TenantManifest) -> Vec<String> {
     }
 
     // Validate role names in hierarchy members
-    if let Some(companies) = &m.hierarchy {
-        for company in companies {
-            if company.name.trim().is_empty() {
-                errors.push("hierarchy company name must not be empty".into());
+    if let Some(orgs) = &m.hierarchy {
+        for org in orgs {
+            if org.name.trim().is_empty() {
+                errors.push("hierarchy org name must not be empty".into());
             }
-            if let Some(orgs) = &company.orgs {
-                for org in orgs {
-                    if org.name.trim().is_empty() {
-                        errors.push("hierarchy org name must not be empty".into());
-                    }
-                    if let Some(teams) = &org.teams {
-                        for team in teams {
-                            if team.name.trim().is_empty() {
-                                errors.push("hierarchy team name must not be empty".into());
-                            }
-                        }
+            if let Some(teams) = &org.teams {
+                for team in teams {
+                    if team.name.trim().is_empty() {
+                        errors.push("hierarchy team name must not be empty".into());
                     }
                 }
             }
@@ -4928,12 +5247,107 @@ async fn provision_tenant(
                 )
                 .await;
             }
+            let store = storage::AccountStore::new(state.postgres.pool().clone());
+            let resolved_account = match manifest.tenant.account_ref.as_deref() {
+                Some(account_ref) => match store.get(account_ref).await {
+                    Ok(Some(account)) => Some(account),
+                    Ok(None) => {
+                        push_step_and_publish(
+                            state.as_ref(),
+                            &watch_slug,
+                            &mut steps,
+                            ProvisionStep::fail(
+                                "tenant",
+                                format!("accountRef '{}' not found", account_ref),
+                            ),
+                        )
+                        .await;
+                        return (
+                            StatusCode::NOT_FOUND,
+                            Json(json!({
+                                "success": false,
+                                "error": "account_not_found",
+                                "accountRef": account_ref,
+                                "steps": steps,
+                            })),
+                        )
+                            .into_response();
+                    }
+                    Err(err) => {
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(json!({
+                                "success": false,
+                                "error": "account_lookup_failed",
+                                "details": err.to_string(),
+                            })),
+                        )
+                            .into_response();
+                    }
+                },
+                None => None,
+            };
+
+            let updated = match state
+                .tenant_store
+                .update_tenant(
+                    record.id.as_str(),
+                    None,
+                    Some(&manifest.tenant.name),
+                    manifest.tenant.environment.as_deref(),
+                )
+                .await
+            {
+                Ok(Some(updated)) => updated,
+                Ok(None) => record.clone(),
+                Err(err) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({
+                            "success": false,
+                            "error": "tenant_update_failed",
+                            "details": err.to_string(),
+                        })),
+                    )
+                        .into_response();
+                }
+            };
+
+            let final_record = if let Some(account) = resolved_account {
+                match state
+                    .tenant_store
+                    .attach_account(updated.id.as_str(), &account.id)
+                    .await
+                {
+                    Ok(Some(attached)) => attached,
+                    Ok(None) => updated,
+                    Err(err) => {
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(json!({
+                                "success": false,
+                                "error": "tenant_account_attach_failed",
+                                "details": err.to_string(),
+                            })),
+                        )
+                            .into_response();
+                    }
+                }
+            } else {
+                updated
+            };
+
             audit_tenant_action_ext(
                 state.as_ref(),
                 principal.as_audit_actor(),
                 "tenant_provision_tenant",
-                Some(record.id.as_str()),
-                json!({ "slug": record.slug, "name": record.name }),
+                Some(final_record.id.as_str()),
+                json!({
+                    "slug": final_record.slug,
+                    "name": final_record.name,
+                    "account": final_record.account,
+                    "environment": final_record.environment,
+                }),
                 AuditExtensions {
                     manifest_hash: Some(incoming_hash.clone()),
                     generation: Some(new_generation),
@@ -4950,13 +5364,13 @@ async fn provision_tenant(
                     "tenant",
                     format!(
                         "Tenant '{}' ensured (id={})",
-                        record.slug,
-                        record.id.as_str()
+                        final_record.slug,
+                        final_record.id.as_str()
                     ),
                 ),
             )
             .await;
-            record
+            final_record
         }
         Err(err) => {
             push_step_and_publish(
@@ -5251,21 +5665,20 @@ async fn provision_tenant(
     // can attribute writes without a user identity.
     let tenant_ctx = principal.to_downstream_tenant_context(tenant_id.clone());
 
-    if let Some(companies) = &manifest.hierarchy {
-        // B2 §7.5 — hierarchy upsert loops through every company /
-        // organization / team and round-trips to Postgres per unit.
+    if let Some(org_roots) = &manifest.hierarchy {
+        // B2 §7.5 — hierarchy upsert loops through every organization /
+        // team and round-trips to Postgres per unit.
         // Emit a `started` marker so watchers see the phase enter.
         publish_step_started(state.as_ref(), &watch_slug, "hierarchy").await;
         let mut hierarchy_errors: Vec<String> = Vec::new();
         let mut units_created: usize = 0;
         let now = chrono::Utc::now().timestamp();
 
-        for company in companies {
-            // Create company unit
-            let company_unit = OrganizationalUnit {
+        for org in org_roots {
+            let org_unit = OrganizationalUnit {
                 id: Uuid::new_v4().to_string(),
-                name: company.name.clone(),
-                unit_type: UnitType::Company,
+                name: org.name.clone(),
+                unit_type: UnitType::Organization,
                 parent_id: None,
                 tenant_id: tenant_id.clone(),
                 metadata: HashMap::new(),
@@ -5275,18 +5688,18 @@ async fn provision_tenant(
             };
             if let Err(err) = state
                 .postgres
-                .create_unit_scoped(&tenant_ctx, &company_unit)
+                .create_unit_scoped(&tenant_ctx, &org_unit)
                 .await
             {
-                hierarchy_errors.push(format!("company '{}': {err}", company_unit.name));
+                hierarchy_errors.push(format!("org '{}': {err}", org_unit.name));
                 continue;
             }
             persist_governance_event(
                 state.as_ref(),
                 &ctx,
                 &GovernanceEvent::UnitCreated {
-                    unit_id: company_unit.id.clone(),
-                    unit_type: company_unit.unit_type,
+                    unit_id: org_unit.id.clone(),
+                    unit_type: org_unit.unit_type,
                     tenant_id: tenant_id.clone(),
                     parent_id: None,
                     timestamp: now,
@@ -5295,14 +5708,51 @@ async fn provision_tenant(
             .await;
             units_created += 1;
 
-            let company_id = company_unit.id.clone();
+            let org_id = org_unit.id.clone();
 
-            for org in company.orgs.iter().flatten() {
-                let org_unit = OrganizationalUnit {
+            // Assign org-level members
+            for member in org.members.iter().flatten() {
+                let user_id = if let Some(id) = mk_core::types::UserId::new(member.user_id.clone())
+                {
+                    id
+                } else {
+                    hierarchy_errors.push(format!(
+                        "org '{}' member: invalid user_id '{}'",
+                        org.name, member.user_id
+                    ));
+                    continue;
+                };
+                if let Err(err) = state
+                    .postgres
+                    .assign_role_scoped(&tenant_ctx, &user_id, &org_id, member.role.clone())
+                    .await
+                {
+                    hierarchy_errors.push(format!(
+                        "org '{}' member '{}': {err}",
+                        org.name, member.user_id
+                    ));
+                } else {
+                    persist_governance_event(
+                        state.as_ref(),
+                        &ctx,
+                        &GovernanceEvent::RoleAssigned {
+                            user_id: user_id.clone(),
+                            unit_id: org_id.clone(),
+                            role: member.role.clone(),
+                            tenant_id: tenant_id.clone(),
+                            timestamp: now,
+                        },
+                    )
+                    .await;
+                }
+            }
+
+            for team in org.teams.iter().flatten() {
+                let team_unit = OrganizationalUnit {
                     id: Uuid::new_v4().to_string(),
-                    name: org.name.clone(),
-                    unit_type: UnitType::Organization,
-                    parent_id: Some(company_id.clone()),
+                    name: team.name.clone(),
+                    unit_type: UnitType::Team,
+                    parent_id: Some(org_id.clone()),
                     tenant_id: tenant_id.clone(),
                     metadata: HashMap::new(),
                     source_owner: RecordSource::Admin,
@@ -5311,48 +5761,48 @@ async fn provision_tenant(
                 };
                 if let Err(err) = state
                     .postgres
-                    .create_unit_scoped(&tenant_ctx, &org_unit)
+                    .create_unit_scoped(&tenant_ctx, &team_unit)
                     .await
                 {
-                    hierarchy_errors.push(format!("org '{}': {err}", org_unit.name));
+                    hierarchy_errors.push(format!("team '{}': {err}", team_unit.name));
                     continue;
                 }
                 persist_governance_event(
                     state.as_ref(),
                     &ctx,
                     &GovernanceEvent::UnitCreated {
-                        unit_id: org_unit.id.clone(),
-                        unit_type: org_unit.unit_type,
+                        unit_id: team_unit.id.clone(),
+                        unit_type: team_unit.unit_type,
                         tenant_id: tenant_id.clone(),
-                        parent_id: Some(company_id.clone()),
+                        parent_id: Some(org_id.clone()),
                         timestamp: now,
                     },
                 )
                 .await;
                 units_created += 1;
 
-                let org_id = org_unit.id.clone();
+                let team_id = team_unit.id.clone();
 
-                // Assign org-level members
-                for member in org.members.iter().flatten() {
+                // Assign team-level members
+                for member in team.members.iter().flatten() {
                     let user_id =
                         if let Some(id) = mk_core::types::UserId::new(member.user_id.clone()) {
                             id
                         } else {
                             hierarchy_errors.push(format!(
-                                "org '{}' member: invalid user_id '{}'",
-                                org.name, member.user_id
+                                "team '{}' member: invalid user_id '{}'",
+                                team.name, member.user_id
                             ));
                             continue;
                         };
                     if let Err(err) = state
                         .postgres
-                        .assign_role_scoped(&tenant_ctx, &user_id, &org_id, member.role.clone())
+                        .assign_role_scoped(&tenant_ctx, &user_id, &team_id, member.role.clone())
                         .await
                     {
                         hierarchy_errors.push(format!(
-                            "org '{}' member '{}': {err}",
-                            org.name, member.user_id
+                            "team '{}' member '{}': {err}",
+                            team.name, member.user_id
                         ));
                     } else {
                         persist_governance_event(
@@ -5360,7 +5810,7 @@ async fn provision_tenant(
                             &ctx,
                             &GovernanceEvent::RoleAssigned {
                                 user_id: user_id.clone(),
-                                unit_id: org_id.clone(),
+                                unit_id: team_id.clone(),
                                 role: member.role.clone(),
                                 tenant_id: tenant_id.clone(),
                                 timestamp: now,
@@ -5369,91 +5819,12 @@ async fn provision_tenant(
                         .await;
                     }
                 }
-
-                for team in org.teams.iter().flatten() {
-                    let team_unit = OrganizationalUnit {
-                        id: Uuid::new_v4().to_string(),
-                        name: team.name.clone(),
-                        unit_type: UnitType::Team,
-                        parent_id: Some(org_id.clone()),
-                        tenant_id: tenant_id.clone(),
-                        metadata: HashMap::new(),
-                        source_owner: RecordSource::Admin,
-                        created_at: chrono::Utc::now(),
-                        updated_at: chrono::Utc::now(),
-                    };
-                    if let Err(err) = state
-                        .postgres
-                        .create_unit_scoped(&tenant_ctx, &team_unit)
-                        .await
-                    {
-                        hierarchy_errors.push(format!("team '{}': {err}", team_unit.name));
-                        continue;
-                    }
-                    persist_governance_event(
-                        state.as_ref(),
-                        &ctx,
-                        &GovernanceEvent::UnitCreated {
-                            unit_id: team_unit.id.clone(),
-                            unit_type: team_unit.unit_type,
-                            tenant_id: tenant_id.clone(),
-                            parent_id: Some(org_id.clone()),
-                            timestamp: now,
-                        },
-                    )
-                    .await;
-                    units_created += 1;
-
-                    let team_id = team_unit.id.clone();
-
-                    // Assign team-level members
-                    for member in team.members.iter().flatten() {
-                        let user_id =
-                            if let Some(id) = mk_core::types::UserId::new(member.user_id.clone()) {
-                                id
-                            } else {
-                                hierarchy_errors.push(format!(
-                                    "team '{}' member: invalid user_id '{}'",
-                                    team.name, member.user_id
-                                ));
-                                continue;
-                            };
-                        if let Err(err) = state
-                            .postgres
-                            .assign_role_scoped(
-                                &tenant_ctx,
-                                &user_id,
-                                &team_id,
-                                member.role.clone(),
-                            )
-                            .await
-                        {
-                            hierarchy_errors.push(format!(
-                                "team '{}' member '{}': {err}",
-                                team.name, member.user_id
-                            ));
-                        } else {
-                            persist_governance_event(
-                                state.as_ref(),
-                                &ctx,
-                                &GovernanceEvent::RoleAssigned {
-                                    user_id: user_id.clone(),
-                                    unit_id: team_id.clone(),
-                                    role: member.role.clone(),
-                                    tenant_id: tenant_id.clone(),
-                                    timestamp: now,
-                                },
-                            )
-                            .await;
-                        }
-                    }
-                }
             }
         }
 
         // ── B3/B4 §2.2-B — also write the manifest hierarchy to the
-        // modern tenant-scoped `companies` / `organizations` / `teams`
-        // tables so idp-sync, OPAL's `v_hierarchy` view, and the
+        // modern tenant-root hierarchy tables so idp-sync, OPAL's
+        // `v_hierarchy` view, and the
         // reverse-render path all see manifest-declared hierarchy.
         //
         // This runs *in addition* to the legacy `organizational_units`
@@ -5472,34 +5843,25 @@ async fn provision_tenant(
         // sees a consolidated diagnostic.
         let modern_hierarchy_summary = match Uuid::parse_str(tenant_id.as_str()) {
             Ok(tenant_uuid) => {
-                let company_inputs: Vec<storage::hierarchy_store::CompanyInput> = companies
+                let org_inputs: Vec<storage::hierarchy_store::OrgInput> = org_roots
                     .iter()
-                    .map(|c| storage::hierarchy_store::CompanyInput {
-                        slug: storage::hierarchy_store::slugify(&c.name),
-                        name: c.name.clone(),
-                        orgs: c
-                            .orgs
+                    .map(|o| storage::hierarchy_store::OrgInput {
+                        slug: storage::hierarchy_store::slugify(&o.name),
+                        name: o.name.clone(),
+                        teams: o
+                            .teams
                             .iter()
                             .flatten()
-                            .map(|o| storage::hierarchy_store::OrgInput {
-                                slug: storage::hierarchy_store::slugify(&o.name),
-                                name: o.name.clone(),
-                                teams: o
-                                    .teams
-                                    .iter()
-                                    .flatten()
-                                    .map(|t| storage::hierarchy_store::TeamInput {
-                                        slug: storage::hierarchy_store::slugify(&t.name),
-                                        name: t.name.clone(),
-                                    })
-                                    .collect(),
+                            .map(|t| storage::hierarchy_store::TeamInput {
+                                slug: storage::hierarchy_store::slugify(&t.name),
+                                name: t.name.clone(),
                             })
                             .collect(),
                     })
                     .collect();
                 let store =
                     storage::hierarchy_store::HierarchyStore::new(state.postgres.pool().clone());
-                match store.upsert_hierarchy(tenant_uuid, &company_inputs).await {
+                match store.upsert_hierarchy(tenant_uuid, &org_inputs).await {
                     Ok(summary) => Some(summary),
                     Err(err) => {
                         hierarchy_errors.push(format!("modern hierarchy upsert: {err}"));
@@ -5519,8 +5881,8 @@ async fn provision_tenant(
             let extra = modern_hierarchy_summary
                 .map(|s| {
                     format!(
-                        " (modern: {} companies, {} orgs, {} teams)",
-                        s.companies_upserted, s.orgs_upserted, s.teams_upserted
+                        " (modern: {} orgs, {} teams)",
+                        s.orgs_upserted, s.teams_upserted
                     )
                 })
                 .unwrap_or_default();
@@ -7370,6 +7732,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "my-tenant".into(),
                 name: "My Tenant".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
@@ -7392,6 +7756,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "ok".into(),
                 name: "Ok".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
@@ -7417,6 +7783,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "ok".into(),
                 name: "Ok".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
@@ -7442,6 +7810,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: String::new(),
                 name: "Ok".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
@@ -7467,6 +7837,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "My_Tenant".into(),
                 name: "My Tenant".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
@@ -7492,6 +7864,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "-leading".into(),
                 name: "Ok".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
@@ -7514,6 +7888,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "ok".into(),
                 name: "   ".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
@@ -7539,6 +7915,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "ok".into(),
                 name: "Ok".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
@@ -7568,28 +7946,35 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "ok".into(),
                 name: "Ok".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
             secrets: None,
             repository: None,
-            hierarchy: Some(vec![ManifestCompany {
+            hierarchy: Some(vec![ManifestOrg {
                 name: String::new(),
-                orgs: Some(vec![ManifestOrg {
+                teams: Some(vec![ManifestTeam {
                     name: String::new(),
-                    teams: Some(vec![ManifestTeam {
-                        name: String::new(),
-                        members: None,
-                    }]),
                     members: None,
                 }]),
+                members: None,
             }]),
             roles: None,
         };
         let errors = validate_manifest(&m);
         assert!(
-            errors.len() >= 3,
-            "expected at least 3 errors for empty hierarchy names, got: {errors:?}"
+            errors
+                .iter()
+                .any(|e| e == "hierarchy org name must not be empty"),
+            "expected org-name validation error, got: {errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|e| e == "hierarchy team name must not be empty"),
+            "expected team-name validation error, got: {errors:?}"
         );
     }
 
@@ -7849,6 +8234,24 @@ mod tests {
     }
 
     #[test]
+    fn manifest_deserializes_with_account_ref_and_environment() {
+        let raw = serde_json::json!({
+            "apiVersion": "aeterna.io/v1",
+            "kind": "TenantManifest",
+            "tenant": {
+                "slug": "acme-prod",
+                "name": "Acme Prod",
+                "accountRef": "acme",
+                "environment": "prod"
+            }
+        });
+        let m: TenantManifest = serde_json::from_value(raw).unwrap();
+        assert_eq!(m.tenant.account_ref.as_deref(), Some("acme"));
+        assert_eq!(m.tenant.environment.as_deref(), Some("prod"));
+        assert!(validate_manifest(&m).is_empty());
+    }
+
+    #[test]
     fn validate_manifest_rejects_generation_zero() {
         let m = TenantManifest {
             api_version: "aeterna.io/v1".into(),
@@ -7861,6 +8264,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "gz".into(),
                 name: "Gz".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,
@@ -8334,6 +8739,8 @@ mod tests {
             tenant: ManifestTenant {
                 slug: "acme".into(),
                 name: "Acme".into(),
+                account_ref: None,
+                environment: None,
                 domain_mappings: None,
             },
             config: None,

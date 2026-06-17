@@ -4,7 +4,7 @@
 -- Three different Postgres session variables are used across RLS policies:
 --   - app.tenant_id          : migrations 008, 009, 010, 013, 017, 020, GDPR runtime (canonical)
 --   - app.current_tenant_id  : migration 006 only (pure naming inconsistency — same concept)
---   - app.company_id         : migration 016 (DIFFERENT scoping axis — NOT renamed)
+--   - legacy governance-scope GUC : migration 016 (DIFFERENT scoping axis — NOT renamed)
 --
 -- This migration rewrites the three policies from migration 006 to use the
 -- canonical `app.tenant_id` so a single `activate_tenant_context` call can

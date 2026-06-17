@@ -456,7 +456,7 @@ impl ContextResolver {
 /// integration for:
 /// - Resolving user by email (from git config)
 /// - Resolving project by git remote URL
-/// - Discovering accessible layers (company/org/team/project)
+/// - Discovering accessible layers (tenant/org/team/project)
 ///
 /// # Example
 ///
@@ -543,10 +543,10 @@ impl CedarContextResolver {
             ctx.user_id = ResolvedValue::new(cedar_user.uid.id.clone(), ContextSource::CedarAgent);
 
             if ctx.tenant_id.source == ContextSource::SystemDefault
-                && let Some(company_slug) = cedar_user.get_attr_str("company_slug")
+                && let Some(tenant_slug) = cedar_user.get_attr_str("tenant_slug")
             {
                 ctx.tenant_id =
-                    ResolvedValue::new(company_slug.to_string(), ContextSource::CedarAgent);
+                    ResolvedValue::new(tenant_slug.to_string(), ContextSource::CedarAgent);
             }
         }
 

@@ -7,7 +7,7 @@ use tokio::sync::RwLock;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PolicyLayer {
-    Company,
+    Tenant,
     Org,
     Team,
     Project,
@@ -16,7 +16,7 @@ pub enum PolicyLayer {
 impl std::fmt::Display for PolicyLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PolicyLayer::Company => write!(f, "company"),
+            PolicyLayer::Tenant => write!(f, "tenant"),
             PolicyLayer::Org => write!(f, "org"),
             PolicyLayer::Team => write!(f, "team"),
             PolicyLayer::Project => write!(f, "project"),
@@ -28,12 +28,12 @@ impl std::str::FromStr for PolicyLayer {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "company" => Ok(PolicyLayer::Company),
+            "tenant" => Ok(PolicyLayer::Tenant),
             "org" | "organization" => Ok(PolicyLayer::Org),
             "team" => Ok(PolicyLayer::Team),
             "project" => Ok(PolicyLayer::Project),
             _ => Err(format!(
-                "Invalid layer: {}. Use: company, org, team, project",
+                "Invalid layer: {}. Use: tenant, org, team, project",
                 s
             )),
         }
@@ -259,7 +259,7 @@ impl MockPolicyStorage {
                         message: "SECURITY.md file required".to_string(),
                     },
                 ],
-                default_layer: PolicyLayer::Company,
+                default_layer: PolicyLayer::Tenant,
                 default_mode: PolicyMode::Mandatory,
             },
         );
@@ -642,8 +642,8 @@ mod layer_parsing_tests {
     #[test]
     fn test_parse_valid_layers() {
         assert_eq!(
-            "company".parse::<PolicyLayer>().unwrap(),
-            PolicyLayer::Company
+            "tenant".parse::<PolicyLayer>().unwrap(),
+            PolicyLayer::Tenant
         );
         assert_eq!("org".parse::<PolicyLayer>().unwrap(), PolicyLayer::Org);
         assert_eq!(
@@ -661,7 +661,7 @@ mod layer_parsing_tests {
     fn test_parse_layers_case_insensitive() {
         assert_eq!(
             "COMPANY".parse::<PolicyLayer>().unwrap(),
-            PolicyLayer::Company
+            PolicyLayer::Tenant
         );
         assert_eq!("Team".parse::<PolicyLayer>().unwrap(), PolicyLayer::Team);
         assert_eq!(
@@ -776,7 +776,7 @@ mod draft_tests {
             "Security Policy",
             None,
             Some("security-baseline"),
-            PolicyLayer::Company,
+            PolicyLayer::Tenant,
         );
 
         let result = storage.create_draft(draft).await;
@@ -990,13 +990,7 @@ mod policy_tests {
     async fn test_list_policies_by_layer() {
         let storage = MockPolicyStorage::new();
 
-        let d1 = create_test_draft(
-            "d1",
-            "Company Policy",
-            Some("D"),
-            None,
-            PolicyLayer::Company,
-        );
+        let d1 = create_test_draft("d1", "Tenant Policy", Some("D"), None, PolicyLayer::Tenant);
         storage.create_draft(d1).await.unwrap();
         storage.submit_draft("d1").await.unwrap();
         storage.approve_draft("d1", "r").await.unwrap();
@@ -1013,11 +1007,11 @@ mod policy_tests {
         storage.approve_draft("d2", "r").await.unwrap();
 
         let company_policies = storage
-            .list_policies("test-tenant", Some(PolicyLayer::Company), None)
+            .list_policies("test-tenant", Some(PolicyLayer::Tenant), None)
             .await
             .unwrap();
         assert_eq!(company_policies.len(), 1);
-        assert_eq!(company_policies[0].layer, PolicyLayer::Company);
+        assert_eq!(company_policies[0].layer, PolicyLayer::Tenant);
     }
 
     #[tokio::test]
@@ -1087,7 +1081,7 @@ mod template_tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(template.default_layer, PolicyLayer::Company);
+        assert_eq!(template.default_layer, PolicyLayer::Tenant);
         assert_eq!(template.default_mode, PolicyMode::Mandatory);
     }
 }
@@ -1365,7 +1359,7 @@ mod integration_tests {
             .unwrap();
 
         assert_eq!(policy.name, "My Security Policy");
-        assert_eq!(policy.layer, PolicyLayer::Company);
+        assert_eq!(policy.layer, PolicyLayer::Tenant);
         assert!(!policy.rules.is_empty());
 
         let scenario = SimulationScenario {
@@ -1385,15 +1379,15 @@ mod integration_tests {
         let storage = MockPolicyStorage::new();
 
         let company_draft = create_test_draft(
-            "d-company",
-            "Company Security",
-            Some("Company-wide security"),
+            "d-tenant",
+            "Tenant Security",
+            Some("Tenant-wide security"),
             None,
-            PolicyLayer::Company,
+            PolicyLayer::Tenant,
         );
         storage.create_draft(company_draft).await.unwrap();
-        storage.submit_draft("d-company").await.unwrap();
-        storage.approve_draft("d-company", "admin").await.unwrap();
+        storage.submit_draft("d-tenant").await.unwrap();
+        storage.approve_draft("d-tenant", "admin").await.unwrap();
 
         let project_draft = create_test_draft(
             "d-project",
@@ -1413,7 +1407,7 @@ mod integration_tests {
         assert_eq!(all_policies.len(), 2);
 
         let company_only = storage
-            .list_policies("test-tenant", Some(PolicyLayer::Company), None)
+            .list_policies("test-tenant", Some(PolicyLayer::Tenant), None)
             .await
             .unwrap();
         assert_eq!(company_only.len(), 1);

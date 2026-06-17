@@ -433,8 +433,8 @@ pub struct AdminBootstrapConfig {
     #[serde(default)]
     pub provider_subject: Option<String>,
 
-    #[serde(default = "default_bootstrap_company_slug")]
-    pub company_slug: String,
+    #[serde(default = "default_bootstrap_tenant_slug")]
+    pub tenant_slug: String,
 
     #[serde(default = "default_bootstrap_org_slug")]
     pub org_slug: String,
@@ -453,7 +453,7 @@ fn default_admin_bootstrap_provider() -> String {
     PROVIDER_GITHUB.to_string()
 }
 
-fn default_bootstrap_company_slug() -> String {
+fn default_bootstrap_tenant_slug() -> String {
     "default".to_string()
 }
 

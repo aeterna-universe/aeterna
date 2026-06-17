@@ -35,7 +35,7 @@ The OpenCode plugin uses Aeterna's 7-layer memory hierarchy:
 4. `project`
 5. `team`
 6. `org`
-7. `company`
+7. `tenant`
 
 Practical usage:
 
@@ -44,7 +44,7 @@ Practical usage:
 | `session` | current task context, debugging breadcrumbs, temporary decisions |
 | `user` | personal preferences and working style |
 | `project` | repo conventions, architecture facts, implementation norms |
-| `team` / `org` / `company` | broader conventions, standards, compliance guidance |
+| `team` / `org` / `tenant` | broader conventions, standards, compliance guidance |
 
 ### Knowledge types
 
@@ -60,7 +60,7 @@ Scopes are:
 - `project`
 - `team`
 - `org`
-- `company`
+- `tenant`
 
 ## First Rule: Let OpenCode Pull Context First
 

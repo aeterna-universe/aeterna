@@ -4,7 +4,7 @@
 
 -- ============================================================================
 -- GOVERNANCE CONFIGS TABLE
--- Per-scope governance configuration (company/org/team/project level)
+-- Per-scope governance configuration (legacy-root/org/team/project level)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS governance_configs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -284,7 +284,7 @@ BEGIN
         IF FOUND THEN RETURN; END IF;
     END IF;
     
-    -- Try company level
+    -- Try legacy root level
     IF p_company_id IS NOT NULL THEN
         RETURN QUERY
         SELECT gc.id, 'company'::TEXT, gc.approval_mode, gc.min_approvers, gc.timeout_hours,

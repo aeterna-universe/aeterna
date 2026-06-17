@@ -305,7 +305,7 @@ const memoryPromoteTool = tool({
   description: "Promote a memory from a lower layer to a higher layer (e.g., session -> project).",
   args: {
     memoryId: z.string().describe("Memory ID to promote"),
-    targetLayer: z.enum(["project", "team", "org", "company"])
+    targetLayer: z.enum(["project", "team", "org", "tenant"])
       .describe("Target layer for promotion"),
     reason: z.string().optional()
       .describe("Reason for promotion"),
@@ -344,7 +344,7 @@ const knowledgeQueryTool = tool({
   description: "Query the knowledge repository for project/team/org knowledge.",
   args: {
     query: z.string().describe("Search query"),
-    scope: z.enum(["project", "team", "org", "company"]).optional()
+    scope: z.enum(["project", "team", "org", "tenant"]).optional()
       .describe("Knowledge scope (default: project)"),
     types: z.array(z.enum(["adr", "pattern", "policy", "reference"])).optional()
       .describe("Knowledge types to include"),
@@ -721,7 +721,7 @@ When multiple knowledge items match, priority follows:
 1. **Project** (highest) - Most specific to current work
 2. **Team** - Team-level standards
 3. **Organization** - Org-wide policies
-4. **Company** (lowest) - Company-wide rules
+4. **Tenant** (lowest) - Tenant-wide rules
 
 ### Token Limits
 

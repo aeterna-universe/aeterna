@@ -4,7 +4,7 @@
 //! `migration_028_tenant_scoped_hierarchy_test.rs`.
 
 use sqlx::postgres::PgPoolOptions;
-use storage::hierarchy_store::{CompanyInput, HierarchyStore, OrgInput, TeamInput, slugify};
+use storage::hierarchy_store::{HierarchyStore, OrgInput, TeamInput, slugify};
 use storage::migrations::apply_all;
 use storage::postgres::PostgresBackend;
 use testing::postgres;
@@ -41,59 +41,53 @@ async fn hierarchy_store_round_trip_and_idempotent() {
     let store = HierarchyStore::new(pool.clone());
     let tenant_id = fresh_tenant(&pool, "hs-rt").await;
 
-    let input = vec![CompanyInput {
-        slug: "acme".into(),
-        name: "Acme Corp".into(),
-        orgs: vec![
-            OrgInput {
-                slug: "platform".into(),
-                name: "Platform".into(),
-                teams: vec![
-                    TeamInput {
-                        slug: "admins".into(),
-                        name: "Admins".into(),
-                    },
-                    TeamInput {
-                        slug: "sre".into(),
-                        name: "SRE".into(),
-                    },
-                ],
-            },
-            OrgInput {
-                slug: "product".into(),
-                name: "Product".into(),
-                teams: vec![],
-            },
-        ],
-    }];
+    let input = vec![
+        OrgInput {
+            slug: "platform".into(),
+            name: "Platform".into(),
+            teams: vec![
+                TeamInput {
+                    slug: "admins".into(),
+                    name: "Admins".into(),
+                },
+                TeamInput {
+                    slug: "sre".into(),
+                    name: "SRE".into(),
+                },
+            ],
+        },
+        OrgInput {
+            slug: "product".into(),
+            name: "Product".into(),
+            teams: vec![],
+        },
+    ];
 
     // ---- First apply ----
     let s1 = store
         .upsert_hierarchy(tenant_id, &input)
         .await
         .expect("upsert 1");
-    assert_eq!(s1.companies_upserted, 1);
     assert_eq!(s1.orgs_upserted, 2);
     assert_eq!(s1.teams_upserted, 2);
 
     // ---- Read back ----
     let readback = store.get_hierarchy(tenant_id).await.expect("get_hierarchy");
-    assert_eq!(readback.len(), 1);
-    let c = &readback[0];
-    assert_eq!(c.slug, "acme");
-    assert_eq!(c.name, "Acme Corp");
-    assert_eq!(c.tenant_id, tenant_id);
-    assert_eq!(c.orgs.len(), 2);
+    assert_eq!(readback.len(), 2);
+    let org0 = &readback[0];
+    let org1 = &readback[1];
+    assert_eq!(org0.tenant_id, tenant_id);
+    assert_eq!(org1.tenant_id, tenant_id);
 
     // `ORDER BY org_slug` → platform before product.
-    assert_eq!(c.orgs[0].slug, "platform");
-    assert_eq!(c.orgs[0].teams.len(), 2);
+    assert_eq!(org0.slug, "platform");
+    assert_eq!(org0.teams.len(), 2);
     // `ORDER BY team_slug` → admins before sre.
-    assert_eq!(c.orgs[0].teams[0].slug, "admins");
-    assert_eq!(c.orgs[0].teams[1].slug, "sre");
+    assert_eq!(org0.teams[0].slug, "admins");
+    assert_eq!(org0.teams[1].slug, "sre");
 
-    assert_eq!(c.orgs[1].slug, "product");
-    assert!(c.orgs[1].teams.is_empty());
+    assert_eq!(org1.slug, "product");
+    assert!(org1.teams.is_empty());
 
     // ---- Idempotent re-apply of identical input ----
     let s2 = store
@@ -116,21 +110,18 @@ async fn hierarchy_store_round_trip_and_idempotent() {
 
     // ---- Rename (same slug, new name) flows through ON CONFLICT DO UPDATE ----
     let mut renamed = input.clone();
-    renamed[0].name = "Acme Corporation".into();
-    renamed[0].orgs[0].name = "Platform Eng".into();
-    renamed[0].orgs[0].teams[0].name = "Platform Admins".into();
+    renamed[0].name = "Platform Eng".into();
+    renamed[0].teams[0].name = "Platform Admins".into();
     let _ = store
         .upsert_hierarchy(tenant_id, &renamed)
         .await
         .expect("upsert rename");
 
     let renamed_read = store.get_hierarchy(tenant_id).await.expect("get renamed");
-    assert_eq!(renamed_read[0].name, "Acme Corporation");
-    assert_eq!(renamed_read[0].orgs[0].name, "Platform Eng");
-    assert_eq!(renamed_read[0].orgs[0].teams[0].name, "Platform Admins");
+    assert_eq!(renamed_read[0].name, "Platform Eng");
+    assert_eq!(renamed_read[0].teams[0].name, "Platform Admins");
     // IDs must remain stable across rename.
     assert_eq!(renamed_read[0].id, readback[0].id);
-    assert_eq!(renamed_read[0].orgs[0].id, readback[0].orgs[0].id);
 }
 
 #[tokio::test]
@@ -157,28 +148,20 @@ async fn hierarchy_store_is_tenant_isolated() {
     let tenant_b = fresh_tenant(&pool, "hs-iso-b").await;
 
     // Same slug 'shared' under both tenants — migration 028 allows this.
-    let input_a = vec![CompanyInput {
+    let input_a = vec![OrgInput {
         slug: "shared".into(),
         name: "A's Shared".into(),
-        orgs: vec![OrgInput {
-            slug: "eng".into(),
-            name: "Eng".into(),
-            teams: vec![TeamInput {
-                slug: "t1".into(),
-                name: "Team One A".into(),
-            }],
+        teams: vec![TeamInput {
+            slug: "t1".into(),
+            name: "Team One A".into(),
         }],
     }];
-    let input_b = vec![CompanyInput {
+    let input_b = vec![OrgInput {
         slug: "shared".into(),
         name: "B's Shared".into(),
-        orgs: vec![OrgInput {
-            slug: "eng".into(),
-            name: "Eng".into(),
-            teams: vec![TeamInput {
-                slug: "t1".into(),
-                name: "Team One B".into(),
-            }],
+        teams: vec![TeamInput {
+            slug: "t1".into(),
+            name: "Team One B".into(),
         }],
     }];
 
@@ -194,11 +177,11 @@ async fn hierarchy_store_is_tenant_isolated() {
     assert_eq!(read_b[0].name, "B's Shared");
     assert_ne!(
         read_a[0].id, read_b[0].id,
-        "different tenants with same slug must have distinct company UUIDs"
+        "different tenants with same slug must have distinct organization UUIDs"
     );
-    assert_ne!(read_a[0].orgs[0].teams[0].id, read_b[0].orgs[0].teams[0].id);
-    assert_eq!(read_a[0].orgs[0].teams[0].name, "Team One A");
-    assert_eq!(read_b[0].orgs[0].teams[0].name, "Team One B");
+    assert_ne!(read_a[0].teams[0].id, read_b[0].teams[0].id);
+    assert_eq!(read_a[0].teams[0].name, "Team One A");
+    assert_eq!(read_b[0].teams[0].name, "Team One B");
 }
 
 #[test]

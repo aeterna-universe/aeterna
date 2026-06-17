@@ -16,10 +16,10 @@ async fn create_test_governance_storage() -> Option<GovernanceStorage> {
     Some(storage)
 }
 
-fn create_test_config(company_id: Option<Uuid>) -> GovernanceConfig {
+fn create_test_config(tenant_id: Option<Uuid>) -> GovernanceConfig {
     GovernanceConfig {
         id: None,
-        company_id,
+        tenant_id,
         org_id: None,
         team_id: None,
         project_id: None,
@@ -37,14 +37,14 @@ fn create_test_config(company_id: Option<Uuid>) -> GovernanceConfig {
 }
 
 fn create_test_request(
-    company_id: Option<Uuid>,
+    tenant_id: Option<Uuid>,
     requestor_id: Uuid,
 ) -> storage::governance::CreateApprovalRequest {
     storage::governance::CreateApprovalRequest {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: Some("test-policy-123".to_string()),
-        company_id,
+        tenant_id,
         org_id: None,
         team_id: None,
         project_id: None,
@@ -299,8 +299,8 @@ async fn test_upsert_and_get_effective_config_roundtrip() {
         return;
     };
 
-    let company_id = Uuid::new_v4();
-    let mut config = create_test_config(Some(company_id));
+    let tenant_id = Uuid::new_v4();
+    let mut config = create_test_config(Some(tenant_id));
     config.approval_mode = ApprovalMode::Single;
     config.min_approvers = 1;
 
@@ -308,10 +308,10 @@ async fn test_upsert_and_get_effective_config_roundtrip() {
     assert!(!config_id.is_nil());
 
     let effective = storage
-        .get_effective_config(Some(company_id), None, None, None)
+        .get_effective_config(Some(tenant_id), None, None, None)
         .await
         .unwrap();
-    assert_eq!(effective.company_id, Some(company_id));
+    assert_eq!(effective.tenant_id, Some(tenant_id));
     assert_eq!(effective.approval_mode, ApprovalMode::Single);
     assert_eq!(effective.min_approvers, 1);
 
@@ -321,7 +321,7 @@ async fn test_upsert_and_get_effective_config_roundtrip() {
     assert_eq!(updated_id, config_id);
 
     let updated = storage
-        .get_effective_config(Some(company_id), None, None, None)
+        .get_effective_config(Some(tenant_id), None, None, None)
         .await
         .unwrap();
     assert_eq!(updated.approval_mode, ApprovalMode::Unanimous);
@@ -335,15 +335,15 @@ async fn test_create_get_and_lookup_request_by_number() {
         return;
     };
 
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let requestor_id = Uuid::new_v4();
-    let request = create_test_request(Some(company_id), requestor_id);
+    let request = create_test_request(Some(tenant_id), requestor_id);
 
     let created = storage.create_request(&request).await.unwrap();
     assert_eq!(created.request_type, RequestType::Policy);
     assert_eq!(created.status, RequestStatus::Pending);
     assert_eq!(created.current_approvals, 0);
-    assert_eq!(created.company_id, Some(company_id));
+    assert_eq!(created.tenant_id, Some(tenant_id));
     assert_eq!(created.requestor_id, requestor_id);
 
     let fetched = storage.get_request(created.id).await.unwrap().unwrap();
@@ -411,19 +411,19 @@ async fn test_reject_cancel_mark_applied_and_pending_filters() {
         return;
     };
 
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let requestor_id = Uuid::new_v4();
 
     let rejected = storage
-        .create_request(&create_test_request(Some(company_id), requestor_id))
+        .create_request(&create_test_request(Some(tenant_id), requestor_id))
         .await
         .unwrap();
     let cancelled = storage
-        .create_request(&create_test_request(Some(company_id), requestor_id))
+        .create_request(&create_test_request(Some(tenant_id), requestor_id))
         .await
         .unwrap();
     let applied = storage
-        .create_request(&create_test_request(Some(company_id), requestor_id))
+        .create_request(&create_test_request(Some(tenant_id), requestor_id))
         .await
         .unwrap();
     let mut other_request = create_test_request(Some(Uuid::new_v4()), Uuid::new_v4());
@@ -452,7 +452,7 @@ async fn test_reject_cancel_mark_applied_and_pending_filters() {
 
     let pending_for_company = storage
         .list_pending_requests(&RequestFilters {
-            company_id: Some(company_id),
+            tenant_id: Some(tenant_id),
             limit: Some(10),
             ..Default::default()
         })
@@ -463,7 +463,7 @@ async fn test_reject_cancel_mark_applied_and_pending_filters() {
     let pending_memory = storage
         .list_pending_requests(&RequestFilters {
             request_type: Some(RequestType::Memory),
-            company_id: pending_other.company_id,
+            tenant_id: pending_other.tenant_id,
             requestor_id: Some(pending_other.requestor_id),
             limit: Some(10),
             ..Default::default()
@@ -482,9 +482,9 @@ async fn test_audit_logging_and_role_assignment_lifecycle() {
     };
 
     let actor_id = Uuid::new_v4();
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let request = storage
-        .create_request(&create_test_request(Some(company_id), actor_id))
+        .create_request(&create_test_request(Some(tenant_id), actor_id))
         .await
         .unwrap();
 
@@ -531,7 +531,7 @@ async fn test_audit_logging_and_role_assignment_lifecycle() {
             principal_type: PrincipalType::User,
             principal_id,
             role: "admin".to_string(),
-            company_id: Some(company_id),
+            tenant_id: Some(tenant_id),
             org_id: None,
             team_id: None,
             project_id: None,
@@ -543,7 +543,7 @@ async fn test_audit_logging_and_role_assignment_lifecycle() {
     assert!(!role_id.is_nil());
 
     let listed_before_revoke = storage
-        .list_roles(Some(company_id), None, None)
+        .list_roles(Some(tenant_id), None, None)
         .await
         .unwrap();
     assert_eq!(listed_before_revoke.len(), 1);
@@ -556,7 +556,7 @@ async fn test_audit_logging_and_role_assignment_lifecycle() {
         .unwrap();
 
     let listed_after_revoke = storage
-        .list_roles(Some(company_id), None, None)
+        .list_roles(Some(tenant_id), None, None)
         .await
         .unwrap();
     assert!(listed_after_revoke.is_empty());
@@ -569,7 +569,7 @@ async fn test_serde_roundtrip_governance_config() {
     let json = serde_json::to_string(&config).unwrap();
     let restored: GovernanceConfig = serde_json::from_str(&json).unwrap();
 
-    assert_eq!(config.company_id, restored.company_id);
+    assert_eq!(config.tenant_id, restored.tenant_id);
     assert_eq!(config.approval_mode, restored.approval_mode);
     assert_eq!(config.min_approvers, restored.min_approvers);
     assert_eq!(config.timeout_hours, restored.timeout_hours);
@@ -590,7 +590,7 @@ async fn test_serde_roundtrip_approval_request() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: Some("test-policy-123".to_string()),
-        company_id: Some(Uuid::new_v4()),
+        tenant_id: Some(Uuid::new_v4()),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -632,7 +632,7 @@ async fn test_serde_roundtrip_governance_role() {
         principal_type: PrincipalType::User,
         principal_id: Uuid::new_v4(),
         role: "admin".to_string(),
-        company_id: Some(Uuid::new_v4()),
+        tenant_id: Some(Uuid::new_v4()),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -650,7 +650,7 @@ async fn test_serde_roundtrip_governance_role() {
     assert_eq!(role.principal_type, restored.principal_type);
     assert_eq!(role.principal_id, restored.principal_id);
     assert_eq!(role.role, restored.role);
-    assert_eq!(role.company_id, restored.company_id);
+    assert_eq!(role.tenant_id, restored.tenant_id);
     assert_eq!(role.granted_by, restored.granted_by);
 }
 
@@ -684,7 +684,7 @@ async fn test_create_governance_role_struct() {
         principal_type: PrincipalType::User,
         principal_id: Uuid::new_v4(),
         role: "admin".to_string(),
-        company_id: Some(Uuid::new_v4()),
+        tenant_id: Some(Uuid::new_v4()),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -693,7 +693,7 @@ async fn test_create_governance_role_struct() {
     };
 
     assert_eq!(role.role, "admin");
-    assert!(role.company_id.is_some());
+    assert!(role.tenant_id.is_some());
     assert!(role.expires_at.is_some());
 }
 

@@ -97,13 +97,13 @@ This guide demonstrates how Aeterna serves as the knowledge backbone for a multi
 
 ## Organizational Structure in Aeterna
 
-### Company Layer: Global Standards
+### Tenant Layer: Global Standards
 
 ```yaml
-# knowledge/company/wolf-corp/policies/migration-baseline.yaml
+# knowledge/tenant/wolf-corp/policies/migration-baseline.yaml
 id: migration-baseline
 type: policy
-layer: company
+layer: tenant
 mode: mandatory
 merge_strategy: merge
 
@@ -221,7 +221,7 @@ rules:
 ### ADR-001: Strangler Fig Migration Strategy
 
 ```markdown
-# knowledge/company/wolf-corp/adrs/adr-001-strangler-fig.md
+# knowledge/tenant/wolf-corp/adrs/adr-001-strangler-fig.md
 
 # ADR-001: Strangler Fig Migration Strategy
 
@@ -302,7 +302,7 @@ constraints:
 ### ADR-015: API Versioning Strategy
 
 ```markdown
-# knowledge/company/wolf-corp/adrs/adr-015-api-versioning.md
+# knowledge/tenant/wolf-corp/adrs/adr-015-api-versioning.md
 
 # ADR-015: API Versioning Strategy
 
@@ -440,7 +440,7 @@ constraints:
 ### Pattern: Strangler Facade
 
 ```markdown
-# knowledge/company/wolf-corp/patterns/strangler-facade.md
+# knowledge/tenant/wolf-corp/patterns/strangler-facade.md
 
 # Pattern: Strangler Facade
 
@@ -568,7 +568,7 @@ constraints:
 ### Pattern: Brick Specification
 
 ```markdown
-# knowledge/company/wolf-corp/patterns/brick-specification.md
+# knowledge/tenant/wolf-corp/patterns/brick-specification.md
 
 # Pattern: Brick Specification
 
@@ -694,7 +694,7 @@ constraints:
 ### Pattern: Anti-Corruption Layer
 
 ```markdown
-# knowledge/company/wolf-corp/patterns/anti-corruption-layer.md
+# knowledge/tenant/wolf-corp/patterns/anti-corruption-layer.md
 
 # Pattern: Anti-Corruption Layer
 
@@ -856,7 +856,7 @@ let learnings = memory.search(SearchQuery {
         MemoryLayer::Project,  // Project-specific issues
         MemoryLayer::Team,     // Team discoveries
         MemoryLayer::Org,      // Org-wide patterns
-        MemoryLayer::Company,  // Global lessons
+        MemoryLayer::Tenant,  // Global lessons
     ],
     context: context.clone(),
 }).await?;
@@ -865,7 +865,7 @@ let learnings = memory.search(SearchQuery {
 // 1. [Project] "Payment facade race condition with KApp - use distributed lock"
 // 2. [Team] "TigerBeetle connection pooling: max 10 connections per service"
 // 3. [Org] "Always shadow test for 2 weeks before traffic shift"
-// 4. [Company] "Feature flags: use LaunchDarkly SDK v7+ for Kotlin"
+// 4. [Tenant] "Feature flags: use LaunchDarkly SDK v7+ for Kotlin"
 
 // Check constraints before writing code
 let violations = knowledge.check_constraints(
@@ -969,7 +969,7 @@ AI Agent (with Aeterna):
 3. [Constraint Check] Validating your approach...
    
    ⚠️ WARNING: You're editing src/main/java/com/legacy/kapp/
-   This is BLOCKED by company policy.
+   This is BLOCKED by tenant policy.
    
    ✅ SUGGESTED: Create new Brick in services/payments-validator/
 
@@ -1049,7 +1049,7 @@ AI Agent (with Aeterna):
 
 2. [Memory Search] Previous migration learnings...
    
-   Found (Company Memory):
+   Found (Tenant Memory):
    • "Always migrate dependencies first"
    • "FX has complex KApp stored procedures - 3 month estimate"
    • "Risk module: Shadow testing revealed 5% discrepancy"
@@ -1135,7 +1135,7 @@ cargo build --release
 
 # Initialize knowledge repository
 aeterna init --template strangler-fig \
-  --company "wolf-corp" \
+  --tenant "wolf-corp" \
   --orgs "platform-engineering,product,security"
 ```
 
@@ -1146,7 +1146,7 @@ aeterna init --template strangler-fig \
 aeterna knowledge import \
   --source ./legacy-docs/adrs \
   --type adr \
-  --layer company
+  --layer tenant
 
 # Validate constraints
 aeterna knowledge validate --strict

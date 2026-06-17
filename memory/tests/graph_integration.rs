@@ -33,7 +33,7 @@ async fn create_test_backend() -> Option<Arc<PostgresBackend>> {
 }
 
 fn test_tenant_context() -> TenantContext {
-    let tenant_id = TenantId::new(unique_id("test-company")).unwrap();
+    let tenant_id = TenantId::new(unique_id("test-tenant")).unwrap();
     let user_id = UserId::new(unique_id("test-user")).unwrap();
     TenantContext::new(tenant_id, user_id)
 }

@@ -410,7 +410,7 @@ fn parse_memory_layer(layer: &str) -> Result<mk_core::types::MemoryLayer, &'stat
         "project" => Ok(mk_core::types::MemoryLayer::Project),
         "team" => Ok(mk_core::types::MemoryLayer::Team),
         "org" => Ok(mk_core::types::MemoryLayer::Org),
-        "company" => Ok(mk_core::types::MemoryLayer::Company),
+        "tenant" => Ok(mk_core::types::MemoryLayer::Tenant),
         _ => Err("Unknown memory layer"),
     }
 }

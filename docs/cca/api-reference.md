@@ -38,7 +38,7 @@ Assemble hierarchical context from memory layers using the Context Architect com
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["agent", "user", "session", "project", "team", "org", "company"]
+        "enum": ["agent", "user", "session", "project", "team", "org", "tenant"]
       },
       "description": "Memory layers to query. If omitted, uses configured layer_priorities."
     }
@@ -53,7 +53,7 @@ Assemble hierarchical context from memory layers using the Context Architect com
 |-----------|------|----------|---------|-------------|
 | `query` | string | No | null | Semantic query string to filter context. Example: "authentication patterns" |
 | `tokenBudget` | integer | No | 4000 | Token limit for assembled context (100-32000) |
-| `layers` | string[] | No | config | Array of layer names to query. Values: "agent", "user", "session", "project", "team", "org", "company" |
+| `layers` | string[] | No | config | Array of layer names to query. Values: "agent", "user", "session", "project", "team", "org", "tenant" |
 
 ### Response
 
@@ -608,7 +608,7 @@ All tools respect Aeterna's multi-tenant authorization:
 - Users can only query memory from their accessible layers (based on role)
 - Agents inherit delegated permissions from the user who spawned them
 
-Example: A Developer role can query Session/Project/Team layers, but not Company/Org unless explicitly granted.
+Example: A Developer role can query Session/Project/Team layers, but not Tenant/Org unless explicitly granted.
 
 ## Rate Limiting
 

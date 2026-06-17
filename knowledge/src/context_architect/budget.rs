@@ -24,7 +24,7 @@ impl Default for SummarizationBudget {
         per_layer_limits.insert(MemoryLayer::Project, 100_000);
         per_layer_limits.insert(MemoryLayer::Team, 200_000);
         per_layer_limits.insert(MemoryLayer::Org, 500_000);
-        per_layer_limits.insert(MemoryLayer::Company, 1_000_000);
+        per_layer_limits.insert(MemoryLayer::Tenant, 1_000_000);
 
         Self {
             daily_token_limit: 1_000_000,
@@ -495,7 +495,7 @@ impl Default for TieredModelConfig {
             cheap_model: "gpt-3.5-turbo".to_string(),
             expensive_layers: vec![MemoryLayer::User, MemoryLayer::Session, MemoryLayer::Agent],
             cheap_layers: vec![
-                MemoryLayer::Company,
+                MemoryLayer::Tenant,
                 MemoryLayer::Org,
                 MemoryLayer::Team,
                 MemoryLayer::Project,
@@ -768,7 +768,7 @@ mod tests {
         assert_eq!(config.expensive_model, "gpt-4");
         assert_eq!(config.cheap_model, "gpt-3.5-turbo");
         assert!(config.expensive_layers.contains(&MemoryLayer::User));
-        assert!(config.cheap_layers.contains(&MemoryLayer::Company));
+        assert!(config.cheap_layers.contains(&MemoryLayer::Tenant));
     }
 
     #[test]
@@ -777,10 +777,7 @@ mod tests {
 
         assert_eq!(config.model_for_layer(MemoryLayer::User), "gpt-4");
         assert_eq!(config.model_for_layer(MemoryLayer::Session), "gpt-4");
-        assert_eq!(
-            config.model_for_layer(MemoryLayer::Company),
-            "gpt-3.5-turbo"
-        );
+        assert_eq!(config.model_for_layer(MemoryLayer::Tenant), "gpt-3.5-turbo");
         assert_eq!(
             config.model_for_layer(MemoryLayer::Project),
             "gpt-3.5-turbo"

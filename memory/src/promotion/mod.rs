@@ -216,7 +216,7 @@ impl PromotionService {
             MemoryLayer::Project => mk_core::types::KnowledgeLayer::Project,
             MemoryLayer::Team => mk_core::types::KnowledgeLayer::Team,
             MemoryLayer::Org => mk_core::types::KnowledgeLayer::Org,
-            MemoryLayer::Company => mk_core::types::KnowledgeLayer::Company,
+            MemoryLayer::Tenant => mk_core::types::KnowledgeLayer::Tenant,
             _ => mk_core::types::KnowledgeLayer::Project,
         }
     }

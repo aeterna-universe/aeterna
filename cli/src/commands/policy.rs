@@ -38,7 +38,7 @@ pub struct PolicyCreateArgs {
     #[arg(short, long)]
     pub name: Option<String>,
 
-    /// Layer to apply policy (company, org, team, project)
+    /// Layer to apply policy (tenant, org, team, project)
     #[arg(short, long, default_value = "project")]
     pub layer: String,
 
@@ -74,7 +74,7 @@ pub struct PolicyCreateArgs {
 
 #[derive(Args)]
 pub struct PolicyListArgs {
-    /// Filter by layer (company, org, team, project)
+    /// Filter by layer (tenant, org, team, project)
     #[arg(short, long)]
     pub layer: Option<String>,
 
@@ -176,7 +176,7 @@ async fn run_create(args: PolicyCreateArgs) -> anyhow::Result<()> {
 
     // Validate layer
     let layer = args.layer.to_lowercase();
-    let valid_layers = ["company", "org", "team", "project"];
+    let valid_layers = ["tenant", "org", "team", "project"];
     if !valid_layers.contains(&layer.as_str()) {
         let err = ux_error::invalid_knowledge_layer(&layer);
         err.display();
@@ -359,7 +359,7 @@ async fn run_list(args: PolicyListArgs) -> anyhow::Result<()> {
     // Validate layer if provided
     if let Some(ref layer) = args.layer {
         let layer_lower = layer.to_lowercase();
-        let valid_layers = ["company", "org", "team", "project"];
+        let valid_layers = ["tenant", "org", "team", "project"];
         if !valid_layers.contains(&layer_lower.as_str()) {
             let err = ux_error::invalid_knowledge_layer(layer);
             err.display();
@@ -402,7 +402,7 @@ async fn run_list(args: PolicyListArgs) -> anyhow::Result<()> {
 
         // Show example of what would be displayed
         output::header("Policy Inheritance (would show)");
-        println!("  company   → Security Baseline (mandatory)");
+        println!("  tenant    → Security Baseline (mandatory)");
         println!("  org       → Platform Standards (mandatory)");
         println!("  team      → API Team Conventions (optional)");
         println!("  project   → [your policies here]");
@@ -733,7 +733,7 @@ mod tests {
         let args = PolicyCreateArgs {
             description: Some("Block all dependencies with critical CVEs".to_string()),
             name: Some("cve-blocker".to_string()),
-            layer: "company".to_string(),
+            layer: "tenant".to_string(),
             mode: "mandatory".to_string(),
             template: None,
             target: Some("dependency".to_string()),
@@ -744,7 +744,7 @@ mod tests {
         };
         assert!(args.description.is_some());
         assert_eq!(args.name, Some("cve-blocker".to_string()));
-        assert_eq!(args.layer, "company");
+        assert_eq!(args.layer, "tenant");
         assert_eq!(args.target, Some("dependency".to_string()));
     }
 
@@ -920,7 +920,7 @@ mod tests {
 
     #[test]
     fn test_layer_validation_valid_layers() {
-        let valid_layers = ["company", "org", "team", "project"];
+        let valid_layers = ["tenant", "org", "team", "project"];
         for layer in valid_layers {
             assert!(valid_layers.contains(&layer.to_lowercase().as_str()));
         }
@@ -928,7 +928,7 @@ mod tests {
 
     #[test]
     fn test_layer_validation_invalid_layers() {
-        let valid_layers = ["company", "org", "team", "project"];
+        let valid_layers = ["tenant", "org", "team", "project"];
         let invalid_layers = ["global", "user", "session", "agent"];
         for layer in invalid_layers {
             assert!(!valid_layers.contains(&layer.to_lowercase().as_str()));
@@ -998,7 +998,7 @@ mod tests {
 
     #[test]
     fn test_policy_create_args_all_layers() {
-        let layers = ["company", "org", "team", "project"];
+        let layers = ["tenant", "org", "team", "project"];
         for layer in layers {
             let args = PolicyCreateArgs {
                 description: Some("Test policy".to_string()),
@@ -1147,7 +1147,7 @@ mod tests {
     fn test_policy_explain_args_policy_id_formats() {
         let policy_ids = [
             "security-baseline",
-            "company-wide-policy",
+            "tenant-wide-policy",
             "team-api-conventions",
             "project-local-rules",
         ];

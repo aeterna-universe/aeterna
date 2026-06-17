@@ -27,7 +27,7 @@ tests/tenant_provisioning/
 ├── README.md              # this file
 ├── scenarios/             # the canonical fixture set (§13.1)
 │   ├── 01-bootstrap.yaml
-│   ├── 02-add-company.yaml
+│   ├── 02-add-root-org.yaml
 │   ├── 03-rotate-reference.yaml
 │   ├── 04-noop-reapply.yaml
 │   └── 05-prune.yaml
@@ -86,7 +86,7 @@ tenant slug (`acme-bootstrap`), so the full suite also exercises the
 second-apply, no-op, and prune paths:
 
 1. `01-bootstrap`   — create
-2. `02-add-company` — extend (hierarchy add)
+2. `02-add-root-org` — extend (hierarchy add)
 3. `03-rotate-reference` — modify (secret reference flip)
 4. `04-noop-reapply` — byte-identical re-submit of (3), expects `no_op`
 5. `05-prune`       — remove a hierarchy branch added in (2)

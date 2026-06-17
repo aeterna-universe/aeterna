@@ -35,7 +35,7 @@ pub struct ApprovalTimeout {
 /// Governance level.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GovernanceLevel {
-    Company,
+    Tenant,
     Organization,
     Team,
     Project
@@ -181,7 +181,7 @@ impl ApprovalTimeoutManager {
             GovernanceLevel::Project => "team_lead".to_string(),
             GovernanceLevel::Team => "org_manager".to_string(),
             GovernanceLevel::Organization => "company_admin".to_string(),
-            GovernanceLevel::Company => "executive".to_string()
+            GovernanceLevel::Tenant => "executive".to_string()
         }
     }
 

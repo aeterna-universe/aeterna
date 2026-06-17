@@ -4,7 +4,7 @@
 TBD - created by archiving change add-cca-capabilities. Update Purpose after archive.
 ## Requirements
 ### Requirement: Hierarchical Context Compression
-The system SHALL maintain pre-computed summaries at multiple depths for every layer in the hierarchy (Company, Org, Team, Project, Multi-Session, Session).
+The system SHALL maintain pre-computed summaries at multiple depths for every layer in the hierarchy (Tenant, Org, Team, Project, Multi-Session, Session).
 
 #### Scenario: Generate summaries at three depths
 - **WHEN** layer content is created or updated
@@ -44,9 +44,9 @@ The system SHALL support personalized summaries that incorporate user-specific c
 - **THEN** system SHALL include user's recent concerns and preferences in summarization prompt
 - **AND** system SHALL tag summary as personalized with context reference
 
-#### Scenario: Generic summary for company layer
-- **WHEN** generating summary for company layer
-- **AND** personalization is disabled (default for company/org)
+#### Scenario: Generic summary for tenant layer
+- **WHEN** generating summary for tenant layer
+- **AND** personalization is disabled (default for tenant/org)
 - **THEN** system SHALL generate organization-wide generic summary
 - **AND** system SHALL NOT include user-specific context
 
@@ -109,7 +109,7 @@ The system SHALL support per-layer configuration for summary generation behavior
 #### Scenario: Default layer configurations
 - **WHEN** no custom configuration exists for a layer
 - **THEN** system SHALL use default configurations:
-- **AND** Company/Org: hourly OR every 10 changes, generic
+- **AND** Tenant/Org: hourly OR every 10 changes, generic
 - **AND** Team: hourly OR every 5 changes, personalized
 - **AND** Project: every 30 min OR every 3 changes, personalized
 - **AND** Session: every 5 min OR every change, highly personalized

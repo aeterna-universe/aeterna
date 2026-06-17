@@ -674,7 +674,7 @@ mod tests {
         let tenant_id = TenantId::new("acme".to_string()).unwrap();
         GovernanceEvent::UnitCreated {
             unit_id: "unit-1".to_string(),
-            unit_type: UnitType::Company,
+            unit_type: UnitType::Organization,
             tenant_id,
             parent_id: None,
             timestamp: chrono::Utc::now().timestamp(),

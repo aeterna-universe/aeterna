@@ -120,7 +120,7 @@ impl ActionExecutor for StrategyExecutor {
                     mk_core::types::KnowledgeLayer::Project,
                     mk_core::types::KnowledgeLayer::Team,
                     mk_core::types::KnowledgeLayer::Org,
-                    mk_core::types::KnowledgeLayer::Company,
+                    mk_core::types::KnowledgeLayer::Tenant,
                 ];
 
                 for layer in layers {

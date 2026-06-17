@@ -55,7 +55,7 @@ test("wizard composes manifest, ships ui header, surfaces step results", async (
   await expect(page.getByTestId("wizard-step-error")).toContainText(/slug is required/i)
 
   await page.getByLabel("Slug *").fill("acme")
-  await page.getByLabel("Display name *").fill("Acme Corp")
+  await page.getByLabel("Display name *").fill("Acme Tenant")
   await next.click()
 
   // Step 2 — add an env reference.
@@ -165,7 +165,7 @@ test("manifest tab renders YAML and downloads the file", async ({ page, login })
           tenant: {
             id: "tenant-acme-id",
             slug: "acme",
-            name: "Acme Corp",
+            name: "Acme Tenant",
             status: "Active",
             sourceOwner: "Admin",
             createdAt: 1_700_000_000,
@@ -181,7 +181,7 @@ test("manifest tab renders YAML and downloads the file", async ({ page, login })
           apiVersion: "aeterna.io/v1",
           kind: "TenantManifest",
           metadata: { generation: 4 },
-          tenant: { slug: "acme", name: "Acme Corp" },
+          tenant: { slug: "acme", name: "Acme Tenant" },
           config: { fields: { "memory.vectorStore.type": "qdrant" } },
         },
       },

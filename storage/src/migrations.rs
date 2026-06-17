@@ -212,6 +212,31 @@ pub const MIGRATIONS: &[EmbeddedMigration] = &[
         name: "035_organizational_units_timestamps",
         sql: include_str!("../migrations/035_organizational_units_timestamps.sql"),
     },
+    EmbeddedMigration {
+        version: 36,
+        name: "036_accounts",
+        sql: include_str!("../migrations/036_accounts.sql"),
+    },
+    EmbeddedMigration {
+        version: 37,
+        name: "037_organizations_tenant_root",
+        sql: include_str!("../migrations/037_organizations_tenant_root.sql"),
+    },
+    EmbeddedMigration {
+        version: 38,
+        name: "038_tenant_root_views",
+        sql: include_str!("../migrations/038_tenant_root_views.sql"),
+    },
+    EmbeddedMigration {
+        version: 39,
+        name: "039_drop_company_root",
+        sql: include_str!("../migrations/039_drop_company_root.sql"),
+    },
+    EmbeddedMigration {
+        version: 40,
+        name: "040_finalize_tenant_schema",
+        sql: include_str!("../migrations/040_finalize_tenant_schema.sql"),
+    },
 ];
 
 /// Apply every embedded migration in order, transactionally.

@@ -33,26 +33,26 @@ impl MockGovernanceStorage {
     }
 
     fn scope_key(
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
         project_id: Option<Uuid>,
     ) -> String {
         format!(
             "{:?}:{:?}:{:?}:{:?}",
-            company_id, org_id, team_id, project_id
+            tenant_id, org_id, team_id, project_id
         )
     }
 
     pub async fn get_effective_config(
         &self,
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
         project_id: Option<Uuid>,
     ) -> Result<GovernanceConfig, String> {
         let configs = self.configs.read().await;
-        let key = Self::scope_key(company_id, org_id, team_id, project_id);
+        let key = Self::scope_key(tenant_id, org_id, team_id, project_id);
 
         if let Some(config) = configs.get(&key) {
             return Ok(config.clone());
@@ -64,7 +64,7 @@ impl MockGovernanceStorage {
     pub async fn upsert_config(&self, config: &GovernanceConfig) -> Result<Uuid, String> {
         let mut configs = self.configs.write().await;
         let key = Self::scope_key(
-            config.company_id,
+            config.tenant_id,
             config.org_id,
             config.team_id,
             config.project_id,
@@ -96,7 +96,7 @@ impl MockGovernanceStorage {
             request_type: request.request_type,
             target_type: request.target_type.clone(),
             target_id: request.target_id.clone(),
-            company_id: request.company_id,
+            tenant_id: request.tenant_id,
             org_id: request.org_id,
             team_id: request.team_id,
             project_id: request.project_id,
@@ -150,7 +150,7 @@ impl MockGovernanceStorage {
         let filtered: Vec<ApprovalRequest> = requests
             .values()
             .filter(|r| r.status == RequestStatus::Pending)
-            .filter(|r| filters.company_id.is_none_or(|id| r.company_id == Some(id)))
+            .filter(|r| filters.tenant_id.is_none_or(|id| r.tenant_id == Some(id)))
             .filter(|r| filters.org_id.is_none_or(|id| r.org_id == Some(id)))
             .filter(|r| filters.team_id.is_none_or(|id| r.team_id == Some(id)))
             .filter(|r| filters.project_id.is_none_or(|id| r.project_id == Some(id)))
@@ -255,7 +255,7 @@ impl MockGovernanceStorage {
             principal_type: role.principal_type,
             principal_id: role.principal_id,
             role: role.role.clone(),
-            company_id: role.company_id,
+            tenant_id: role.tenant_id,
             org_id: role.org_id,
             team_id: role.team_id,
             project_id: role.project_id,
@@ -290,7 +290,7 @@ impl MockGovernanceStorage {
 
     pub async fn list_roles(
         &self,
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
     ) -> Result<Vec<GovernanceRole>, String> {
@@ -298,7 +298,7 @@ impl MockGovernanceStorage {
         let filtered: Vec<GovernanceRole> = roles
             .iter()
             .filter(|r| r.revoked_at.is_none())
-            .filter(|r| company_id.is_none_or(|id| r.company_id == Some(id)))
+            .filter(|r| tenant_id.is_none_or(|id| r.tenant_id == Some(id)))
             .filter(|r| org_id.is_none_or(|id| r.org_id == Some(id)))
             .filter(|r| team_id.is_none_or(|id| r.team_id == Some(id)))
             .cloned()
@@ -373,7 +373,7 @@ impl MockGovernanceStorage {
         &self,
         principal_id: Uuid,
         role: &str,
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
     ) -> Result<bool, String> {
@@ -382,7 +382,7 @@ impl MockGovernanceStorage {
             r.principal_id == principal_id
                 && r.role == role
                 && r.revoked_at.is_none()
-                && (company_id.is_none() || r.company_id == company_id)
+                && (tenant_id.is_none() || r.tenant_id == tenant_id)
                 && (org_id.is_none() || r.org_id == org_id)
                 && (team_id.is_none() || r.team_id == team_id)
         });
@@ -407,11 +407,11 @@ mod governance_config_tests {
     #[tokio::test]
     async fn test_upsert_and_get_config() {
         let storage = MockGovernanceStorage::new();
-        let company_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
 
         let config = GovernanceConfig {
             id: None,
-            company_id: Some(company_id),
+            tenant_id: Some(tenant_id),
             org_id: None,
             team_id: None,
             project_id: None,
@@ -431,7 +431,7 @@ mod governance_config_tests {
         assert!(!id.is_nil());
 
         let retrieved = storage
-            .get_effective_config(Some(company_id), None, None, None)
+            .get_effective_config(Some(tenant_id), None, None, None)
             .await
             .unwrap();
         assert_eq!(retrieved.min_approvers, 3);
@@ -472,11 +472,11 @@ mod governance_config_tests {
     #[tokio::test]
     async fn test_config_update_overwrites() {
         let storage = MockGovernanceStorage::new();
-        let company_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
 
         // First config
         let config1 = GovernanceConfig {
-            company_id: Some(company_id),
+            tenant_id: Some(tenant_id),
             min_approvers: 2,
             ..Default::default()
         };
@@ -484,14 +484,14 @@ mod governance_config_tests {
 
         // Second config (update)
         let config2 = GovernanceConfig {
-            company_id: Some(company_id),
+            tenant_id: Some(tenant_id),
             min_approvers: 5,
             ..Default::default()
         };
         storage.upsert_config(&config2).await.unwrap();
 
         let retrieved = storage
-            .get_effective_config(Some(company_id), None, None, None)
+            .get_effective_config(Some(tenant_id), None, None, None)
             .await
             .unwrap();
         assert_eq!(retrieved.min_approvers, 5);
@@ -511,7 +511,7 @@ mod approval_request_tests {
             request_type: RequestType::Policy,
             target_type: "cedar_policy".to_string(),
             target_id: Some("policy-123".to_string()),
-            company_id: Some(Uuid::new_v4()),
+            tenant_id: Some(Uuid::new_v4()),
             org_id: None,
             team_id: None,
             project_id: None,
@@ -578,24 +578,24 @@ mod approval_request_tests {
         let storage = MockGovernanceStorage::new();
         let requestor1 = Uuid::new_v4();
         let requestor2 = Uuid::new_v4();
-        let company_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
 
         // Create requests
         let mut req1 = create_test_request("Policy 1", requestor1);
-        req1.company_id = Some(company_id);
+        req1.tenant_id = Some(tenant_id);
         storage.create_request(&req1).await.unwrap();
 
         let mut req2 = create_test_request("Policy 2", requestor2);
-        req2.company_id = Some(company_id);
+        req2.tenant_id = Some(tenant_id);
         storage.create_request(&req2).await.unwrap();
 
         let req3 = create_test_request("Policy 3", requestor1);
         storage.create_request(&req3).await.unwrap();
 
-        // Filter by company
+        // Filter by tenant root
         let filters = RequestFilters {
             request_type: None,
-            company_id: Some(company_id),
+            tenant_id: Some(tenant_id),
             org_id: None,
             team_id: None,
             project_id: None,
@@ -608,7 +608,7 @@ mod approval_request_tests {
         // Filter by requestor
         let filters = RequestFilters {
             request_type: None,
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,
@@ -708,7 +708,7 @@ mod approval_decision_tests {
             request_type: RequestType::Policy,
             target_type: "policy".to_string(),
             target_id: None,
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,
@@ -756,7 +756,7 @@ mod approval_decision_tests {
             request_type: RequestType::Policy,
             target_type: "policy".to_string(),
             target_id: None,
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,
@@ -816,7 +816,7 @@ mod approval_decision_tests {
             request_type: RequestType::Policy,
             target_type: "policy".to_string(),
             target_id: None,
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,
@@ -871,7 +871,7 @@ mod approval_decision_tests {
             request_type: RequestType::Policy,
             target_type: "policy".to_string(),
             target_id: None,
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,
@@ -920,13 +920,13 @@ mod governance_role_tests {
         let storage = MockGovernanceStorage::new();
         let principal_id = Uuid::new_v4();
         let granter_id = Uuid::new_v4();
-        let company_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
 
         let role = CreateGovernanceRole {
             principal_type: PrincipalType::User,
             principal_id,
             role: "approver".to_string(),
-            company_id: Some(company_id),
+            tenant_id: Some(tenant_id),
             org_id: None,
             team_id: None,
             project_id: None,
@@ -939,7 +939,7 @@ mod governance_role_tests {
 
         // Verify role exists
         let has_role = storage
-            .check_has_role(principal_id, "approver", Some(company_id), None, None)
+            .check_has_role(principal_id, "approver", Some(tenant_id), None, None)
             .await
             .unwrap();
         assert!(has_role);
@@ -956,7 +956,7 @@ mod governance_role_tests {
             principal_type: PrincipalType::User,
             principal_id,
             role: "approver".to_string(),
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,
@@ -993,7 +993,7 @@ mod governance_role_tests {
         let user1 = Uuid::new_v4();
         let user2 = Uuid::new_v4();
         let granter = Uuid::new_v4();
-        let company_id = Uuid::new_v4();
+        let tenant_id = Uuid::new_v4();
 
         // Assign roles
         storage
@@ -1001,7 +1001,7 @@ mod governance_role_tests {
                 principal_type: PrincipalType::User,
                 principal_id: user1,
                 role: "approver".to_string(),
-                company_id: Some(company_id),
+                tenant_id: Some(tenant_id),
                 org_id: None,
                 team_id: None,
                 project_id: None,
@@ -1016,7 +1016,7 @@ mod governance_role_tests {
                 principal_type: PrincipalType::User,
                 principal_id: user2,
                 role: "admin".to_string(),
-                company_id: Some(company_id),
+                tenant_id: Some(tenant_id),
                 org_id: None,
                 team_id: None,
                 project_id: None,
@@ -1027,7 +1027,7 @@ mod governance_role_tests {
             .unwrap();
 
         let roles = storage
-            .list_roles(Some(company_id), None, None)
+            .list_roles(Some(tenant_id), None, None)
             .await
             .unwrap();
         assert_eq!(roles.len(), 2);
@@ -1285,7 +1285,7 @@ mod workflow_integration_tests {
             request_type: RequestType::Policy,
             target_type: "policy".to_string(),
             target_id: None,
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,
@@ -1465,7 +1465,7 @@ mod edge_case_tests {
         let storage = MockGovernanceStorage::new();
         let filters = RequestFilters {
             request_type: None,
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,
@@ -1519,7 +1519,7 @@ mod edge_case_tests {
             request_type: RequestType::Policy,
             target_type: "policy".to_string(),
             target_id: None,
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,

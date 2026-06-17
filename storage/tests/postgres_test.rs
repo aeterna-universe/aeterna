@@ -272,12 +272,12 @@ async fn test_postgres_backend_role_management() {
 
     let tenant_id = TenantId::new(unique_tenant_id()).unwrap();
     let user_id = UserId::new("user-1".to_string()).unwrap();
-    let comp_id = unique_id("comp");
+    let comp_id = unique_id("org");
 
-    let company = mk_core::types::OrganizationalUnit {
+    let root_org = mk_core::types::OrganizationalUnit {
         id: comp_id.clone(),
-        name: "Company 1".to_string(),
-        unit_type: mk_core::types::UnitType::Company,
+        name: "Organization 1".to_string(),
+        unit_type: mk_core::types::UnitType::Organization,
         tenant_id: tenant_id.clone(),
         parent_id: None,
         metadata: std::collections::HashMap::new(),
@@ -285,7 +285,7 @@ async fn test_postgres_backend_role_management() {
         updated_at: chrono::Utc::now(),
         source_owner: RecordSource::Admin,
     };
-    backend.create_unit(&company).await.unwrap();
+    backend.create_unit(&root_org).await.unwrap();
 
     backend
         .assign_role(
@@ -367,7 +367,7 @@ async fn test_get_user_roles_for_auth_includes_instance_scope_and_deduplicates()
     };
 
     let tenant_id = TenantId::new(unique_tenant_id()).unwrap();
-    let tenant_unit_id = unique_id("company");
+    let tenant_unit_id = unique_id("org");
     let root_unit_id = unique_id("instance");
     let user_id = unique_id("user");
     let now = chrono::Utc::now();
@@ -375,8 +375,8 @@ async fn test_get_user_roles_for_auth_includes_instance_scope_and_deduplicates()
     backend
         .create_unit(&OrganizationalUnit {
             id: tenant_unit_id.clone(),
-            name: "Tenant Company".to_string(),
-            unit_type: UnitType::Company,
+            name: "Tenant Root Org".to_string(),
+            unit_type: UnitType::Organization,
             parent_id: None,
             tenant_id: tenant_id.clone(),
             metadata: std::collections::HashMap::new(),
@@ -391,7 +391,7 @@ async fn test_get_user_roles_for_auth_includes_instance_scope_and_deduplicates()
         .create_unit(&OrganizationalUnit {
             id: root_unit_id.clone(),
             name: "Instance Scope".to_string(),
-            unit_type: UnitType::Company,
+            unit_type: UnitType::Organization,
             parent_id: None,
             tenant_id: INSTANCE_SCOPE_TENANT_ID.parse().unwrap(),
             metadata: std::collections::HashMap::new(),
@@ -464,12 +464,12 @@ async fn test_postgres_backend_unit_policy() {
 
     let tenant_id = TenantId::new(unique_tenant_id()).unwrap();
     let ctx = TenantContext::new(tenant_id.clone(), UserId::default());
-    let comp_id = unique_id("comp");
+    let comp_id = unique_id("org");
 
-    let company = mk_core::types::OrganizationalUnit {
+    let root_org = mk_core::types::OrganizationalUnit {
         id: comp_id.clone(),
-        name: "Company 1".to_string(),
-        unit_type: mk_core::types::UnitType::Company,
+        name: "Organization 1".to_string(),
+        unit_type: mk_core::types::UnitType::Organization,
         tenant_id: tenant_id.clone(),
         parent_id: None,
         metadata: std::collections::HashMap::new(),
@@ -477,13 +477,13 @@ async fn test_postgres_backend_unit_policy() {
         updated_at: chrono::Utc::now(),
         source_owner: RecordSource::Admin,
     };
-    backend.create_unit(&company).await.unwrap();
+    backend.create_unit(&root_org).await.unwrap();
 
     let policy = mk_core::types::Policy {
         id: "policy-1".to_string(),
         name: "Test Policy".to_string(),
         description: None,
-        layer: mk_core::types::KnowledgeLayer::Company,
+        layer: mk_core::types::KnowledgeLayer::Tenant,
         rules: vec![],
         metadata: std::collections::HashMap::new(),
         mode: mk_core::types::PolicyMode::Optional,
@@ -558,7 +558,7 @@ async fn test_postgres_backend_governance_event_types() {
     let events = vec![
         mk_core::types::GovernanceEvent::UnitCreated {
             unit_id: "unit-1".to_string(),
-            unit_type: mk_core::types::UnitType::Company,
+            unit_type: mk_core::types::UnitType::Organization,
             tenant_id: tenant_id.clone(),
             parent_id: None,
             timestamp: chrono::Utc::now().timestamp(),
@@ -589,7 +589,7 @@ async fn test_postgres_backend_governance_event_types() {
         },
         mk_core::types::GovernanceEvent::PolicyUpdated {
             policy_id: "policy-1".to_string(),
-            layer: mk_core::types::KnowledgeLayer::Company,
+            layer: mk_core::types::KnowledgeLayer::Tenant,
             tenant_id: tenant_id.clone(),
             timestamp: chrono::Utc::now().timestamp(),
         },
@@ -622,12 +622,12 @@ async fn test_postgres_backend_unit_operations() {
 
     let tenant_id = TenantId::new(unique_tenant_id()).unwrap();
     let ctx = TenantContext::new(tenant_id.clone(), UserId::default());
-    let comp_id = unique_id("comp");
+    let comp_id = unique_id("org");
 
-    let company = mk_core::types::OrganizationalUnit {
+    let root_org = mk_core::types::OrganizationalUnit {
         id: comp_id.clone(),
-        name: "Company 1".to_string(),
-        unit_type: mk_core::types::UnitType::Company,
+        name: "Organization 1".to_string(),
+        unit_type: mk_core::types::UnitType::Organization,
         tenant_id: tenant_id.clone(),
         parent_id: None,
         metadata: std::collections::HashMap::new(),
@@ -635,22 +635,22 @@ async fn test_postgres_backend_unit_operations() {
         updated_at: chrono::Utc::now(),
         source_owner: RecordSource::Admin,
     };
-    backend.create_unit(&company).await.unwrap();
+    backend.create_unit(&root_org).await.unwrap();
 
     let retrieved = backend.get_unit_scoped(&ctx, &comp_id).await.unwrap();
     assert!(retrieved.is_some());
-    assert_eq!(retrieved.unwrap().name, "Company 1");
+    assert_eq!(retrieved.unwrap().name, "Organization 1");
 
-    let mut updated_company = company.clone();
-    updated_company.name = "Updated Company".to_string();
-    updated_company.updated_at = chrono::Utc::now();
+    let mut updated_root_org = root_org.clone();
+    updated_root_org.name = "Updated Organization".to_string();
+    updated_root_org.updated_at = chrono::Utc::now();
     backend
-        .update_unit_scoped(&ctx, &updated_company)
+        .update_unit_scoped(&ctx, &updated_root_org)
         .await
         .unwrap();
 
     let updated = backend.get_unit_scoped(&ctx, &comp_id).await.unwrap();
-    assert_eq!(updated.unwrap().name, "Updated Company");
+    assert_eq!(updated.unwrap().name, "Updated Organization");
 
     backend.delete_unit_scoped(&ctx, &comp_id).await.unwrap();
     let deleted = backend.get_unit_scoped(&ctx, &comp_id).await.unwrap();
@@ -666,14 +666,14 @@ async fn test_postgres_backend_list_children() {
 
     let tenant_id = TenantId::new(unique_tenant_id()).unwrap();
     let ctx = TenantContext::new(tenant_id.clone(), UserId::default());
-    let comp_id = unique_id("comp");
-    let org1_id = unique_id("org");
-    let org2_id = unique_id("org");
+    let comp_id = unique_id("org");
+    let org1_id = unique_id("team");
+    let org2_id = unique_id("team");
 
-    let company = mk_core::types::OrganizationalUnit {
+    let root_org = mk_core::types::OrganizationalUnit {
         id: comp_id.clone(),
-        name: "Company 1".to_string(),
-        unit_type: mk_core::types::UnitType::Company,
+        name: "Organization 1".to_string(),
+        unit_type: mk_core::types::UnitType::Organization,
         tenant_id: tenant_id.clone(),
         parent_id: None,
         metadata: std::collections::HashMap::new(),
@@ -681,12 +681,12 @@ async fn test_postgres_backend_list_children() {
         updated_at: chrono::Utc::now(),
         source_owner: RecordSource::Admin,
     };
-    backend.create_unit(&company).await.unwrap();
+    backend.create_unit(&root_org).await.unwrap();
 
     let org1 = mk_core::types::OrganizationalUnit {
         id: org1_id,
-        name: "Org 1".to_string(),
-        unit_type: mk_core::types::UnitType::Organization,
+        name: "Team 1".to_string(),
+        unit_type: mk_core::types::UnitType::Team,
         tenant_id: tenant_id.clone(),
         parent_id: Some(comp_id.clone()),
         metadata: std::collections::HashMap::new(),
@@ -698,8 +698,8 @@ async fn test_postgres_backend_list_children() {
 
     let org2 = mk_core::types::OrganizationalUnit {
         id: org2_id,
-        name: "Org 2".to_string(),
-        unit_type: mk_core::types::UnitType::Organization,
+        name: "Team 2".to_string(),
+        unit_type: mk_core::types::UnitType::Team,
         tenant_id: tenant_id.clone(),
         parent_id: Some(comp_id.clone()),
         metadata: std::collections::HashMap::new(),
@@ -721,13 +721,13 @@ async fn test_postgres_backend_list_all_units() {
     };
 
     let tenant_id = TenantId::new(unique_tenant_id()).unwrap();
-    let comp_id = unique_id("comp");
-    let org_id = unique_id("org");
+    let comp_id = unique_id("org");
+    let org_id = unique_id("team");
 
-    let company = mk_core::types::OrganizationalUnit {
+    let root_org = mk_core::types::OrganizationalUnit {
         id: comp_id.clone(),
-        name: "Company".to_string(),
-        unit_type: mk_core::types::UnitType::Company,
+        name: "Org".to_string(),
+        unit_type: mk_core::types::UnitType::Organization,
         tenant_id: tenant_id.clone(),
         parent_id: None,
         metadata: std::collections::HashMap::new(),
@@ -735,12 +735,12 @@ async fn test_postgres_backend_list_all_units() {
         updated_at: chrono::Utc::now(),
         source_owner: RecordSource::Admin,
     };
-    backend.create_unit(&company).await.unwrap();
+    backend.create_unit(&root_org).await.unwrap();
 
     let org = mk_core::types::OrganizationalUnit {
         id: org_id,
-        name: "Org".to_string(),
-        unit_type: mk_core::types::UnitType::Organization,
+        name: "Team".to_string(),
+        unit_type: mk_core::types::UnitType::Team,
         tenant_id: tenant_id.clone(),
         parent_id: Some(comp_id),
         metadata: std::collections::HashMap::new(),
@@ -767,14 +767,14 @@ async fn test_postgres_backend_hierarchy_validation() {
 
     let tenant_id = TenantId::new(unique_tenant_id()).unwrap();
     let ctx = TenantContext::new(tenant_id.clone(), UserId::default());
-    let comp_id = unique_id("comp");
-    let org_id = unique_id("org");
-    let team_id = unique_id("team");
+    let comp_id = unique_id("org");
+    let org_id = unique_id("team");
+    let team_id = unique_id("proj");
 
-    let company = mk_core::types::OrganizationalUnit {
+    let root_org = mk_core::types::OrganizationalUnit {
         id: comp_id.clone(),
-        name: "Company".to_string(),
-        unit_type: mk_core::types::UnitType::Company,
+        name: "Org".to_string(),
+        unit_type: mk_core::types::UnitType::Organization,
         tenant_id: tenant_id.clone(),
         parent_id: None,
         metadata: std::collections::HashMap::new(),
@@ -782,12 +782,12 @@ async fn test_postgres_backend_hierarchy_validation() {
         updated_at: chrono::Utc::now(),
         source_owner: RecordSource::Admin,
     };
-    backend.create_unit(&company).await.unwrap();
+    backend.create_unit(&root_org).await.unwrap();
 
     let org = mk_core::types::OrganizationalUnit {
         id: org_id.clone(),
-        name: "Org".to_string(),
-        unit_type: mk_core::types::UnitType::Organization,
+        name: "Team".to_string(),
+        unit_type: mk_core::types::UnitType::Team,
         tenant_id: tenant_id.clone(),
         parent_id: Some(comp_id.clone()),
         metadata: std::collections::HashMap::new(),
@@ -799,8 +799,8 @@ async fn test_postgres_backend_hierarchy_validation() {
 
     let team = mk_core::types::OrganizationalUnit {
         id: team_id,
-        name: "Team".to_string(),
-        unit_type: mk_core::types::UnitType::Team,
+        name: "Project".to_string(),
+        unit_type: mk_core::types::UnitType::Project,
         tenant_id: tenant_id.clone(),
         parent_id: Some(org_id.clone()),
         metadata: std::collections::HashMap::new(),

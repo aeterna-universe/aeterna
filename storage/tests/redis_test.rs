@@ -808,7 +808,7 @@ async fn test_redis_subscribe_multiple_channels() {
 
         let event1 = mk_core::types::GovernanceEvent::PolicyUpdated {
             policy_id: format!("policy-{}", attempt),
-            layer: mk_core::types::KnowledgeLayer::Company,
+            layer: mk_core::types::KnowledgeLayer::Tenant,
             tenant_id: tenant_id1.clone(),
             timestamp: chrono::Utc::now().timestamp(),
         };
@@ -1119,7 +1119,7 @@ async fn test_redis_invalidate_summary_cache_all_depths() {
 
     let tenant_id = unique_id("tenant");
     let entry_id = unique_id("entry");
-    let layer = mk_core::types::MemoryLayer::Company;
+    let layer = mk_core::types::MemoryLayer::Tenant;
 
     let depths = [
         mk_core::types::SummaryDepth::Sentence,
@@ -1413,7 +1413,7 @@ async fn test_redis_summary_cache_tenant_isolation() {
     let tenant1 = unique_id("tenant1");
     let tenant2 = unique_id("tenant2");
     let entry_id = "shared-entry";
-    let layer = mk_core::types::MemoryLayer::Company;
+    let layer = mk_core::types::MemoryLayer::Tenant;
 
     let summary1 = mk_core::types::LayerSummary {
         depth: mk_core::types::SummaryDepth::Sentence,

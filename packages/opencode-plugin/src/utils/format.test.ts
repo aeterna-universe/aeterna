@@ -186,7 +186,7 @@ describe("formatAssembledContext", () => {
       context: "assembled context here",
       tokensUsed: 4000,
       tokenBudget: 8000,
-      layerBreakdown: { agent: 500, user: 500, session: 1000, project: 1000, team: 500, org: 300, company: 200 },
+      layerBreakdown: { agent: 500, user: 500, session: 1000, project: 1000, team: 500, org: 300, tenant: 200 },
       truncated: false,
       sources: [
         { id: "s1", layer: "project", relevance: 0.95 },
@@ -205,7 +205,7 @@ describe("formatAssembledContext", () => {
       context: "truncated",
       tokensUsed: 8000,
       tokenBudget: 8000,
-      layerBreakdown: { agent: 0, user: 0, session: 0, project: 4000, team: 4000, org: 0, company: 0 },
+      layerBreakdown: { agent: 0, user: 0, session: 0, project: 4000, team: 4000, org: 0, tenant: 0 },
       truncated: true,
       sources: [],
     };
@@ -218,7 +218,7 @@ describe("formatAssembledContext", () => {
       context: "",
       tokensUsed: 0,
       tokenBudget: 8000,
-      layerBreakdown: { agent: 0, user: 0, session: 0, project: 0, team: 0, org: 0, company: 0 },
+      layerBreakdown: { agent: 0, user: 0, session: 0, project: 0, team: 0, org: 0, tenant: 0 },
       truncated: false,
       sources: [],
     };

@@ -24,7 +24,7 @@ use storage::governance::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PolicyLayer {
-    Company,
+    Tenant,
     Org,
     Team,
     Project,
@@ -33,7 +33,7 @@ pub enum PolicyLayer {
 impl std::fmt::Display for PolicyLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PolicyLayer::Company => write!(f, "company"),
+            PolicyLayer::Tenant => write!(f, "tenant"),
             PolicyLayer::Org => write!(f, "org"),
             PolicyLayer::Team => write!(f, "team"),
             PolicyLayer::Project => write!(f, "project"),
@@ -374,26 +374,26 @@ impl MockGovernanceStorage {
     }
 
     fn scope_key(
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
         project_id: Option<Uuid>,
     ) -> String {
         format!(
             "{:?}:{:?}:{:?}:{:?}",
-            company_id, org_id, team_id, project_id
+            tenant_id, org_id, team_id, project_id
         )
     }
 
     pub async fn get_effective_config(
         &self,
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
         project_id: Option<Uuid>,
     ) -> Result<GovernanceConfig, String> {
         let configs = self.configs.read().await;
-        let key = Self::scope_key(company_id, org_id, team_id, project_id);
+        let key = Self::scope_key(tenant_id, org_id, team_id, project_id);
 
         if let Some(config) = configs.get(&key) {
             return Ok(config.clone());
@@ -405,7 +405,7 @@ impl MockGovernanceStorage {
     pub async fn upsert_config(&self, config: &GovernanceConfig) -> Result<Uuid, String> {
         let mut configs = self.configs.write().await;
         let key = Self::scope_key(
-            config.company_id,
+            config.tenant_id,
             config.org_id,
             config.team_id,
             config.project_id,
@@ -437,7 +437,7 @@ impl MockGovernanceStorage {
             request_type: request.request_type,
             target_type: request.target_type.clone(),
             target_id: request.target_id.clone(),
-            company_id: request.company_id,
+            tenant_id: request.tenant_id,
             org_id: request.org_id,
             team_id: request.team_id,
             project_id: request.project_id,
@@ -535,7 +535,7 @@ impl MockGovernanceStorage {
             principal_type: role.principal_type,
             principal_id: role.principal_id,
             role: role.role.clone(),
-            company_id: role.company_id,
+            tenant_id: role.tenant_id,
             org_id: role.org_id,
             team_id: role.team_id,
             project_id: role.project_id,
@@ -555,7 +555,7 @@ impl MockGovernanceStorage {
         &self,
         principal_id: Uuid,
         role: &str,
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
     ) -> Result<bool, String> {
@@ -564,7 +564,7 @@ impl MockGovernanceStorage {
             r.principal_id == principal_id
                 && r.role == role
                 && r.revoked_at.is_none()
-                && (company_id.is_none() || r.company_id == company_id)
+                && (tenant_id.is_none() || r.tenant_id == tenant_id)
                 && (org_id.is_none() || r.org_id == org_id)
                 && (team_id.is_none() || r.team_id == team_id)
         });
@@ -736,11 +736,11 @@ async fn test_e2e_human_creates_policy_via_ai() {
 async fn test_e2e_admin_configures_meta_governance() {
     let governance_storage = Arc::new(MockGovernanceStorage::new());
     let admin_id = Uuid::new_v4();
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
 
     let config = GovernanceConfig {
         id: Some(Uuid::new_v4()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -770,7 +770,7 @@ async fn test_e2e_admin_configures_meta_governance() {
     assert!(!config_id.is_nil());
 
     let effective_config = governance_storage
-        .get_effective_config(Some(company_id), None, None, None)
+        .get_effective_config(Some(tenant_id), None, None, None)
         .await
         .unwrap();
 
@@ -783,7 +783,7 @@ async fn test_e2e_admin_configures_meta_governance() {
         principal_type: PrincipalType::User,
         principal_id: Uuid::new_v4(),
         role: "policy-approver".to_string(),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -801,7 +801,7 @@ async fn test_e2e_admin_configures_meta_governance() {
         .check_has_role(
             approver_role.principal_id,
             "policy-approver",
-            Some(company_id),
+            Some(tenant_id),
             None,
             None,
         )
@@ -813,7 +813,7 @@ async fn test_e2e_admin_configures_meta_governance() {
         request_type: RequestType::Policy,
         target_type: "cedar_policy".to_string(),
         target_id: Some("policy-security".to_string()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -859,13 +859,13 @@ async fn test_e2e_agent_proposes_policy_autonomously() {
     let governance_storage = Arc::new(MockGovernanceStorage::new());
 
     let agent_id = Uuid::new_v4();
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
 
     let agent_role = CreateGovernanceRole {
         principal_type: PrincipalType::Agent,
         principal_id: agent_id,
         role: "policy-proposer".to_string(),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -920,7 +920,7 @@ async fn test_e2e_agent_proposes_policy_autonomously() {
         request_type: RequestType::Policy,
         target_type: "policy_draft".to_string(),
         target_id: Some(draft_id.clone()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1000,12 +1000,12 @@ async fn test_e2e_multi_approver_workflow() {
     let governance_storage = Arc::new(MockGovernanceStorage::new());
     let policy_storage = Arc::new(MockPolicyStorage::new());
 
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let requestor_id = Uuid::new_v4();
 
     let config = GovernanceConfig {
         id: Some(Uuid::new_v4()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1028,7 +1028,7 @@ async fn test_e2e_multi_approver_workflow() {
         name: "Critical Security Policy".to_string(),
         description: Some("Blocks all external network access".to_string()),
         template: None,
-        layer: PolicyLayer::Company,
+        layer: PolicyLayer::Tenant,
         mode: PolicyMode::Mandatory,
         severity: Severity::Block,
         rules: vec![PolicyRule {
@@ -1058,7 +1058,7 @@ async fn test_e2e_multi_approver_workflow() {
         request_type: RequestType::Policy,
         target_type: "policy_draft".to_string(),
         target_id: Some(draft_id.clone()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1143,7 +1143,7 @@ async fn test_e2e_multi_approver_workflow() {
         .approve_draft(&draft_id, "system")
         .await
         .unwrap();
-    assert_eq!(policy.layer, PolicyLayer::Company);
+    assert_eq!(policy.layer, PolicyLayer::Tenant);
 
     let applied = governance_storage
         .mark_applied(approval_request.id, approver1)
@@ -1157,7 +1157,7 @@ async fn test_e2e_multi_approver_workflow() {
 async fn test_e2e_audit_export_for_compliance() {
     let governance_storage = Arc::new(MockGovernanceStorage::new());
 
-    let _company_id = Uuid::new_v4();
+    let _tenant_id = Uuid::new_v4();
     let admin_id = Uuid::new_v4();
     let user_id = Uuid::new_v4();
 
@@ -1209,7 +1209,7 @@ async fn test_e2e_audit_export_for_compliance() {
             Some("user@example.com"),
             json!({
                 "policy_name": "Security Baseline",
-                "layer": "Company"
+                "layer": "Tenant"
             }),
         )
         .await
@@ -1326,7 +1326,7 @@ async fn test_e2e_project_init_with_auto_detection() {
         team: Option<String>,
         #[allow(dead_code)]
         org: Option<String>,
-        company: Option<String>,
+        tenant: Option<String>,
         #[allow(dead_code)]
         user: Option<String>,
     }
@@ -1338,27 +1338,27 @@ async fn test_e2e_project_init_with_auto_detection() {
         project: Some("api-gateway".to_string()),
         team: Some("platform-team".to_string()),
         org: Some("engineering".to_string()),
-        company: Some("acme-corp".to_string()),
+        tenant: Some("acme-corp".to_string()),
         user: Some("developer@acme-corp.com".to_string()),
         tenant_id: "tenant-acme-corp".to_string(),
     };
 
     assert!(detected_context.project.is_some());
     assert_eq!(detected_context.project.clone().unwrap(), "api-gateway");
-    assert!(detected_context.company.is_some());
-    assert_eq!(detected_context.company.clone().unwrap(), "acme-corp");
+    assert!(detected_context.tenant.is_some());
+    assert_eq!(detected_context.tenant.clone().unwrap(), "acme-corp");
 
     let policy_storage = Arc::new(MockPolicyStorage::new());
     let governance_storage = Arc::new(MockGovernanceStorage::new());
 
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let org_id = Uuid::new_v4();
     let team_id = Uuid::new_v4();
     let project_id = Uuid::new_v4();
 
     let config = GovernanceConfig {
         id: Some(Uuid::new_v4()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1377,7 +1377,7 @@ async fn test_e2e_project_init_with_auto_detection() {
     governance_storage.upsert_config(&config).await.unwrap();
 
     let effective_config = governance_storage
-        .get_effective_config(Some(company_id), None, None, None)
+        .get_effective_config(Some(tenant_id), None, None, None)
         .await
         .unwrap();
 
@@ -1426,11 +1426,11 @@ async fn test_e2e_memory_promotion_with_governance() {
     }
 
     let governance_storage = Arc::new(MockGovernanceStorage::new());
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
 
     let config = GovernanceConfig {
         id: Some(Uuid::new_v4()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1471,7 +1471,7 @@ async fn test_e2e_memory_promotion_with_governance() {
         request_type: RequestType::Memory,
         target_type: "memory_promotion".to_string(),
         target_id: Some(memory.id.clone()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1563,12 +1563,12 @@ async fn test_e2e_memory_promotion_with_governance() {
 #[tokio::test]
 async fn test_e2e_knowledge_proposal_workflow() {
     let governance_storage = Arc::new(MockGovernanceStorage::new());
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let proposer_id = Uuid::new_v4();
 
     let config = GovernanceConfig {
         id: Some(Uuid::new_v4()),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1606,7 +1606,7 @@ async fn test_e2e_knowledge_proposal_workflow() {
         request_type: RequestType::Knowledge,
         target_type: "knowledge_proposal".to_string(),
         target_id: Some(format!("know-draft-{}", Uuid::new_v4())),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,

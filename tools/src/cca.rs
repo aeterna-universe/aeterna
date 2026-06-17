@@ -71,7 +71,7 @@ fn parse_layer(s: &str) -> Option<MemoryLayer> {
         "project" => Some(MemoryLayer::Project),
         "team" => Some(MemoryLayer::Team),
         "org" => Some(MemoryLayer::Org),
-        "company" => Some(MemoryLayer::Company),
+        "tenant" => Some(MemoryLayer::Tenant),
         _ => None,
     }
 }

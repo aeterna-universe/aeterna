@@ -71,7 +71,7 @@ The system SHALL provide semantic search over distilled notes for context enrich
 #### Scenario: Filter notes by scope
 - **WHEN** searching notes with layer filter
 - **THEN** system SHALL only return notes from specified layer and parent layers
-- **AND** system SHALL apply layer precedence rules (project > team > org > company)
+- **AND** system SHALL apply layer precedence rules (project > team > org > tenant)
 
 ### Requirement: Note Quality Scoring
 The system SHALL track note quality through usage metrics and feedback signals.

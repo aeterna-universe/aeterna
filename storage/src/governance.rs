@@ -6,7 +6,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GovernanceConfig {
     pub id: Option<Uuid>,
-    pub company_id: Option<Uuid>,
+    pub tenant_id: Option<Uuid>,
     pub org_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub project_id: Option<Uuid>,
@@ -112,7 +112,7 @@ impl GovernanceTemplate {
             GovernanceTemplate::Standard => GovernanceConfig::default(),
             GovernanceTemplate::Strict => GovernanceConfig {
                 id: None,
-                company_id: None,
+                tenant_id: None,
                 org_id: None,
                 team_id: None,
                 project_id: None,
@@ -142,7 +142,7 @@ impl GovernanceTemplate {
             },
             GovernanceTemplate::Permissive => GovernanceConfig {
                 id: None,
-                company_id: None,
+                tenant_id: None,
                 org_id: None,
                 team_id: None,
                 project_id: None,
@@ -183,7 +183,7 @@ impl Default for GovernanceConfig {
     fn default() -> Self {
         Self {
             id: None,
-            company_id: None,
+            tenant_id: None,
             org_id: None,
             team_id: None,
             project_id: None,
@@ -208,7 +208,7 @@ pub struct ApprovalRequest {
     pub request_type: RequestType,
     pub target_type: String,
     pub target_id: Option<String>,
-    pub company_id: Option<Uuid>,
+    pub tenant_id: Option<Uuid>,
     pub org_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub project_id: Option<Uuid>,
@@ -408,7 +408,7 @@ pub struct GovernanceRole {
     pub principal_type: PrincipalType,
     pub principal_id: Uuid,
     pub role: String,
-    pub company_id: Option<Uuid>,
+    pub tenant_id: Option<Uuid>,
     pub org_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub project_id: Option<Uuid>,
@@ -536,7 +536,7 @@ struct RequestRow {
     request_type: String,
     target_type: String,
     target_id: Option<String>,
-    company_id: Option<Uuid>,
+    tenant_id: Option<Uuid>,
     org_id: Option<Uuid>,
     team_id: Option<Uuid>,
     project_id: Option<Uuid>,
@@ -567,7 +567,7 @@ impl From<RequestRow> for ApprovalRequest {
             request_type: row.request_type.parse().unwrap_or(RequestType::Policy),
             target_type: row.target_type,
             target_id: row.target_id,
-            company_id: row.company_id,
+            tenant_id: row.tenant_id,
             org_id: row.org_id,
             team_id: row.team_id,
             project_id: row.project_id,
@@ -639,14 +639,14 @@ impl GovernanceStorage {
 
     pub async fn get_effective_config(
         &self,
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
         project_id: Option<Uuid>,
     ) -> Result<GovernanceConfig, sqlx::Error> {
         let row: ConfigRow =
             sqlx::query_as("SELECT * FROM get_effective_governance_config($1, $2, $3, $4)")
-                .bind(company_id)
+                .bind(tenant_id)
                 .bind(org_id)
                 .bind(team_id)
                 .bind(project_id)
@@ -655,7 +655,7 @@ impl GovernanceStorage {
 
         Ok(GovernanceConfig {
             id: row.id,
-            company_id,
+            tenant_id,
             org_id,
             team_id,
             project_id,
@@ -676,13 +676,13 @@ impl GovernanceStorage {
         let row: (Uuid,) = sqlx::query_as(
             r#"
             INSERT INTO governance_configs (
-                company_id, org_id, team_id, project_id,
+                tenant_id, org_id, team_id, project_id,
                 approval_mode, min_approvers, timeout_hours,
                 auto_approve_low_risk, escalation_enabled,
                 escalation_timeout_hours, escalation_contact,
                 policy_settings, knowledge_settings, memory_settings
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-            ON CONFLICT (company_id) WHERE company_id IS NOT NULL
+            ON CONFLICT (tenant_id) WHERE tenant_id IS NOT NULL
             DO UPDATE SET
                 approval_mode = EXCLUDED.approval_mode,
                 min_approvers = EXCLUDED.min_approvers,
@@ -698,7 +698,7 @@ impl GovernanceStorage {
             RETURNING id
             "#,
         )
-        .bind(config.company_id)
+        .bind(config.tenant_id)
         .bind(config.org_id)
         .bind(config.team_id)
         .bind(config.project_id)
@@ -730,7 +730,7 @@ impl GovernanceStorage {
             r#"
             INSERT INTO approval_requests (
                 request_type, target_type, target_id,
-                company_id, org_id, team_id, project_id,
+                tenant_id, org_id, team_id, project_id,
                 title, description, payload, risk_level,
                 requestor_type, requestor_id, requestor_email,
                 required_approvals, expires_at
@@ -741,7 +741,7 @@ impl GovernanceStorage {
         .bind(request.request_type.to_string())
         .bind(&request.target_type)
         .bind(&request.target_id)
-        .bind(request.company_id)
+        .bind(request.tenant_id)
         .bind(request.org_id)
         .bind(request.team_id)
         .bind(request.project_id)
@@ -798,7 +798,7 @@ impl GovernanceStorage {
             SELECT * FROM approval_requests
             WHERE status = 'pending'
               AND ($1::text IS NULL OR request_type = $1)
-              AND ($2::uuid IS NULL OR company_id = $2)
+              AND ($2::uuid IS NULL OR tenant_id = $2)
               AND ($3::uuid IS NULL OR org_id = $3)
               AND ($4::uuid IS NULL OR team_id = $4)
               AND ($5::uuid IS NULL OR project_id = $5)
@@ -808,7 +808,7 @@ impl GovernanceStorage {
             "#,
         )
         .bind(&request_type_str)
-        .bind(filters.company_id)
+        .bind(filters.tenant_id)
         .bind(filters.org_id)
         .bind(filters.team_id)
         .bind(filters.project_id)
@@ -1127,7 +1127,7 @@ impl GovernanceStorage {
             r#"
             INSERT INTO governance_roles (
                 principal_type, principal_id, role,
-                company_id, org_id, team_id, project_id,
+                tenant_id, org_id, team_id, project_id,
                 granted_by, expires_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id
@@ -1136,7 +1136,7 @@ impl GovernanceStorage {
         .bind(role.principal_type.to_string())
         .bind(role.principal_id)
         .bind(&role.role)
-        .bind(role.company_id)
+        .bind(role.tenant_id)
         .bind(role.org_id)
         .bind(role.team_id)
         .bind(role.project_id)
@@ -1172,7 +1172,7 @@ impl GovernanceStorage {
 
     pub async fn list_roles(
         &self,
-        company_id: Option<Uuid>,
+        tenant_id: Option<Uuid>,
         org_id: Option<Uuid>,
         team_id: Option<Uuid>,
     ) -> Result<Vec<GovernanceRole>, sqlx::Error> {
@@ -1182,7 +1182,7 @@ impl GovernanceStorage {
             principal_type: String,
             principal_id: Uuid,
             role: String,
-            company_id: Option<Uuid>,
+            tenant_id: Option<Uuid>,
             org_id: Option<Uuid>,
             team_id: Option<Uuid>,
             project_id: Option<Uuid>,
@@ -1197,13 +1197,13 @@ impl GovernanceStorage {
             r#"
             SELECT * FROM governance_roles
             WHERE revoked_at IS NULL
-              AND ($1::uuid IS NULL OR company_id = $1)
+              AND ($1::uuid IS NULL OR tenant_id = $1)
               AND ($2::uuid IS NULL OR org_id = $2)
               AND ($3::uuid IS NULL OR team_id = $3)
             ORDER BY granted_at DESC
             "#,
         )
-        .bind(company_id)
+        .bind(tenant_id)
         .bind(org_id)
         .bind(team_id)
         .fetch_all(&self.pool)
@@ -1216,7 +1216,7 @@ impl GovernanceStorage {
                 principal_type: row.principal_type.parse().unwrap_or(PrincipalType::User),
                 principal_id: row.principal_id,
                 role: row.role,
-                company_id: row.company_id,
+                tenant_id: row.tenant_id,
                 org_id: row.org_id,
                 team_id: row.team_id,
                 project_id: row.project_id,
@@ -1235,7 +1235,7 @@ pub struct CreateApprovalRequest {
     pub request_type: RequestType,
     pub target_type: String,
     pub target_id: Option<String>,
-    pub company_id: Option<Uuid>,
+    pub tenant_id: Option<Uuid>,
     pub org_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub project_id: Option<Uuid>,
@@ -1265,7 +1265,7 @@ pub struct CreateGovernanceRole {
     pub principal_type: PrincipalType,
     pub principal_id: Uuid,
     pub role: String,
-    pub company_id: Option<Uuid>,
+    pub tenant_id: Option<Uuid>,
     pub org_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub project_id: Option<Uuid>,
@@ -1276,7 +1276,7 @@ pub struct CreateGovernanceRole {
 #[derive(Debug, Clone, Default)]
 pub struct RequestFilters {
     pub request_type: Option<RequestType>,
-    pub company_id: Option<Uuid>,
+    pub tenant_id: Option<Uuid>,
     pub org_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
     pub project_id: Option<Uuid>,

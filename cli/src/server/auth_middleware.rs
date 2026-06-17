@@ -490,14 +490,14 @@ mod tests {
         let secret = "test-secret-at-least-32-characters-long";
         let now = chrono::Utc::now().timestamp();
         let tenant = TenantId::new("tenant-1".to_string()).unwrap();
-        let tenant_unit_id = unique_id("company");
+        let tenant_unit_id = unique_id("org");
         let root_unit_id = unique_id("instance");
 
         backend
             .create_unit(&OrganizationalUnit {
                 id: tenant_unit_id.clone(),
-                name: "Tenant Company".to_string(),
-                unit_type: UnitType::Company,
+                name: "Tenant Root Org".to_string(),
+                unit_type: UnitType::Organization,
                 parent_id: None,
                 tenant_id: tenant.clone(),
                 metadata: std::collections::HashMap::new(),
@@ -512,7 +512,7 @@ mod tests {
             .create_unit(&OrganizationalUnit {
                 id: root_unit_id.clone(),
                 name: "Instance Scope".to_string(),
-                unit_type: UnitType::Company,
+                unit_type: UnitType::Organization,
                 parent_id: None,
                 tenant_id: INSTANCE_SCOPE_TENANT_ID.parse().unwrap(),
                 metadata: std::collections::HashMap::new(),

@@ -4249,7 +4249,7 @@ mod tests {
     use mk_core::types::{TenantId, UserId};
 
     fn test_tenant_context() -> TenantContext {
-        let tenant_id = TenantId::new("test-company".to_string()).unwrap();
+        let tenant_id = TenantId::new("test-tenant".to_string()).unwrap();
         let user_id = UserId::new("test-user".to_string()).unwrap();
         TenantContext::new(tenant_id, user_id)
     }

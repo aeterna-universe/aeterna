@@ -11,7 +11,7 @@ Maintain consistent code quality standards across your organization.
 **Cedar Policy**:
 ```cedar
 // Policy: require-tests
-// Scope: company
+// Scope: tenant
 // Severity: error
 
 forbid(
@@ -321,7 +321,7 @@ function isValidData(data: unknown): data is { value: string } {
 **Cedar Policy**:
 ```cedar
 // Policy: require-error-handling
-// Scope: company
+// Scope: tenant
 // Severity: error
 
 forbid(
@@ -484,7 +484,7 @@ when {
 **Cedar Policy**:
 ```cedar
 // Policy: require-code-review
-// Scope: company
+// Scope: tenant
 // Severity: block
 
 forbid(

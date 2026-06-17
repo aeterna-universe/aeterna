@@ -10,7 +10,7 @@ export const createCcaTools = (client: AeternaClient): Record<string, ToolDefini
       query: z.string().describe("Query or topic for context assembly"),
       tokenBudget: z.number().min(100).max(32000).optional()
         .describe("Maximum tokens to include (default: 8000)"),
-      layers: z.array(z.enum(["agent", "user", "session", "project", "team", "org", "company"] as const)).optional()
+      layers: z.array(z.enum(["agent", "user", "session", "project", "team", "org", "tenant"] as const)).optional()
         .describe("Memory layers to include (default: all)"),
       viewMode: z.enum(["AX", "UX", "DX"] as const).optional()
         .describe("View mode for AX/UX/DX separation (default: AX)"),

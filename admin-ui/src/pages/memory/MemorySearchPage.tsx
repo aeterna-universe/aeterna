@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { apiClient } from "@/api/client"
 import type { MemoryEntry, MemoryLayer } from "@/api/types"
 
-const MEMORY_LAYERS: MemoryLayer[] = ["Agent", "User", "Session", "Project", "Team", "Org", "Company"]
+const MEMORY_LAYERS: MemoryLayer[] = ["Agent", "User", "Session", "Project", "Team", "Org", "Tenant"]
 
 const layerColor: Record<string, string> = {
   Agent: "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300",
@@ -14,7 +14,7 @@ const layerColor: Record<string, string> = {
   Project: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
   Team: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300",
   Org: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",
-  Company: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
+  Tenant: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
 }
 
 interface SearchResult extends MemoryEntry {

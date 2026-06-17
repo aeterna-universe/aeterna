@@ -77,11 +77,11 @@ pub struct PromotionPreview {
 // ── Precedence helpers ────────────────────────────────────────────────────────
 
 /// Maps a KnowledgeLayer to its canonical authority rank.
-/// Lower return value = higher authority (Company is most authoritative).
+/// Lower return value = higher authority (Tenant is most authoritative).
 /// Used as the primary sort key in `query_with_precedence`.
 fn layer_authority(layer: KnowledgeLayer) -> u8 {
     match layer {
-        KnowledgeLayer::Company => 0,
+        KnowledgeLayer::Tenant => 0,
         KnowledgeLayer::Org => 1,
         KnowledgeLayer::Team => 2,
         KnowledgeLayer::Project => 3,
@@ -279,7 +279,7 @@ impl KnowledgeManager {
     ///    then Clarification (4), Specialization (3), Applicability (2),
     ///    Exception (1).
     /// 2. Across layers the canonical authority order is
-    ///    Company > Org > Team > Project (higher layer = more authoritative).
+    ///    Tenant > Org > Team > Project (higher layer = more authoritative).
     /// 3. Within the same variant-role and layer, entries are ordered by
     ///    `updated_at` descending (most recent first).
     ///
@@ -296,7 +296,7 @@ impl KnowledgeManager {
         let mut results = self.repository.search(ctx, query, layers, limit).await?;
 
         results.sort_by(|a, b| {
-            // Primary key: layer authority (Company=0 is highest)
+            // Primary key: layer authority (Tenant=0 is highest)
             let layer_cmp = layer_authority(a.layer).cmp(&layer_authority(b.layer));
             if layer_cmp != std::cmp::Ordering::Equal {
                 return layer_cmp;
@@ -506,7 +506,7 @@ impl KnowledgeManager {
             KnowledgeLayer::Project,
             KnowledgeLayer::Team,
             KnowledgeLayer::Org,
-            KnowledgeLayer::Company,
+            KnowledgeLayer::Tenant,
         ] {
             if let Some(entry) = self.repository.get(ctx.clone(), layer, item_id).await? {
                 return Ok(Some(entry));
@@ -1172,7 +1172,7 @@ impl KnowledgeManager {
         ctx: TenantContext,
     ) -> Result<usize, KnowledgeManagerError> {
         let layers = [
-            KnowledgeLayer::Company,
+            KnowledgeLayer::Tenant,
             KnowledgeLayer::Org,
             KnowledgeLayer::Team,
             KnowledgeLayer::Project,
@@ -1288,7 +1288,7 @@ impl KnowledgeManager {
             KnowledgeLayer::Project,
             KnowledgeLayer::Team,
             KnowledgeLayer::Org,
-            KnowledgeLayer::Company,
+            KnowledgeLayer::Tenant,
         ] {
             if let Some(entry) = self.repository.get(ctx.clone(), layer, id).await? {
                 return Ok(Some(entry));

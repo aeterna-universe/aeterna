@@ -522,7 +522,7 @@ impl<C: LlmClient> BatchedSummarizer<C> {
         grouped: &std::collections::HashMap<MemoryLayer, Vec<BudgetAwareSummaryRequest>>,
     ) -> Vec<MemoryLayer> {
         let layer_priority: std::collections::HashMap<MemoryLayer, u8> = [
-            (MemoryLayer::Company, 0),
+            (MemoryLayer::Tenant, 0),
             (MemoryLayer::Org, 1),
             (MemoryLayer::Team, 2),
             (MemoryLayer::Project, 3),
@@ -933,7 +933,7 @@ mod tests {
             let tracker = create_budget_tracker(1_000_000, 100_000);
             let generator = create_budget_aware_generator(
                 vec![
-                    "Company layer summary.".to_string(),
+                    "Tenant layer summary.".to_string(),
                     "User layer summary.".to_string(),
                 ],
                 tracker,
@@ -944,7 +944,7 @@ mod tests {
             assert_eq!(generator.model_for_layer(MemoryLayer::Agent), "gpt-4");
 
             assert_eq!(
-                generator.model_for_layer(MemoryLayer::Company),
+                generator.model_for_layer(MemoryLayer::Tenant),
                 "gpt-3.5-turbo"
             );
             assert_eq!(generator.model_for_layer(MemoryLayer::Org), "gpt-3.5-turbo");
@@ -1041,7 +1041,7 @@ mod tests {
             let tracker = create_budget_tracker(100_000, 100_000);
             let budget_aware_generator = Arc::new(create_budget_aware_generator(
                 vec![
-                    "Company summary.".to_string(),
+                    "Tenant summary.".to_string(),
                     "Org summary.".to_string(),
                     "Session summary 2.".to_string(),
                     "Session summary 1.".to_string(),
@@ -1065,7 +1065,7 @@ mod tests {
                 BudgetAwareSummaryRequest {
                     content: content.clone(),
                     depth: SummaryDepth::Sentence,
-                    layer: MemoryLayer::Company,
+                    layer: MemoryLayer::Tenant,
                     context: None,
                     personalization_context: None,
                 },
@@ -1092,7 +1092,7 @@ mod tests {
             assert_eq!(result.failed_count, 0);
 
             let layers: Vec<_> = result.layer_results.iter().map(|r| r.layer).collect();
-            assert_eq!(layers[0], MemoryLayer::Company);
+            assert_eq!(layers[0], MemoryLayer::Tenant);
             assert_eq!(layers[1], MemoryLayer::Org);
             assert_eq!(layers[2], MemoryLayer::Session);
         }
@@ -1103,7 +1103,7 @@ mod tests {
             tracker.record_usage(100, MemoryLayer::Session);
 
             let budget_aware_generator = Arc::new(create_budget_aware_generator(
-                vec!["Company summary.".to_string()],
+                vec!["Tenant summary.".to_string()],
                 tracker,
             ));
             let batched = BatchedSummarizer::new(budget_aware_generator);
@@ -1123,7 +1123,7 @@ mod tests {
                 BudgetAwareSummaryRequest {
                     content: content.clone(),
                     depth: SummaryDepth::Sentence,
-                    layer: MemoryLayer::Company,
+                    layer: MemoryLayer::Tenant,
                     context: None,
                     personalization_context: None,
                 },
@@ -1141,7 +1141,7 @@ mod tests {
                 vec![
                     "Agent summary.".to_string(),
                     "User summary.".to_string(),
-                    "Company summary.".to_string(),
+                    "Tenant summary.".to_string(),
                 ],
                 tracker,
             ));
@@ -1162,7 +1162,7 @@ mod tests {
                 BudgetAwareSummaryRequest {
                     content: content.clone(),
                     depth: SummaryDepth::Sentence,
-                    layer: MemoryLayer::Company,
+                    layer: MemoryLayer::Tenant,
                     context: None,
                     personalization_context: None,
                 },
@@ -1178,7 +1178,7 @@ mod tests {
             let result = batched.process_batch(requests).await;
 
             let layers: Vec<_> = result.layer_results.iter().map(|r| r.layer).collect();
-            assert_eq!(layers[0], MemoryLayer::Company);
+            assert_eq!(layers[0], MemoryLayer::Tenant);
             assert_eq!(layers[1], MemoryLayer::User);
             assert_eq!(layers[2], MemoryLayer::Agent);
         }

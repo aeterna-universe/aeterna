@@ -277,7 +277,7 @@ The system SHALL proactively inject relevant knowledge into chat context based o
 #### Scenario: Scoped knowledge priority
 - **WHEN** multiple knowledge items match
 - **THEN** project-level knowledge SHALL have highest priority
-- **AND** team, org, company knowledge SHALL follow in order
+- **AND** team, org, tenant knowledge SHALL follow in order
 
 #### Scenario: Context token limits
 - **WHEN** injecting knowledge context
@@ -499,7 +499,7 @@ The plugin SHALL transparently route memory operations to the local store or rem
 - **AND** the plugin SHALL NOT send a synchronous HTTP request to the remote server
 
 #### Scenario: Shared layer routed to remote with cache
-- **WHEN** a memory search targets layer `project`, `team`, `org`, or `company`
+- **WHEN** a memory search targets layer `project`, `team`, `org`, or `tenant`
 - **THEN** the plugin SHALL check the local cache first
 - **AND** if the cache has recent results (< 60s), the plugin SHALL return cached results
 - **AND** if the cache is stale or empty, the plugin SHALL fetch from the remote server and update the cache

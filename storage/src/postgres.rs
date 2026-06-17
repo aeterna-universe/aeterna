@@ -337,7 +337,7 @@ impl PostgresBackend {
             "CREATE TABLE IF NOT EXISTS organizational_units (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
-                type TEXT NOT NULL, -- 'company', 'organization', 'team', 'project'
+                type TEXT NOT NULL, -- legacy root, organization, team, project
                 parent_id TEXT REFERENCES organizational_units(id),
                 tenant_id TEXT NOT NULL,
                 metadata JSONB DEFAULT '{}',
@@ -660,7 +660,7 @@ impl PostgresBackend {
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS governance_configs (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                company_id UUID,
+                tenant_id UUID,
                 org_id UUID,
                 team_id UUID,
                 project_id UUID,
@@ -684,7 +684,7 @@ impl PostgresBackend {
         sqlx::query(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_governance_configs_scope ON governance_configs \
              (
-                COALESCE(company_id, '00000000-0000-0000-0000-000000000000'::UUID),
+                COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID),
                 COALESCE(org_id, '00000000-0000-0000-0000-000000000000'::UUID),
                 COALESCE(team_id, '00000000-0000-0000-0000-000000000000'::UUID),
                 COALESCE(project_id, '00000000-0000-0000-0000-000000000000'::UUID)
@@ -694,8 +694,8 @@ impl PostgresBackend {
         .await?;
 
         sqlx::query(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_governance_configs_company 
-             ON governance_configs (company_id) WHERE company_id IS NOT NULL",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_governance_configs_tenant_scope \
+             ON governance_configs (tenant_id) WHERE tenant_id IS NOT NULL",
         )
         .execute(&self.pool)
         .await?;
@@ -712,7 +712,7 @@ impl PostgresBackend {
                 request_type TEXT NOT NULL,
                 target_type TEXT NOT NULL,
                 target_id TEXT,
-                company_id UUID,
+                tenant_id UUID,
                 org_id UUID,
                 team_id UUID,
                 project_id UUID,
@@ -779,7 +779,7 @@ impl PostgresBackend {
                 principal_type TEXT NOT NULL,
                 principal_id UUID NOT NULL,
                 role TEXT NOT NULL,
-                company_id UUID,
+                tenant_id UUID,
                 org_id UUID,
                 team_id UUID,
                 project_id UUID,
@@ -798,7 +798,7 @@ impl PostgresBackend {
                 principal_type,
                 principal_id,
                 role,
-                COALESCE(company_id, '00000000-0000-0000-0000-000000000000'::UUID),
+                COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::UUID),
                 COALESCE(org_id, '00000000-0000-0000-0000-000000000000'::UUID),
                 COALESCE(team_id, '00000000-0000-0000-0000-000000000000'::UUID),
                 COALESCE(project_id, '00000000-0000-0000-0000-000000000000'::UUID)
@@ -864,7 +864,7 @@ impl PostgresBackend {
                 ) THEN
                     EXECUTE $func$
                     CREATE OR REPLACE FUNCTION get_effective_governance_config(
-                        p_company_id UUID DEFAULT NULL,
+                        p_tenant_id UUID DEFAULT NULL,
                         p_org_id UUID DEFAULT NULL,
                         p_team_id UUID DEFAULT NULL,
                         p_project_id UUID DEFAULT NULL
@@ -910,13 +910,13 @@ impl PostgresBackend {
                             WHERE gc.org_id = p_org_id AND gc.team_id IS NULL AND gc.project_id IS NULL LIMIT 1;
                             IF FOUND THEN RETURN; END IF;
                         END IF;
-                        IF p_company_id IS NOT NULL THEN
+                        IF p_tenant_id IS NOT NULL THEN
                             RETURN QUERY
-                            SELECT gc.id, 'company'::TEXT, gc.approval_mode, gc.min_approvers, gc.timeout_hours,
+                            SELECT gc.id, 'tenant'::TEXT, gc.approval_mode, gc.min_approvers, gc.timeout_hours,
                                    gc.auto_approve_low_risk, gc.escalation_enabled, gc.escalation_timeout_hours,
                                    gc.escalation_contact, gc.policy_settings, gc.knowledge_settings, gc.memory_settings
                             FROM governance_configs gc
-                            WHERE gc.company_id = p_company_id AND gc.org_id IS NULL AND gc.team_id IS NULL AND gc.project_id IS NULL LIMIT 1;
+                            WHERE gc.tenant_id = p_tenant_id AND gc.org_id IS NULL AND gc.team_id IS NULL AND gc.project_id IS NULL LIMIT 1;
                             IF FOUND THEN RETURN; END IF;
                         END IF;
                         RETURN QUERY SELECT
@@ -965,12 +965,84 @@ impl PostgresBackend {
 
         // Backfill for test databases that pre-date the legal-entity-name
         // metadata column (production path: migration
-        // 033_tenant_legal_entity.sql). See that migration's header for the
-        // rationale; it's the seed for the add-legal-entity-tenant-grouping
-        // proposal and is intentionally a nullable text column with no FK.
+        // 033_tenant_legal_entity.sql). This remains as seed data for the
+        // account migration performed below.
         sqlx::query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS legal_entity_name TEXT")
             .execute(&self.pool)
             .await?;
+
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS accounts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                slug TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                deleted_at TIMESTAMPTZ
+            )",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES accounts(id) ON DELETE SET NULL",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS environment TEXT")
+            .execute(&self.pool)
+            .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_tenants_account_id ON tenants(account_id) WHERE account_id IS NOT NULL",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_tenants_environment ON tenants(environment) WHERE environment IS NOT NULL",
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            "WITH source_names AS (
+                SELECT DISTINCT trim(legal_entity_name) AS name
+                  FROM tenants
+                 WHERE legal_entity_name IS NOT NULL
+                   AND trim(legal_entity_name) <> ''
+            ),
+            slug_base AS (
+                SELECT
+                    name,
+                    trim(both '-' FROM regexp_replace(lower(name), '[^a-z0-9]+', '-', 'g')) AS base_slug
+                FROM source_names
+            ),
+            slugged AS (
+                SELECT
+                    name,
+                    CASE
+                        WHEN COUNT(*) OVER (PARTITION BY base_slug) = 1 THEN NULLIF(base_slug, '')
+                        ELSE NULLIF(base_slug, '') || '-' || ROW_NUMBER() OVER (PARTITION BY base_slug ORDER BY name)
+                    END AS slug
+                FROM slug_base
+            )
+            INSERT INTO accounts (slug, name, created_at, updated_at)
+            SELECT COALESCE(slug, 'account'), name, NOW(), NOW()
+              FROM slugged
+            ON CONFLICT (slug) DO NOTHING",
+        )
+        .execute(&self.pool)
+        .await?;
+        sqlx::query(
+            "UPDATE tenants t
+                SET account_id = a.id
+               FROM accounts a
+              WHERE t.account_id IS NULL
+                AND t.legal_entity_name IS NOT NULL
+                AND trim(t.legal_entity_name) <> ''
+                AND a.name = trim(t.legal_entity_name)",
+        )
+        .execute(&self.pool)
+        .await?;
 
         // Mirror CHECK constraints from migration 027 so dev/test paths
         // enforce the same invariants. We assemble the end-of-string
@@ -1097,12 +1169,11 @@ impl PostgresBackend {
     ///
     /// History: this used to be inlined in `create_unit` and was *missing*
     /// entirely from `update_unit`, which meant updates could move a Project
-    /// directly under a Company, silently violating the contract. The
+    /// directly under a tenant-root organization, silently violating the contract. The
     /// extraction in v1.5.0 closes that gap by routing both paths through
     /// `validate_unit_invariants` below.
     fn validate_parent_child_types(parent: UnitType, child: UnitType) -> Result<(), PostgresError> {
         match (parent, child) {
-            (UnitType::Company, UnitType::Organization) => Ok(()),
             (UnitType::Organization, UnitType::Team) => Ok(()),
             (UnitType::Team, UnitType::Project) => Ok(()),
             _ => Err(PostgresError::Database(sqlx::Error::Decode(
@@ -1114,8 +1185,8 @@ impl PostgresBackend {
     /// Validates the contract invariants of a unit row before persisting it
     /// (whether on insert or on update):
     ///
-    ///  1. **Root rule** — only `Company` may have `parent_id = None`. Any
-    ///     other type with no parent is rejected.
+    ///  1. **Root rule** — only `Organization` may have `parent_id = None`.
+    ///     Any other type with no parent is rejected.
     ///  2. **Matrix rule** — if `parent_id` is set, the parent must exist in
     ///     the same tenant and `(parent.type, unit.type)` must satisfy
     ///     [`Self::validate_parent_child_types`].
@@ -1137,10 +1208,10 @@ impl PostgresBackend {
         existing_id: Option<&str>,
     ) -> Result<(), PostgresError> {
         let Some(ref parent_id) = unit.parent_id else {
-            // Rule 1 — only Company may be a root.
-            if unit.unit_type != UnitType::Company {
+            // Rule 1 — only Organization may be a tenant-root unit.
+            if unit.unit_type != UnitType::Organization {
                 return Err(PostgresError::Database(sqlx::Error::Decode(
-                    "Only Company units can be root units (no parent)".into(),
+                    "Only Organization units can be root units (no parent)".into(),
                 )));
             }
             return Ok(());
@@ -1269,7 +1340,7 @@ impl PostgresBackend {
         if let Some(row) = row {
             let unit_type_str: String = row.get("type");
             let unit_type = match unit_type_str.as_str() {
-                "company" => UnitType::Company,
+                "tenant" => UnitType::Organization,
                 "organization" => UnitType::Organization,
                 "team" => UnitType::Team,
                 "project" => UnitType::Project,
@@ -1317,7 +1388,7 @@ impl PostgresBackend {
         if let Some(row) = row {
             let unit_type_str: String = row.get("type");
             let unit_type = match unit_type_str.as_str() {
-                "company" => UnitType::Company,
+                "tenant" => UnitType::Organization,
                 "organization" => UnitType::Organization,
                 "team" => UnitType::Team,
                 "project" => UnitType::Project,
@@ -1366,7 +1437,7 @@ impl PostgresBackend {
         for row in rows {
             let unit_type_str: String = row.get("type");
             let unit_type = match unit_type_str.as_str() {
-                "company" => UnitType::Company,
+                "tenant" => UnitType::Organization,
                 "organization" => UnitType::Organization,
                 "team" => UnitType::Team,
                 "project" => UnitType::Project,
@@ -1420,7 +1491,7 @@ impl PostgresBackend {
         for row in rows {
             let unit_type_str: String = row.get("type");
             let unit_type = match unit_type_str.as_str() {
-                "company" => UnitType::Company,
+                "tenant" => UnitType::Organization,
                 "organization" => UnitType::Organization,
                 "team" => UnitType::Team,
                 "project" => UnitType::Project,
@@ -1482,7 +1553,7 @@ impl PostgresBackend {
         for row in rows {
             let unit_type_str: String = row.get("type");
             let unit_type = match unit_type_str.as_str() {
-                "company" => UnitType::Company,
+                "tenant" => UnitType::Organization,
                 "organization" => UnitType::Organization,
                 "team" => UnitType::Team,
                 "project" => UnitType::Project,
@@ -1511,12 +1582,12 @@ impl PostgresBackend {
 
     /// Updates an organisational unit. Pre-v1.5.0 this skipped *all*
     /// hierarchy validation, so it was possible to e.g. move a Project to
-    /// directly under a Company via update — a silent contract violation
+    /// directly under a tenant-root organization via update — a silent contract violation
     /// surfaced during the rc.9 triage. Now routes through
     /// [`Self::validate_unit_invariants`], the same pre-flight that
     /// [`Self::create_unit`] uses, which:
     ///
-    ///  - rejects making a non-Company a root,
+    ///  - rejects making a non-organization a root,
     ///  - rejects parent/child pairs not in the matrix,
     ///  - rejects self-parenting and ancestor-cycle parenting.
     ///
@@ -3106,7 +3177,7 @@ impl StorageBackend for PostgresBackend {
         for row in rows {
             let unit_type_str: String = row.get("type");
             let unit_type = match unit_type_str.as_str() {
-                "company" => UnitType::Company,
+                "tenant" => UnitType::Organization,
                 "organization" => UnitType::Organization,
                 "team" => UnitType::Team,
                 "project" => UnitType::Project,

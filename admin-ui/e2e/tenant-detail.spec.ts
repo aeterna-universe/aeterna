@@ -17,7 +17,7 @@ const TENANT_ENVELOPE = {
   tenant: {
     id: "tenant-acme-id",
     slug: "acme",
-    name: "Acme Corp",
+    name: "Acme Tenant",
     status: "Active",
     sourceOwner: "Admin",
     createdAt: 1_700_000_000,
@@ -68,7 +68,7 @@ test("TenantDetailPage unwraps the envelope and never requests /tenants/undefine
   // Overview content proves the envelope was unwrapped correctly: if the
   // unwrap had failed, tenant.name/tenant.slug would render as empty and
   // these text nodes would not be on the page at all.
-  await expect(page.getByRole("heading", { name: "Acme Corp" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Acme Tenant" })).toBeVisible({
     timeout: 10_000,
   })
   // The slug appears in the overview definition list.

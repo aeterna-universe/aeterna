@@ -1756,7 +1756,7 @@ mod govern_subcommand {
                 "--role",
                 "admin",
                 "--scope",
-                "company",
+                "tenant",
                 "--json",
             ])
             .assert()
@@ -1781,7 +1781,7 @@ mod govern_subcommand {
                 "--role",
                 "admin",
                 "--scope",
-                "company",
+                "tenant",
                 "--json",
             ])
             .assert()
@@ -2582,7 +2582,7 @@ mod org_subcommand {
                 "create",
                 "security",
                 "--dry-run",
-                "--company",
+                "--tenant-root",
                 "acme-corp",
             ])
             .assert()
@@ -2639,7 +2639,7 @@ mod org_subcommand {
     #[test]
     fn test_org_list_filter_by_company() {
         aeterna()
-            .args(["org", "list", "--company", "acme-corp"])
+            .args(["org", "list", "--tenant-root", "acme-corp"])
             .assert()
             .failure()
             .stderr(predicate::str::contains(
@@ -3634,7 +3634,7 @@ mod layer_validation {
     #[test]
     fn test_memory_add_valid_layers() {
         let valid_layers = [
-            "agent", "user", "session", "project", "team", "org", "company",
+            "agent", "user", "session", "project", "team", "org", "tenant",
         ];
         for layer in valid_layers {
             aeterna()
@@ -3646,7 +3646,7 @@ mod layer_validation {
 
     #[test]
     fn test_policy_create_valid_layers() {
-        let valid_layers = ["company", "org", "team", "project"];
+        let valid_layers = ["tenant", "org", "team", "project"];
         for layer in valid_layers {
             aeterna()
                 .args([

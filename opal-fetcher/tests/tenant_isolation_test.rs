@@ -10,7 +10,7 @@
 //! Covered invariants:
 //!
 //!   1. `v_hierarchy WHERE tenant_id = A` returns only tenant A's rows,
-//!      even when tenant B has a company with the identical slug
+//!      even when tenant B has a legacy root row with the identical slug
 //!      (post-028 uniqueness is per-tenant).
 //!   2. `v_user_permissions WHERE tenant_id = A` returns only tenant
 //!      A's user/role/team rows.
@@ -46,26 +46,13 @@ async fn seed_tenant(pool: &sqlx::PgPool, slug_prefix: &str) -> (Uuid, Uuid) {
     .await
     .expect("insert tenant");
 
-    // Same bare slug across tenants on purpose: exercises the
-    // (tenant_id, slug) uniqueness from migration 028.
-    let company_id = Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO companies (id, tenant_id, slug, name)
-         VALUES ($1, $2, 'acme', 'Acme')",
-    )
-    .bind(company_id)
-    .bind(tenant_id)
-    .execute(pool)
-    .await
-    .expect("insert company");
-
     let org_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO organizations (id, company_id, slug, name)
+        "INSERT INTO organizations (id, tenant_id, slug, name)
          VALUES ($1, $2, 'platform', 'Platform')",
     )
     .bind(org_id)
-    .bind(company_id)
+    .bind(tenant_id)
     .execute(pool)
     .await
     .expect("insert organization");
@@ -138,14 +125,14 @@ async fn v_hierarchy_tenant_filter_isolates_cross_tenant_rows() {
     let (tenant_b, _) = seed_tenant(&pool, "beta").await;
 
     let rows_a: Vec<(Uuid, Option<String>)> =
-        sqlx::query_as("SELECT tenant_id, company_slug FROM v_hierarchy WHERE tenant_id = $1")
+        sqlx::query_as("SELECT tenant_id, org_slug FROM v_hierarchy WHERE tenant_id = $1")
             .bind(tenant_a)
             .fetch_all(&pool)
             .await
             .expect("query tenant A");
 
     let rows_b: Vec<(Uuid, Option<String>)> =
-        sqlx::query_as("SELECT tenant_id, company_slug FROM v_hierarchy WHERE tenant_id = $1")
+        sqlx::query_as("SELECT tenant_id, org_slug FROM v_hierarchy WHERE tenant_id = $1")
             .bind(tenant_b)
             .fetch_all(&pool)
             .await
@@ -161,8 +148,8 @@ async fn v_hierarchy_tenant_filter_isolates_cross_tenant_rows() {
         rows_b.iter().all(|(t, _)| *t == tenant_b),
         "tenant B query returned cross-tenant rows: {rows_b:?}",
     );
-    assert!(rows_a.iter().any(|(_, s)| s.as_deref() == Some("acme")));
-    assert!(rows_b.iter().any(|(_, s)| s.as_deref() == Some("acme")));
+    assert!(rows_a.iter().any(|(_, s)| s.as_deref() == Some("platform")));
+    assert!(rows_b.iter().any(|(_, s)| s.as_deref() == Some("platform")));
 }
 
 #[tokio::test]
@@ -270,25 +257,21 @@ async fn v_hierarchy_unknown_tenant_returns_empty_set_not_global_fallthrough() {
 // Agent-permissions isolation (migration 029 — added in this PR)
 // ---------------------------------------------------------------------
 
-async fn first_user_and_company_for_tenant(pool: &sqlx::PgPool, tenant_id: Uuid) -> (Uuid, Uuid) {
+async fn first_user_for_tenant(pool: &sqlx::PgPool, tenant_id: Uuid) -> Uuid {
     let row = sqlx::query(
-        "SELECT u.id AS user_id, c.id AS company_id
+        "SELECT u.id AS user_id
          FROM users u
          JOIN memberships m ON m.user_id = u.id
          JOIN teams t ON t.id = m.team_id
          JOIN organizations o ON o.id = t.org_id
-         JOIN companies c ON c.id = o.company_id
-         WHERE c.tenant_id = $1
+         WHERE o.tenant_id = $1
          LIMIT 1",
     )
     .bind(tenant_id)
     .fetch_one(pool)
     .await
-    .expect("lookup seed user/company");
-    (
-        row.get::<Uuid, _>("user_id"),
-        row.get::<Uuid, _>("company_id"),
-    )
+    .expect("lookup seed user/root-scope row");
+    row.get::<Uuid, _>("user_id")
 }
 
 #[tokio::test]
@@ -305,24 +288,24 @@ async fn v_agent_permissions_tenant_filter_isolates_cross_tenant_rows() {
     let (tenant_a, _) = seed_tenant(&pool, "theta").await;
     let (tenant_b, _) = seed_tenant(&pool, "iota").await;
 
-    let (user_a, company_a) = first_user_and_company_for_tenant(&pool, tenant_a).await;
-    let (user_b, company_b) = first_user_and_company_for_tenant(&pool, tenant_b).await;
+    let user_a = first_user_for_tenant(&pool, tenant_a).await;
+    let user_b = first_user_for_tenant(&pool, tenant_b).await;
 
     // Insert with tenant_id set explicitly (post-migration path).
     let agent_a = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO agents (id, name, agent_type, delegated_by_user_id, delegation_depth, capabilities, allowed_company_ids, status, tenant_id)
-         VALUES ($1, 'agent-a', 'opencode', $2, 1, '[]'::jsonb, ARRAY[$3]::uuid[], 'active', $4)",
+        "INSERT INTO agents (id, name, agent_type, delegated_by_user_id, delegation_depth, capabilities, status, tenant_id)
+         VALUES ($1, 'agent-a', 'opencode', $2, 1, '[]'::jsonb, 'active', $3)",
     )
-    .bind(agent_a).bind(user_a).bind(company_a).bind(tenant_a)
+    .bind(agent_a).bind(user_a).bind(tenant_a)
     .execute(&pool).await.expect("insert agent A");
 
     let agent_b = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO agents (id, name, agent_type, delegated_by_user_id, delegation_depth, capabilities, allowed_company_ids, status, tenant_id)
-         VALUES ($1, 'agent-b', 'opencode', $2, 1, '[]'::jsonb, ARRAY[$3]::uuid[], 'active', $4)",
+        "INSERT INTO agents (id, name, agent_type, delegated_by_user_id, delegation_depth, capabilities, status, tenant_id)
+         VALUES ($1, 'agent-b', 'opencode', $2, 1, '[]'::jsonb, 'active', $3)",
     )
-    .bind(agent_b).bind(user_b).bind(company_b).bind(tenant_b)
+    .bind(agent_b).bind(user_b).bind(tenant_b)
     .execute(&pool).await.expect("insert agent B");
 
     let rows_a: Vec<(Option<Uuid>, Uuid, String)> = sqlx::query_as(
@@ -365,7 +348,7 @@ async fn agents_check_constraint_rejects_active_agent_with_null_tenant() {
     };
 
     let (tenant, _) = seed_tenant(&pool, "kappa").await;
-    let (user, _) = first_user_and_company_for_tenant(&pool, tenant).await;
+    let user = first_user_for_tenant(&pool, tenant).await;
 
     let result = sqlx::query(
         "INSERT INTO agents (id, name, agent_type, delegated_by_user_id, delegation_depth, capabilities, status, tenant_id)
@@ -391,7 +374,7 @@ async fn agents_check_constraint_allows_revoked_agent_with_null_tenant() {
     };
 
     let (tenant, _) = seed_tenant(&pool, "lambda").await;
-    let (user, _) = first_user_and_company_for_tenant(&pool, tenant).await;
+    let user = first_user_for_tenant(&pool, tenant).await;
 
     // Revoked/soft-deleted agents are permitted to retain NULL tenant_id:
     // they are historical rows, never surfaced by the fetcher (the view

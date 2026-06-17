@@ -219,7 +219,7 @@ where
         };
 
         let approval_mode = match scope {
-            PolicyScope::Company => ApprovalModeKind::Unanimous,
+            PolicyScope::Tenant => ApprovalModeKind::Unanimous,
             PolicyScope::Org => ApprovalModeKind::Quorum,
             _ => ApprovalModeKind::Single,
         };
@@ -271,8 +271,8 @@ where
     fn extract_scope_from_rules(&self, rules: &[PolicyRule]) -> PolicyScope {
         for rule in rules {
             let id = rule.id.to_lowercase();
-            if id.contains("company") {
-                return PolicyScope::Company;
+            if id.contains("tenant") {
+                return PolicyScope::Tenant;
             } else if id.contains("org") {
                 return PolicyScope::Org;
             } else if id.contains("team") {
@@ -384,7 +384,7 @@ where
             "properties": {
                 "scope": {
                     "type": "string",
-                    "enum": ["company", "org", "team", "project"],
+                    "enum": ["tenant", "org", "team", "project"],
                     "description": "Filter by scope (optional)"
                 }
             }
@@ -509,12 +509,12 @@ pub struct DefaultApproverResolver {
 impl DefaultApproverResolver {
     pub fn new() -> Self {
         let mut approvers = HashMap::new();
-        approvers.insert(PolicyScope::Company, vec!["admin@company.com".to_string()]);
-        approvers.insert(PolicyScope::Org, vec!["architect@company.com".to_string()]);
-        approvers.insert(PolicyScope::Team, vec!["tech-lead@company.com".to_string()]);
+        approvers.insert(PolicyScope::Tenant, vec!["admin@example.com".to_string()]);
+        approvers.insert(PolicyScope::Org, vec!["architect@example.com".to_string()]);
+        approvers.insert(PolicyScope::Team, vec!["tech-lead@example.com".to_string()]);
         approvers.insert(
             PolicyScope::Project,
-            vec!["tech-lead@company.com".to_string()],
+            vec!["tech-lead@example.com".to_string()],
         );
 
         Self {
@@ -553,7 +553,7 @@ impl ApproverResolver for DefaultApproverResolver {
         severity: &PolicySeverity,
     ) -> Result<u32, PolicyToolError> {
         let base = match scope {
-            PolicyScope::Company => 2,
+            PolicyScope::Tenant => 2,
             PolicyScope::Org => 2,
             PolicyScope::Team => 1,
             PolicyScope::Project => 1,
@@ -572,7 +572,7 @@ impl ApproverResolver for DefaultApproverResolver {
         scope: &PolicyScope,
     ) -> Result<u32, PolicyToolError> {
         Ok(match scope {
-            PolicyScope::Company => 72,
+            PolicyScope::Tenant => 72,
             PolicyScope::Org => 48,
             PolicyScope::Team => 24,
             PolicyScope::Project => 24,
@@ -784,7 +784,7 @@ mod tests {
         let resolver = DefaultApproverResolver::new();
 
         let company_approvals = resolver
-            .get_required_approvals(&PolicyScope::Company, &PolicySeverity::Warn)
+            .get_required_approvals(&PolicyScope::Tenant, &PolicySeverity::Warn)
             .await
             .unwrap();
         assert_eq!(company_approvals, 2);
@@ -807,7 +807,7 @@ mod tests {
         let resolver = DefaultApproverResolver::new();
 
         let company_timeout = resolver
-            .get_approval_timeout_hours(&PolicyScope::Company)
+            .get_approval_timeout_hours(&PolicyScope::Tenant)
             .await
             .unwrap();
         assert_eq!(company_timeout, 72);
@@ -828,17 +828,17 @@ mod tests {
         let tool = PolicyProposeTool::new(storage, resolver, notifier);
 
         let company_rules = vec![PolicyRule {
-            id: "company-policy".to_string(),
+            id: "tenant-policy".to_string(),
             rule_type: RuleType::Deny,
             target: ConstraintTarget::Dependency,
             operator: ConstraintOperator::MustNotUse,
             value: serde_json::Value::String("test".to_string()),
             severity: ConstraintSeverity::Block,
-            message: "Company-wide block".to_string(),
+            message: "Tenant-wide block".to_string(),
         }];
         assert_eq!(
             tool.extract_scope_from_rules(&company_rules),
-            PolicyScope::Company
+            PolicyScope::Tenant
         );
 
         let org_rules = vec![PolicyRule {

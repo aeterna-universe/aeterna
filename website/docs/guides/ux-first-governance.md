@@ -46,7 +46,7 @@ UX-First Governance is an architectural approach where **every capability is acc
 
 1. **Natural Language Policies**: "Block MySQL" → Cedar policy
 2. **Zero-Config Onboarding**: Auto-detect git context, initialize in seconds
-3. **Automatic Context Resolution**: No more `--company --org --team` flags
+3. **Automatic Context Resolution**: No more `--tenant --org --team` flags
 4. **Semantic Search**: Find memories and knowledge without knowing structure
 5. **OPAL Integration**: Real-time organizational referential with Cedar Agent
 6. **Meta-Governance**: Policies about policies, with approval workflows
@@ -84,7 +84,7 @@ After deploying UX-First Governance:
 │                                                                              │
 │   "Block MySQL in this project"                                              │
 │   "Only architects can approve org policies"                                 │
-│   "Require 2 approvers for company-level changes"                            │
+│   "Require 2 approvers for tenant-level changes"                            │
 │                                                                              │
 └────────────────────────────────────┬─────────────────────────────────────────┘
                                      │
@@ -140,8 +140,8 @@ After deploying UX-First Governance:
 │   │                                                                  │       │
 │   │   PostgreSQL (Referential)          Git (Policies)              │       │
 │   │   ┌─────────────────────┐          ┌─────────────────────┐     │       │
-│   │   │ companies           │          │ cedar-policies/     │     │       │
-│   │   │ organizations       │          │   company.cedar     │     │       │
+│   │   │ tenants           │          │ cedar-policies/     │     │       │
+│   │   │ organizations       │          │   tenant.cedar     │     │       │
 │   │   │ teams               │          │   org.cedar         │     │       │
 │   │   │ projects            │          │   meta-governance/  │     │       │
 │   │   │ users               │          └─────────────────────┘     │       │
@@ -159,7 +159,7 @@ After deploying UX-First Governance:
 │   │   Agent (Region A)      │  │   Agent (Region B)      │  │  Agent  │    │
 │   │                         │  │                         │  │ (CI/CD) │    │
 │   │   Topics:               │  │   Topics:               │  │         │    │
-│   │   - company:acme        │  │   - company:acme        │  │ Topics: │    │
+│   │   - tenant:acme        │  │   - tenant:acme        │  │ Topics: │    │
 │   │   - org:platform        │  │   - org:data            │  │   *     │    │
 │   └─────────────────────────┘  └─────────────────────────┘  └─────────┘    │
 │                                                                              │
@@ -176,7 +176,7 @@ After deploying UX-First Governance:
 OPAL (Open Policy Administration Layer) provides the source of truth for organizational topology:
 
 **What it stores:**
-- Company → Organization → Team → Project hierarchy
+- Tenant → Organization → Team → Project hierarchy
 - User memberships and roles
 - Agent delegation chains
 - Policy files from git repositories
@@ -258,13 +258,13 @@ Git (Cedar Policies)  ─────┘                           │
 │     ┌─────────────────────────────────────────────────────┐                 │
 │     │ Proposal Created: prop_abc123                        │                 │
 │     │ Required Approvers: 1 (tech lead or architect)       │                 │
-│     │ Notified: alice@company.com                          │                 │
+│     │ Notified: alice@example.com                          │                 │
 │     │ Review Period: 24 hours                              │                 │
 │     └─────────────────────┬───────────────────────────────┘                 │
 │                           │                                                  │
 │  7. ACTIVATION            ▼                                                  │
 │     ┌─────────────────────────────────────────────────────┐                 │
-│     │ alice@company.com approves                           │                 │
+│     │ alice@example.com approves                           │                 │
 │     │ Policy ID: no-mysql                                  │                 │
 │     │ Status: ACTIVE                                       │                 │
 │     │ Pushed to OPAL → synced to all Cedar Agents          │                 │
@@ -294,11 +294,11 @@ team         Per-team
    │         "API Team decided on REST over GraphQL"
 org          Per-organization/department
    │         "Platform Engineering standardized on Kubernetes"
-company  ←── Per-tenant (least specific)
+tenant  ←── Per-tenant (least specific)
              "Acme Corp mandates TLS 1.3+"
 ```
 
-**Search precedence**: Agent → User → Session → Project → Team → Org → Company
+**Search precedence**: Agent → User → Session → Project → Team → Org → Tenant
 
 **Promotion flow**: Memories with high reward scores automatically promote upward
 
@@ -307,7 +307,7 @@ company  ←── Per-tenant (least specific)
 Knowledge (ADRs, patterns, policies) follows a 4-layer hierarchy:
 
 ```
-Company (highest precedence)
+Tenant (highest precedence)
     ↓ Policies flow DOWN
 Organization
     ↓ Teams inherit + customize
@@ -427,7 +427,7 @@ Project (lowest precedence)
 ### Organization Structure
 
 ```
-Acme Corp (Company)
+Acme Corp (Tenant)
 ├── Platform Engineering (Org)
 │   ├── API Team (Team)
 │   │   ├── alice@acme.com (Tech Lead)
@@ -464,7 +464,7 @@ Acme Corp (Company)
 
 ### Quick Start (5 Minutes)
 
-#### 1. Initialize Company
+#### 1. Initialize Tenant
 
 ```bash
 $ aeterna init
@@ -473,13 +473,13 @@ Welcome to Aeterna!
 
 Let's set up your organization.
 
-Company name: Acme Corp
+Tenant name: Acme Corp
 Admin email: admin@acme.com
 SSO Provider (optional, press Enter to skip): okta
 Governance level [standard/strict/permissive]: standard
 
 Initializing...
-✅ Company 'Acme Corp' created
+✅ Tenant 'Acme Corp' created
 ✅ Default security policies applied
 ✅ Admin role assigned to admin@acme.com
 ✅ OPAL Server synchronized
@@ -497,7 +497,7 @@ $ aeterna org create "Platform Engineering"
 
 ✅ Organization 'Platform Engineering' created in 'Acme Corp'
    ID: org:acme-corp:platform-engineering
-   Inherited: 2 company-level policies
+   Inherited: 2 tenant-level policies
    Members: 0 (invite users with 'aeterna user invite')
 
 $ aeterna team create "API Team" --org platform-engineering --lead alice@acme.com
@@ -538,7 +538,7 @@ Your project is ready! Try:
 $ aeterna status
 
 📍 Current Context
-   Company:  acme-corp (from context.toml)
+   Tenant:  acme-corp (from context.toml)
    Org:      platform-engineering (from context.toml)
    Team:     api-team (from git remote)
    Project:  payments-service (from git remote)
@@ -595,11 +595,11 @@ Found 3 results:
    
 [88%] Pattern: OAuth2 Integration
    "Standard OAuth2 flow for third-party integrations"
-   Layer: company:acme-corp
+   Layer: tenant:acme-corp
    
 [72%] Policy: Authentication Requirements
    "All APIs must implement authentication, no anonymous access"
-   Layer: company:acme-corp
+   Layer: tenant:acme-corp
 ```
 
 **Task: Search memory for past decisions**
@@ -625,7 +625,7 @@ $ aeterna check dependency mysql
 
 ❌ BLOCKED
 
-Policy: security-baseline (company)
+Policy: security-baseline (tenant)
 Rule: no-mysql
 Severity: block
 Message: MySQL is prohibited. Use PostgreSQL instead.
@@ -797,7 +797,7 @@ Effective rules:
 $ aeterna policy create
 
 What should this policy do? All services must use OpenTelemetry for tracing
-Scope? [project/team/org/company]: org
+Scope? [project/team/org/tenant]: org
 Severity? [info/warn/block]: warn
 
 📋 Draft Policy Created: draft_otel_001
@@ -847,10 +847,10 @@ $ aeterna policy explain security-baseline
 📋 Policy: security-baseline
 
 Summary:
-  This company-wide mandatory policy enforces core security requirements
+  This tenant-wide mandatory policy enforces core security requirements
   across all projects.
 
-Scope: company:acme-corp
+Scope: tenant:acme-corp
 Mode: mandatory (cannot be overridden)
 Created by: admin@acme.com on 2024-01-15
 
@@ -927,12 +927,12 @@ Format [csv/json]: csv
 **Task: Bootstrap entire organization**
 
 ```bash
-$ aeterna init --company "Acme Corp" --admin admin@acme.com --governance strict
+$ aeterna init --tenant "Acme Corp" --admin admin@acme.com --governance strict
 
-✅ Company initialized: acme-corp
+✅ Tenant initialized: acme-corp
 
 Created:
-  • Company: Acme Corp
+  • Tenant: Acme Corp
   • Default org: default
   • Admin user: admin@acme.com
   • OPAL Server connection: established
@@ -1008,7 +1008,7 @@ Delegation chain:
   user:alice@acme.com
     → team:api-team
     → org:platform-engineering
-    → company:acme-corp
+    → tenant:acme-corp
 
 Capabilities (delegated from alice@acme.com):
   • Read memory: yes
@@ -1079,7 +1079,7 @@ Recommendations:
 ```bash
 # Show current status
 aeterna status
-aeterna status --scope company
+aeterna status --scope tenant
 aeterna status --json
 
 # Show/set context
@@ -1130,7 +1130,7 @@ aeterna memory feedback mem_def456 --type not-helpful --score 0.2
 # Search knowledge
 aeterna knowledge search "authentication approaches"
 aeterna knowledge search "database" --type adr
-aeterna knowledge search "security" --layers company,org
+aeterna knowledge search "security" --layers tenant,org
 
 # Browse knowledge
 aeterna knowledge browse --type adr
@@ -1146,7 +1146,7 @@ aeterna knowledge explain ADR-042
 aeterna knowledge explain security-baseline
 
 # Get knowledge item
-aeterna knowledge get company/adrs/adr-042.md
+aeterna knowledge get tenant/adrs/adr-042.md
 aeterna knowledge get team/patterns/api-pagination.md
 ```
 
@@ -1194,7 +1194,7 @@ aeterna govern configure --scope org --approval-count 2 --review-period 48h
 
 # View governance status
 aeterna govern status
-aeterna govern status --scope company
+aeterna govern status --scope tenant
 
 # Manage roles
 aeterna govern roles list
@@ -1210,19 +1210,19 @@ aeterna govern reject prop_abc123 --reason "Needs revision"
 
 # Audit
 aeterna govern audit --last 7d
-aeterna govern audit --scope company --from 2024-01-01 --to 2024-01-31
+aeterna govern audit --scope tenant --from 2024-01-01 --to 2024-01-31
 aeterna govern audit --scope org --event-type policy_approved
 aeterna govern audit --scope team --format csv > audit.csv
-aeterna govern audit --scope company --format json | jq '.events[]'
+aeterna govern audit --scope tenant --format json | jq '.events[]'
 ```
 
 #### Organization Management
 
 ```bash
-# Initialize company
+# Initialize tenant
 aeterna init
-aeterna init --company "Acme Corp" --admin admin@acme.com
-aeterna init --company "Acme" --governance strict
+aeterna init --tenant "Acme Corp" --admin admin@acme.com
+aeterna init --tenant "Acme" --governance strict
 
 # Create organization
 aeterna org create "Platform Engineering"
@@ -1269,7 +1269,7 @@ aeterna admin migrate --from v1 --to v2 --dry-run
 aeterna admin migrate --from v1 --to v2 --execute
 
 # Export/Import
-aeterna admin export policies --scope company > policies.json
+aeterna admin export policies --scope tenant > policies.json
 aeterna admin export policies --scope org --format yaml > org-policies.yaml
 aeterna admin import policies < policies.json
 aeterna admin import knowledge --from ./knowledge-export/
@@ -1401,7 +1401,7 @@ async def agent_workflow(user_request: str):
     # Step 1: Search for relevant knowledge
     knowledge = await aeterna_knowledge_search(
         query=user_request,
-        layers=["project", "team", "org", "company"]
+        layers=["project", "team", "org", "tenant"]
     )
     
     # Step 2: Search for relevant memories
@@ -1541,17 +1541,17 @@ exit 0
 
 Meta-governance defines **who can create, approve, and enforce policies**.
 
-#### Example: Company-Level Meta-Governance
+#### Example: Tenant-Level Meta-Governance
 
 ```bash
-$ aeterna govern configure --scope company --interactive
+$ aeterna govern configure --scope tenant --interactive
 
 🔧 Meta-Governance Configuration
 
-Who can propose company-level policies?
+Who can propose tenant-level policies?
   [architects, admins]: admins
 
-Who can approve company-level policies?
+Who can approve tenant-level policies?
   [architect, admin]: admin
 
 Required approvers: 2
@@ -1570,7 +1570,7 @@ Save? [y/N]: y
 ✅ Meta-governance configured
 
 Effective rules:
-- Only admins can propose company policies
+- Only admins can propose tenant policies
 - Requires 2 admin approvals
 - 72-hour review period
 - Auto-escalates to CEO if no response
@@ -1601,14 +1601,14 @@ when {
   !resource.has_human_confirmation
 };
 
-// Meta-policy: Company policies require admin approval
+// Meta-policy: Tenant policies require admin approval
 permit(
   principal,
   action == Action::"ApprovePolicy",
   resource
 )
 when {
-  resource.scope == Scope::"Company"
+  resource.scope == Scope::"Tenant"
 }
 only_if {
   principal.role == Role::"Admin"
@@ -1621,7 +1621,7 @@ only_if {
 
 ```
 1. Explicit CLI flags
-   --company acme --org platform --team api --project payments
+   --tenant acme --org platform --team api --project payments
    ↓ HIGHEST PRECEDENCE
    
 2. Environment variables
@@ -1648,11 +1648,11 @@ only_if {
    ↓
    
 7. SSO/JWT claims
-   JWT token → { company: "acme", email: "alice@acme.com" }
+   JWT token → { tenant: "acme", email: "alice@acme.com" }
    ↓
    
 8. Interactive prompt
-   Ask user to select company/org/team
+   Ask user to select tenant/org/team
    ↓ LOWEST PRECEDENCE
 ```
 
@@ -1662,7 +1662,7 @@ only_if {
 # .aeterna/context.toml
 
 [context]
-company = "acme-corp"
+tenant = "acme-corp"
 org = "platform-engineering"
 team = "api-team"
 project = "payments-service"
@@ -1691,9 +1691,9 @@ Aeterna maps git remote URLs to organizational structure:
 
 | Git Remote | Detected Context |
 |------------|------------------|
-| `github.com/acme/payments-service` | company: acme, project: payments-service |
-| `gitlab.com/acme-corp/platform/api-team/gateway` | company: acme-corp, org: platform, team: api-team, project: gateway |
-| `bitbucket.org/acme/data/analytics-pipeline` | company: acme, org: data, project: analytics-pipeline |
+| `github.com/acme/payments-service` | tenant: acme, project: payments-service |
+| `gitlab.com/acme-corp/platform/api-team/gateway` | tenant: acme-corp, org: platform, team: api-team, project: gateway |
+| `bitbucket.org/acme/data/analytics-pipeline` | tenant: acme, org: data, project: analytics-pipeline |
 
 Patterns are configurable in OPAL Server.
 
@@ -1720,7 +1720,7 @@ Solutions:
   aeterna project init --team api-team
   
   # Option 2: Set context explicitly
-  aeterna context set --company acme --org platform --team api
+  aeterna context set --tenant acme --org platform --team api
   
   # Option 3: Use environment variables
   export AETERNA_COMPANY=acme
@@ -1728,7 +1728,7 @@ Solutions:
   export AETERNA_TEAM=api
   
   # Option 4: Use CLI flags
-  aeterna status --company acme --org platform --team api
+  aeterna status --tenant acme --org platform --team api
 ```
 
 #### Issue: Policy Validation Fails
@@ -1835,10 +1835,10 @@ Cedar Agent Status:
   Connected to OPAL: ✅
   Last sync: 2 minutes ago
   Synced policies: 47
-  Synced data: companies (1), orgs (3), teams (12), users (127)
+  Synced data: tenants (1), orgs (3), teams (12), users (127)
   
 Subscribed topics:
-  - company:acme-corp
+  - tenant:acme-corp
   - org:platform-engineering
   - team:api-team
 ```

@@ -64,10 +64,10 @@ The system SHALL serve reads for personal layers (agent, user, session) from the
 - **AND** the read SHALL complete in under 1ms
 
 ### Requirement: Shared Layer Cache
-The system SHALL cache remote shared-layer memories (project, team, org, company) in the local store for offline access.
+The system SHALL cache remote shared-layer memories (project, team, org, tenant) in the local store for offline access.
 
 #### Scenario: Read cached shared memory
-- **WHEN** a memory search targets layer `project`, `team`, `org`, or `company`
+- **WHEN** a memory search targets layer `project`, `team`, `org`, or `tenant`
 - **AND** cached entries exist in the local store with `ownership = 'cached'`
 - **THEN** the system SHALL return cached results immediately when the cache is still fresh
 - **AND** the returned results SHALL indicate that they came from cache

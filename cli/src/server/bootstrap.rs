@@ -1209,7 +1209,7 @@ async fn seed_platform_admin(
 
     sqlx::query(
         "INSERT INTO organizational_units (id, name, type, parent_id, tenant_id, metadata, created_at, updated_at)
-         VALUES ($1, $2, 'company', NULL, $1, '{}', $3, $3)
+         VALUES ($1, $2, 'organization', NULL, $1, '{}', $3, $3)
          ON CONFLICT (id) DO NOTHING",
     )
     .bind(INSTANCE_SCOPE_TENANT_ID)
@@ -1231,87 +1231,65 @@ async fn seed_platform_admin(
     .await
     .context("migrate legacy PlatformAdmin rows to instance scope")?;
 
-    let company_id = cfg.company_slug.as_str();
-    sqlx::query(
-        "INSERT INTO organizational_units (id, name, type, parent_id, tenant_id, metadata, created_at, updated_at)
-         VALUES ($1, $2, 'company', NULL, $3, '{}', $4, $4)
-         ON CONFLICT (id) DO NOTHING",
-    )
-    .bind(company_id)
-    .bind("Default")
-    .bind(company_id)
-    .bind(now_ts)
-    .execute(&mut *tx)
-    .await
-    .context("upsert organizational_units company")?;
-
-    let company_slug = cfg.company_slug.as_str();
+    let tenant_slug = cfg.tenant_slug.as_str();
 
     // Ensure a `tenants` row (migration 017 schema) exists before writing
-    // companies. Bootstrap has historically written `organizational_units`
-    // (legacy TEXT-id table) and `companies` (UUID PK, globally unique slug)
-    // but never the canonical `tenants` table. That was tolerable while no
-    // foreign key connected companies -> tenants, but §2.2-B (see
+    // legacy wrapper rows. Bootstrap has historically written
+    // `organizational_units` (legacy TEXT-id table) and the old UUID-root
+    // hierarchy table but never the canonical `tenants` table. That was
+    // tolerable while no foreign key connected the old root table -> tenants,
+    // but §2.2-B (see
     // openspec/changes/harden-tenant-provisioning/
     // NOTES-hierarchy-migration-blast-radius.md) will add exactly that FK,
     // so the invariant "bootstrap leaves a tenants row matching the
-    // company slug" needs to hold starting now. Idempotent via
+    // tenant slug" needs to hold starting now. Idempotent via
     // ON CONFLICT (slug); no-op on repeat bootstraps.
     sqlx::query(
         "INSERT INTO tenants (slug, name, status, source_owner)
          VALUES ($1, $2, 'active', 'admin')
          ON CONFLICT (slug) DO NOTHING",
     )
-    .bind(company_slug)
+    .bind(tenant_slug)
     .bind("Default")
     .execute(&mut *tx)
     .await
     .context("upsert bootstrap tenants row")?;
 
-    // Fetch the tenant UUID. Needed now that migration 028 makes
-    // companies.tenant_id a NOT NULL FK to tenants(id); the companies
-    // INSERT below must carry it, and the ON CONFLICT target must be the
-    // new composite `(tenant_id, slug)` key rather than the defunct
-    // global `slug` UNIQUE.
     let bootstrap_tenant_uuid: uuid::Uuid =
         sqlx::query_scalar("SELECT id FROM tenants WHERE slug = $1")
-            .bind(company_slug)
+            .bind(tenant_slug)
             .fetch_one(&mut *tx)
             .await
             .context("fetch bootstrap tenant uuid")?;
 
     sqlx::query(
-        "INSERT INTO companies (tenant_id, slug, name, settings, created_at, updated_at)
-         VALUES ($1, $2, $3, '{}', NOW(), NOW())
-         ON CONFLICT (tenant_id, slug) DO NOTHING",
+        "INSERT INTO organizational_units (id, name, type, parent_id, tenant_id, metadata, created_at, updated_at)
+         VALUES ($1, $2, 'organization', NULL, $3, '{}', $4, $4)
+         ON CONFLICT (id) DO NOTHING",
     )
-    .bind(bootstrap_tenant_uuid)
-    .bind(company_slug)
-    .bind("Default")
+    .bind(cfg.org_slug.as_str())
+    .bind("Platform")
+    .bind(tenant_slug)
+    .bind(now_ts)
     .execute(&mut *tx)
     .await
-    .context("upsert companies row")?;
-
-    let company_uuid: uuid::Uuid = sqlx::query_scalar("SELECT id FROM companies WHERE slug = $1")
-        .bind(company_slug)
-        .fetch_one(&mut *tx)
-        .await
-        .context("fetch company uuid")?;
+    .context("upsert organizational_units organization")?;
 
     sqlx::query(
-        "INSERT INTO organizations (company_id, slug, name, created_at, updated_at)
+        "INSERT INTO organizations (tenant_id, slug, name, created_at, updated_at)
          VALUES ($1, $2, 'Platform', NOW(), NOW())
-         ON CONFLICT (company_id, slug) DO NOTHING",
+         ON CONFLICT (tenant_id, slug)
+         DO UPDATE SET updated_at = NOW()",
     )
-    .bind(company_uuid)
+    .bind(bootstrap_tenant_uuid)
     .bind(cfg.org_slug.as_str())
     .execute(&mut *tx)
     .await
     .context("upsert bootstrap organization")?;
 
     let org_uuid: uuid::Uuid =
-        sqlx::query_scalar("SELECT id FROM organizations WHERE company_id = $1 AND slug = $2")
-            .bind(company_uuid)
+        sqlx::query_scalar("SELECT id FROM organizations WHERE tenant_id = $1 AND slug = $2")
+            .bind(bootstrap_tenant_uuid)
             .bind(cfg.org_slug.as_str())
             .fetch_one(&mut *tx)
             .await
@@ -1409,7 +1387,7 @@ async fn seed_k8s_service_account(
 
     sqlx::query(
         "INSERT INTO organizational_units (id, name, type, parent_id, tenant_id, metadata, created_at, updated_at)
-         VALUES ($1, $2, 'company', NULL, $1, '{}', $3, $3)
+         VALUES ($1, $2, 'organization', NULL, $1, '{}', $3, $3)
          ON CONFLICT (id) DO NOTHING",
     )
     .bind(INSTANCE_SCOPE_TENANT_ID)

@@ -93,7 +93,7 @@ All error bodies follow the standard error envelope:
 
 ## Filter composition
 
-Endpoint-specific query parameters (e.g. `?actor=`, `?since=`, `?action=` on `/govern/audit`; `?company=` on `/org`) **compose with `?tenant=*`**. The envelope is a response-shape-only transform applied after the storage query. There is no special casing: the same filter rules apply in tenant-scoped and cross-tenant modes.
+Endpoint-specific query parameters (e.g. `?actor=`, `?since=`, `?action=` on `/govern/audit`; `?tenant=` on `/org`) **compose with `?tenant=*`**. The envelope is a response-shape-only transform applied after the storage query. There is no special casing: the same filter rules apply in tenant-scoped and cross-tenant modes.
 
 ## Backward compatibility
 

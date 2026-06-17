@@ -185,7 +185,7 @@ pub struct AdminExportArgs {
     #[arg(long)]
     pub include_audit: bool,
 
-    /// Filter by layer (company, org, team, project)
+    /// Filter by layer (tenant, org, team, project)
     #[arg(long)]
     pub layer: Option<String>,
 
@@ -1991,7 +1991,7 @@ mod tests {
             output: Some(PathBuf::from("/backup/export.tar.gz")),
             format: ExportFormat::Tar,
             include_audit: true,
-            layer: Some("company".to_string()),
+            layer: Some("tenant".to_string()),
             compress: true,
             json: true,
         };
@@ -1999,7 +1999,7 @@ mod tests {
         assert!(args.output.is_some());
         assert!(args.include_audit);
         assert!(args.compress);
-        assert_eq!(args.layer, Some("company".to_string()));
+        assert_eq!(args.layer, Some("tenant".to_string()));
     }
 
     #[test]

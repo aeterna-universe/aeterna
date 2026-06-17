@@ -48,7 +48,7 @@ DECLARE
     child_table TEXT;
     fk_column TEXT;
 BEGIN
-    -- Cascade soft delete to organizations when company is deleted
+    -- Cascade soft delete to organizations when the legacy root row is deleted
     IF TG_TABLE_NAME = 'companies' THEN
         UPDATE organizations 
         SET deleted_at = NEW.deleted_at
@@ -136,7 +136,7 @@ CREATE TRIGGER cascade_soft_delete_team
 -- Identify records with broken referential integrity
 -- ============================================================================
 
--- View: Orphaned organizations (missing company)
+-- View: Orphaned organizations (missing legacy root row)
 CREATE OR REPLACE VIEW v_orphan_organizations AS
 SELECT 
     o.id,
@@ -397,7 +397,7 @@ CREATE INDEX IF NOT EXISTS idx_memberships_team_status
 -- Comments
 -- ============================================================================
 
-COMMENT ON VIEW v_orphan_organizations IS 'Organizations with missing or deleted parent companies';
+COMMENT ON VIEW v_orphan_organizations IS 'Organizations with missing or deleted parent legacy-root rows';
 COMMENT ON VIEW v_orphan_teams IS 'Teams with missing or deleted parent organizations';
 COMMENT ON VIEW v_orphan_projects IS 'Projects with missing or deleted parent teams';
 COMMENT ON VIEW v_orphan_memberships IS 'Memberships with missing user or team';

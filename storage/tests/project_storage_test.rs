@@ -35,20 +35,16 @@ fn make_unit(
 async fn create_hierarchy(
     storage: &PostgresBackend,
     tenant_id: &TenantId,
-) -> (String, String, String, String) {
-    let company_id = unique_id("comp");
+) -> (String, String, String) {
     let org_id = unique_id("org");
     let team_id = unique_id("team");
     let project_id = unique_id("proj");
-
-    let company = make_unit(&company_id, "Company", UnitType::Company, None, tenant_id);
-    storage.create_unit(&company).await.unwrap();
 
     let org = make_unit(
         &org_id,
         "Organization",
         UnitType::Organization,
-        Some(company_id.clone()),
+        None,
         tenant_id,
     );
     storage.create_unit(&org).await.unwrap();
@@ -71,7 +67,7 @@ async fn create_hierarchy(
     );
     storage.create_unit(&project).await.unwrap();
 
-    (company_id, org_id, team_id, project_id)
+    (org_id, team_id, project_id)
 }
 
 #[tokio::test]
@@ -82,7 +78,7 @@ async fn test_assign_team_to_project_and_list() {
     };
 
     let tenant_id = TenantId::new(unique_id("tenant")).unwrap();
-    let (_, _, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
+    let (_, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
 
     storage
         .assign_team_to_project(&proj_id, &team_id, tenant_id.as_str(), "owner")
@@ -106,7 +102,7 @@ async fn test_assign_multiple_teams_to_project() {
     };
 
     let tenant_id = TenantId::new(unique_id("tenant")).unwrap();
-    let (_, org_id, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
+    let (org_id, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
 
     let team2_id = unique_id("team");
     let team2 = make_unit(
@@ -149,7 +145,7 @@ async fn test_remove_team_from_project() {
     };
 
     let tenant_id = TenantId::new(unique_id("tenant")).unwrap();
-    let (_, _, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
+    let (_, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
 
     storage
         .assign_team_to_project(&proj_id, &team_id, tenant_id.as_str(), "owner")
@@ -177,7 +173,7 @@ async fn test_assign_team_to_project_upsert_updates_assignment_type() {
     };
 
     let tenant_id = TenantId::new(unique_id("tenant")).unwrap();
-    let (_, _, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
+    let (_, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
 
     storage
         .assign_team_to_project(&proj_id, &team_id, tenant_id.as_str(), "owner")
@@ -205,7 +201,7 @@ async fn test_get_effective_roles_at_scope_inherited_from_ancestor() {
     };
 
     let tenant_id = TenantId::new(unique_id("tenant")).unwrap();
-    let (_, _, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
+    let (_, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
     let user_id = UserId::new(unique_id("user")).unwrap();
 
     storage
@@ -229,7 +225,7 @@ async fn test_get_effective_roles_at_scope_multiple_roles_different_scopes() {
     };
 
     let tenant_id = TenantId::new(unique_id("tenant")).unwrap();
-    let (_, org_id, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
+    let (org_id, team_id, proj_id) = create_hierarchy(&storage, &tenant_id).await;
     let user_id = UserId::new(unique_id("user")).unwrap();
 
     storage
@@ -260,7 +256,7 @@ async fn test_get_effective_roles_at_scope_tenant_isolation() {
 
     let tenant_a = TenantId::new(unique_id("tenant-a")).unwrap();
     let tenant_b = TenantId::new(unique_id("tenant-b")).unwrap();
-    let (_, _, team_id, proj_id) = create_hierarchy(&storage, &tenant_a).await;
+    let (_, team_id, proj_id) = create_hierarchy(&storage, &tenant_a).await;
     let user_id = UserId::new(unique_id("user")).unwrap();
 
     storage
@@ -284,7 +280,7 @@ async fn test_get_effective_roles_at_scope_no_roles_returns_empty() {
     };
 
     let tenant_id = TenantId::new(unique_id("tenant")).unwrap();
-    let (_, _, _, proj_id) = create_hierarchy(&storage, &tenant_id).await;
+    let (_, _, proj_id) = create_hierarchy(&storage, &tenant_id).await;
     let user_id = UserId::new(unique_id("user")).unwrap();
 
     let roles = storage
@@ -312,7 +308,7 @@ async fn test_tenant_context_smoke_for_pattern_parity() {
         target_tenant_id: None,
     };
 
-    let (_, _, _, proj_id) = create_hierarchy(&storage, &ctx.tenant_id).await;
+    let (_, _, proj_id) = create_hierarchy(&storage, &ctx.tenant_id).await;
     let assignments = storage
         .list_project_team_assignments(&proj_id, ctx.tenant_id.as_str())
         .await

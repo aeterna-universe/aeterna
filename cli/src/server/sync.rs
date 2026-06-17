@@ -290,7 +290,7 @@ async fn pull_handler(
                 "project".into(),
                 "team".into(),
                 "org".into(),
-                "company".into(),
+                "tenant".into(),
             ]
         });
 

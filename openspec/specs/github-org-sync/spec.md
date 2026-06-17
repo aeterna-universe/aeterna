@@ -26,14 +26,14 @@ The provider MUST implement the existing `IdpClient` trait (`list_users`, `list_
 ### Requirement: GitHub Hierarchy Mapping
 The system SHALL map GitHub Organization structure to Aeterna's four-level hierarchy according to the following rules:
 
-- GitHub Organization → Company (tenant root)
+- GitHub Organization → Tenant (root scope)
 - Top-level GitHub Teams (no parent team) → Organization (business unit)
 - Nested GitHub Teams (have a parent team) → Team (working group)
 - GitHub Organization Members → Users
 
 #### Scenario: Full hierarchy sync
 - **WHEN** an admin triggers a full sync for GitHub org `acme-corp`
-- **THEN** the system SHALL create a Company unit named `acme-corp` if it does not exist
+- **THEN** the system SHALL create a Tenant unit named `acme-corp` if it does not exist
 - **AND** the system SHALL create Organization units for each top-level team
 - **AND** the system SHALL create Team units for each nested team, parented under the correct Organization
 - **AND** the system SHALL create or update User records for all org members
@@ -63,7 +63,7 @@ A user's effective Aeterna role MUST be the highest role across all their member
 #### Scenario: Org owner mapped to Admin
 - **WHEN** a GitHub user has the `admin` role in the organization
 - **THEN** the user SHALL be assigned the Admin role in Aeterna
-- **AND** the Admin role SHALL apply at the Company level
+- **AND** the Admin role SHALL apply at the Tenant level
 
 #### Scenario: Team maintainer mapped to TechLead
 - **WHEN** a GitHub user has the `maintainer` role in a team

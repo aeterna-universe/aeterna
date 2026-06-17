@@ -34,7 +34,7 @@ pub struct PermissionsEffectiveArgs {
     #[arg(long)]
     pub user_id: String,
 
-    /// Cedar resource expression to evaluate against (defaults to tenant company resource)
+    /// Cedar resource expression to evaluate against (defaults to tenant resource)
     #[arg(long)]
     pub resource: Option<String>,
 
@@ -389,7 +389,7 @@ mod tests {
     fn test_permissions_effective_args_full() {
         let args = PermissionsEffectiveArgs {
             user_id: "user_abc".to_string(),
-            resource: Some("Aeterna::Company::\"acme\"".to_string()),
+            resource: Some("Aeterna::Tenant::\"acme\"".to_string()),
             actions: Some("ViewMemory,WriteMemory,ManageUsers".to_string()),
             role: Some("admin".to_string()),
             target_tenant: None,
@@ -434,7 +434,7 @@ mod tests {
     fn test_permissions_effective_args_platform_admin_role() {
         let args = PermissionsEffectiveArgs {
             user_id: "user_admin".to_string(),
-            resource: Some("Aeterna::Company::\"acme\"".to_string()),
+            resource: Some("Aeterna::Tenant::\"acme\"".to_string()),
             actions: None,
             role: Some("platform_admin".to_string()),
             target_tenant: None,

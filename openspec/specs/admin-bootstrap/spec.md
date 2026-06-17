@@ -15,7 +15,7 @@ On startup, the bootstrap SHALL migrate any existing `user_roles` rows where `ro
 #### Scenario: Fresh deployment with bootstrap enabled
 - **WHEN** the server starts with admin bootstrap enabled and valid email, provider, and provider subject configured
 - **THEN** the system SHALL create or update the admin user in the `users` table with the configured email, idp_provider, and idp_subject
-- **AND** the system SHALL ensure a `__root__` company organizational unit exists for instance-scope role grants
+- **AND** the system SHALL ensure a `__root__` tenant organizational unit exists for instance-scope role grants
 - **AND** the system SHALL grant the PlatformAdmin role with `tenant_id = '__root__'` and `unit_id = '__root__'` for the seeded user in the `user_roles` table
 - **AND** the system SHALL ensure the admin appears in the authorization view (`v_user_permissions`) via appropriate membership records
 - **AND** all seeding operations SHALL complete before the HTTP server begins accepting requests

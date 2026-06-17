@@ -1,4 +1,4 @@
-//! Scenario-based integration tests based on the Acme Corp use case from
+//! Scenario-based integration tests based on the Acme Tenant use case from
 //! documentation.
 //!
 //! This test suite validates the complete organizational hierarchy, governance,
@@ -7,7 +7,7 @@
 //!
 //! Organizational Structure:
 //! ```text
-//! Acme Corp (Company)
+//! Acme Tenant (root organization)
 //! ├── Platform Engineering (Org)
 //! │   ├── API Team (Team)
 //! │   │   ├── payments-service (Project)
@@ -43,7 +43,7 @@ use uuid::Uuid;
 
 struct AcmeCorpHierarchy {
     tenant_id: TenantId,
-    company_id: Uuid,
+    tenant_uuid: Uuid,
     platform_eng_org_id: Uuid,
     product_eng_org_id: Uuid,
     security_org_id: Uuid,
@@ -68,7 +68,7 @@ impl AcmeCorpHierarchy {
     fn new(tenant_id: TenantId) -> Self {
         Self {
             tenant_id,
-            company_id: Uuid::new_v4(),
+            tenant_uuid: Uuid::new_v4(),
             platform_eng_org_id: Uuid::new_v4(),
             product_eng_org_id: Uuid::new_v4(),
             security_org_id: Uuid::new_v4(),
@@ -93,10 +93,10 @@ impl AcmeCorpHierarchy {
     async fn setup(&self, storage: &PostgresBackend) -> Result<(), anyhow::Error> {
         let now = Utc::now();
 
-        let company = OrganizationalUnit {
-            id: self.company_id.to_string(),
-            name: "Acme Corp".to_string(),
-            unit_type: UnitType::Company,
+        let root_org = OrganizationalUnit {
+            id: self.tenant_id.to_string(),
+            name: "Acme Tenant".to_string(),
+            unit_type: UnitType::Organization,
             tenant_id: self.tenant_id.clone(),
             parent_id: None,
             metadata: HashMap::new(),
@@ -104,14 +104,14 @@ impl AcmeCorpHierarchy {
             updated_at: now,
             source_owner: RecordSource::Admin,
         };
-        storage.create_unit(&company).await?;
+        storage.create_unit(&root_org).await?;
 
         let platform_eng = OrganizationalUnit {
             id: self.platform_eng_org_id.to_string(),
             name: "Platform Engineering".to_string(),
             unit_type: UnitType::Organization,
             tenant_id: self.tenant_id.clone(),
-            parent_id: Some(self.company_id.to_string()),
+            parent_id: Some(self.tenant_id.to_string()),
             metadata: HashMap::new(),
             created_at: now,
             updated_at: now,
@@ -124,7 +124,7 @@ impl AcmeCorpHierarchy {
             name: "Product Engineering".to_string(),
             unit_type: UnitType::Organization,
             tenant_id: self.tenant_id.clone(),
-            parent_id: Some(self.company_id.to_string()),
+            parent_id: Some(self.tenant_id.to_string()),
             metadata: HashMap::new(),
             created_at: now,
             updated_at: now,
@@ -137,7 +137,7 @@ impl AcmeCorpHierarchy {
             name: "Security".to_string(),
             unit_type: UnitType::Organization,
             tenant_id: self.tenant_id.clone(),
-            parent_id: Some(self.company_id.to_string()),
+            parent_id: Some(self.tenant_id.to_string()),
             metadata: HashMap::new(),
             created_at: now,
             updated_at: now,
@@ -375,7 +375,7 @@ async fn test_acme_corp_full_hierarchy_setup() {
     };
 
     let descendants = storage
-        .get_descendants(ctx.clone(), &hierarchy.company_id.to_string())
+        .get_descendants(ctx.clone(), &hierarchy.tenant_id.to_string())
         .await
         .unwrap();
 
@@ -432,7 +432,7 @@ async fn test_acme_corp_hierarchy_ancestors_from_project() {
     let ancestor_ids: Vec<_> = ancestors.iter().map(|u| u.id.clone()).collect();
     assert!(ancestor_ids.contains(&hierarchy.api_team_id.to_string()));
     assert!(ancestor_ids.contains(&hierarchy.platform_eng_org_id.to_string()));
-    assert!(ancestor_ids.contains(&hierarchy.company_id.to_string()));
+    assert!(ancestor_ids.contains(&hierarchy.tenant_id.to_string()));
 }
 
 #[tokio::test]
@@ -521,7 +521,7 @@ async fn test_tenant_isolation_different_tenants_cannot_see_each_other() {
     assert_eq!(ancestors.len(), 0);
 
     let descendants = storage
-        .get_descendants(ctx2.clone(), &hierarchy1.company_id.to_string())
+        .get_descendants(ctx2.clone(), &hierarchy1.tenant_id.to_string())
         .await
         .unwrap();
 
@@ -608,7 +608,7 @@ async fn test_governance_config_upsert_and_retrieve() {
 
     let company_config = GovernanceConfig {
         id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -651,7 +651,7 @@ async fn test_role_assignment_admin_at_company_level() {
         principal_type: PrincipalType::User,
         principal_id: admin_user_id,
         role: "Admin".to_string(),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -663,7 +663,7 @@ async fn test_role_assignment_admin_at_company_level() {
     assert!(!role_id.is_nil());
 
     let roles = governance
-        .list_roles(Some(hierarchy.company_id), None, None)
+        .list_roles(Some(hierarchy.tenant_uuid), None, None)
         .await
         .unwrap();
 
@@ -695,7 +695,7 @@ async fn test_role_assignment_architect_at_org_level() {
         principal_type: PrincipalType::User,
         principal_id: architect_user_id,
         role: "Architect".to_string(),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: None,
         project_id: None,
@@ -738,7 +738,7 @@ async fn test_role_assignment_techlead_at_team_level() {
         principal_type: PrincipalType::User,
         principal_id: techlead_user_id,
         role: "TechLead".to_string(),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: Some(hierarchy.api_team_id),
         project_id: None,
@@ -781,7 +781,7 @@ async fn test_role_assignment_developer_at_project_level() {
         principal_type: PrincipalType::User,
         principal_id: developer_user_id,
         role: "Developer".to_string(),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: Some(hierarchy.api_team_id),
         project_id: Some(hierarchy.payments_service_id),
@@ -816,7 +816,7 @@ async fn test_role_assignment_agent_principal_type() {
         principal_type: PrincipalType::Agent,
         principal_id: agent_id,
         role: "Agent".to_string(),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: Some(hierarchy.api_team_id),
         project_id: Some(hierarchy.payments_service_id),
@@ -852,7 +852,7 @@ async fn test_role_revocation() {
         principal_type: PrincipalType::User,
         principal_id: user_id,
         role: "Developer".to_string(),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -863,7 +863,7 @@ async fn test_role_revocation() {
     governance.assign_role(&role).await.unwrap();
 
     let roles_before = governance
-        .list_roles(Some(hierarchy.company_id), None, None)
+        .list_roles(Some(hierarchy.tenant_uuid), None, None)
         .await
         .unwrap();
     assert_eq!(roles_before.len(), 1);
@@ -874,7 +874,7 @@ async fn test_role_revocation() {
         .unwrap();
 
     let roles_after = governance
-        .list_roles(Some(hierarchy.company_id), None, None)
+        .list_roles(Some(hierarchy.tenant_uuid), None, None)
         .await
         .unwrap();
     assert_eq!(roles_after.len(), 0);
@@ -903,7 +903,7 @@ async fn test_multiple_roles_same_user_different_scopes() {
         principal_type: PrincipalType::User,
         principal_id: user_id,
         role: "Developer".to_string(),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -916,7 +916,7 @@ async fn test_multiple_roles_same_user_different_scopes() {
         principal_type: PrincipalType::User,
         principal_id: user_id,
         role: "TechLead".to_string(),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: Some(hierarchy.api_team_id),
         project_id: None,
@@ -926,7 +926,7 @@ async fn test_multiple_roles_same_user_different_scopes() {
     governance.assign_role(&team_role).await.unwrap();
 
     let company_roles = governance
-        .list_roles(Some(hierarchy.company_id), None, None)
+        .list_roles(Some(hierarchy.tenant_uuid), None, None)
         .await
         .unwrap();
     assert!(!company_roles.is_empty());
@@ -961,7 +961,7 @@ async fn test_approval_request_creation_policy_change() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: Some("security-baseline".to_string()),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1013,7 +1013,7 @@ async fn test_approval_request_for_knowledge_change() {
         request_type: RequestType::Knowledge,
         target_type: "adr".to_string(),
         target_id: Some("ADR-042".to_string()),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: None,
         project_id: None,
@@ -1060,7 +1060,7 @@ async fn test_approval_decision_approve() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1118,7 +1118,7 @@ async fn test_approval_decision_reject() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1178,7 +1178,7 @@ async fn test_approval_decision_abstain() {
         request_type: RequestType::Knowledge,
         target_type: "pattern".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1230,7 +1230,7 @@ async fn test_approval_request_cancellation() {
         request_type: RequestType::Config,
         target_type: "config".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1276,7 +1276,7 @@ async fn test_approval_request_mark_applied() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1325,7 +1325,7 @@ async fn test_list_pending_requests_with_filters() {
             request_type: RequestType::Policy,
             target_type: "policy".to_string(),
             target_id: None,
-            company_id: Some(hierarchy.company_id),
+            tenant_id: Some(hierarchy.tenant_uuid),
             org_id: None,
             team_id: None,
             project_id: None,
@@ -1346,7 +1346,7 @@ async fn test_list_pending_requests_with_filters() {
         request_type: RequestType::Knowledge,
         target_type: "adr".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1364,7 +1364,7 @@ async fn test_list_pending_requests_with_filters() {
 
     let all_pending = governance
         .list_pending_requests(&RequestFilters {
-            company_id: Some(hierarchy.company_id),
+            tenant_id: Some(hierarchy.tenant_uuid),
             ..Default::default()
         })
         .await
@@ -1374,7 +1374,7 @@ async fn test_list_pending_requests_with_filters() {
     let policy_only = governance
         .list_pending_requests(&RequestFilters {
             request_type: Some(RequestType::Policy),
-            company_id: Some(hierarchy.company_id),
+            tenant_id: Some(hierarchy.tenant_uuid),
             ..Default::default()
         })
         .await
@@ -1383,7 +1383,7 @@ async fn test_list_pending_requests_with_filters() {
 
     let limited = governance
         .list_pending_requests(&RequestFilters {
-            company_id: Some(hierarchy.company_id),
+            tenant_id: Some(hierarchy.tenant_uuid),
             limit: Some(2),
             ..Default::default()
         })
@@ -1414,7 +1414,7 @@ async fn test_get_request_by_id_and_number() {
         request_type: RequestType::Role,
         target_type: "role".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -1747,7 +1747,7 @@ async fn test_memory_promotion_request_workflow() {
         request_type: RequestType::Memory,
         target_type: "memory_promotion".to_string(),
         target_id: Some("mem-12345".to_string()),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: Some(hierarchy.api_team_id),
         project_id: Some(hierarchy.payments_service_id),
@@ -1828,11 +1828,11 @@ async fn test_cross_org_policy_request() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: Some("cross-org-security".to_string()),
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,
-        title: "Company-wide security policy affecting all orgs".to_string(),
+        title: "Tenant-wide security policy affecting all orgs".to_string(),
         description: Some(
             "This policy will be enforced across Platform Engineering, Product Engineering, and \
              Security orgs"
@@ -1886,7 +1886,7 @@ async fn test_filter_requests_by_org_scope() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: None,
         project_id: None,
@@ -1906,7 +1906,7 @@ async fn test_filter_requests_by_org_scope() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.product_eng_org_id),
         team_id: None,
         project_id: None,
@@ -1971,7 +1971,7 @@ async fn test_filter_requests_by_team_scope() {
         request_type: RequestType::Knowledge,
         target_type: "pattern".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: Some(hierarchy.api_team_id),
         project_id: None,
@@ -1991,7 +1991,7 @@ async fn test_filter_requests_by_team_scope() {
         request_type: RequestType::Knowledge,
         target_type: "pattern".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.product_eng_org_id),
         team_id: Some(hierarchy.web_team_id),
         project_id: None,
@@ -2048,7 +2048,7 @@ async fn test_filter_requests_by_project_scope() {
         request_type: RequestType::Config,
         target_type: "config".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: Some(hierarchy.api_team_id),
         project_id: Some(hierarchy.payments_service_id),
@@ -2068,7 +2068,7 @@ async fn test_filter_requests_by_project_scope() {
         request_type: RequestType::Config,
         target_type: "config".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: Some(hierarchy.platform_eng_org_id),
         team_id: Some(hierarchy.api_team_id),
         project_id: Some(hierarchy.auth_service_id),
@@ -2129,7 +2129,7 @@ async fn test_filter_requests_by_requestor() {
             request_type: RequestType::Policy,
             target_type: "policy".to_string(),
             target_id: None,
-            company_id: Some(hierarchy.company_id),
+            tenant_id: Some(hierarchy.tenant_uuid),
             org_id: None,
             team_id: None,
             project_id: None,
@@ -2150,7 +2150,7 @@ async fn test_filter_requests_by_requestor() {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: None,
-        company_id: Some(hierarchy.company_id),
+        tenant_id: Some(hierarchy.tenant_uuid),
         org_id: None,
         team_id: None,
         project_id: None,

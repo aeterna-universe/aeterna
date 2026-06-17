@@ -1,6 +1,6 @@
 //! Integration test: 7-layer memory promotion chain.
 //!
-//! Tests the full memory hierarchy (Agent → User → Session → Project → Team → Org → Company)
+//! Tests the full memory hierarchy (Agent → User → Session → Project → Team → Org → Tenant)
 //! with promotion from Agent→User and Session→Project (the two supported promotion paths).
 //! Also tests hierarchical search across multiple registered layers.
 
@@ -172,7 +172,7 @@ async fn test_hierarchical_search_across_all_layers() {
         MemoryLayer::Project,
         MemoryLayer::Team,
         MemoryLayer::Org,
-        MemoryLayer::Company,
+        MemoryLayer::Tenant,
     ];
 
     let mut providers: Vec<Arc<MockProvider>> = Vec::new();
@@ -293,7 +293,7 @@ async fn test_promotion_chain_agent_to_user_to_project() {
 
 #[tokio::test]
 async fn test_promotion_does_not_promote_from_unsupported_layers() {
-    // Team, Org, Company layers do NOT have promotion targets
+    // Team, Org, Tenant layers do NOT have promotion targets
     let (manager, _km) = create_manager_with_knowledge();
     let ctx = test_ctx();
 
@@ -340,11 +340,11 @@ async fn test_promotion_does_not_promote_from_unsupported_layers() {
 
 #[tokio::test]
 async fn test_layer_precedence_ordering() {
-    // Verify that MemoryLayer precedence is correctly ordered (Agent=1 lowest to Company=7 highest)
+    // Verify that MemoryLayer precedence is correctly ordered (Agent=1 lowest to Tenant=7 highest)
     assert!(MemoryLayer::Agent.precedence() < MemoryLayer::User.precedence());
     assert!(MemoryLayer::User.precedence() < MemoryLayer::Session.precedence());
     assert!(MemoryLayer::Session.precedence() < MemoryLayer::Project.precedence());
     assert!(MemoryLayer::Project.precedence() < MemoryLayer::Team.precedence());
     assert!(MemoryLayer::Team.precedence() < MemoryLayer::Org.precedence());
-    assert!(MemoryLayer::Org.precedence() < MemoryLayer::Company.precedence());
+    assert!(MemoryLayer::Org.precedence() < MemoryLayer::Tenant.precedence());
 }

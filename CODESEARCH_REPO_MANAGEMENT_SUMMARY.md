@@ -36,9 +36,9 @@ repositories:
 
 ```yaml
 repositories:
-  - name: company-backend
+  - name: tenant-backend
     type: remote
-    url: https://github.com/company/backend.git
+    url: https://github.com/example/backend.git
     branches: [main, develop, "feature/*"]
     indexing:
       mode: poll
@@ -55,7 +55,7 @@ repositories:
 repositories:
   - name: my-feature
     type: hybrid
-    url: https://github.com/company/backend.git
+    url: https://github.com/example/backend.git
     local_path: /workspace/backend
     branch: feature/my-feature
     sync:
@@ -274,8 +274,8 @@ USING (tenant_id = current_setting('app.tenant_id')::UUID);
 
 # Add a remote repository
 aeterna codesearch repo add \
-  --name company-backend \
-  --url https://github.com/company/backend.git \
+  --name tenant-backend \
+  --url https://github.com/example/backend.git \
   --branches main,develop \
   --poll-interval 5m
 
@@ -290,7 +290,7 @@ aeterna codesearch repo add \
 aeterna codesearch repo add \
   --name my-feature \
   --type hybrid \
-  --url https://github.com/company/backend.git \
+  --url https://github.com/example/backend.git \
   --local-path /workspace/backend \
   --branch feature/my-feature
 
@@ -298,7 +298,7 @@ aeterna codesearch repo add \
 aeterna codesearch repo list
 # Output:
 # NAME              TYPE    STATUS    BRANCH    LAST INDEXED
-# company-backend   remote  ready     main      2m ago
+# tenant-backend   remote  ready     main      2m ago
 # my-project        local   ready     -         5s ago (watching)
 # my-feature        hybrid  ready     feature   1m ago
 
@@ -307,7 +307,7 @@ aeterna codesearch repo list
 # ============================================
 
 # Update a repository (pull + incremental index)
-aeterna codesearch repo update company-backend
+aeterna codesearch repo update tenant-backend
 # Output:
 # Pulling latest changes from main...
 # Found 15 changed files
@@ -322,7 +322,7 @@ aeterna codesearch repo update --all
 # ============================================
 
 # Checkout a different branch
-aeterna codesearch repo checkout company-backend develop
+aeterna codesearch repo checkout tenant-backend develop
 # Output:
 # Checking out branch: develop
 # Calculating delta from main: 42 files changed
@@ -330,7 +330,7 @@ aeterna codesearch repo checkout company-backend develop
 # ✓ Branch switched and indexed in 15.2s
 
 # List available branches
-aeterna codesearch repo branches company-backend
+aeterna codesearch repo branches tenant-backend
 # Output:
 # * main (indexed)
 #   develop (indexed)
@@ -352,7 +352,7 @@ aeterna codesearch index --incremental
 # ✓ Completed in 3.1s
 
 # Force full re-index
-aeterna codesearch index --full --repo company-backend
+aeterna codesearch index --full --repo tenant-backend
 # Warning: This will re-index all 10,247 files
 # Estimated time: 45 minutes
 # Proceed? [y/N]
@@ -362,11 +362,11 @@ aeterna codesearch index --full --repo company-backend
 # ============================================
 
 # Repository status
-aeterna codesearch repo status company-backend
+aeterna codesearch repo status tenant-backend
 # Output:
-# Repository: company-backend
+# Repository: tenant-backend
 # Type: remote
-# URL: https://github.com/company/backend.git
+# URL: https://github.com/example/backend.git
 # Branch: main
 # Status: ready
 # Last indexed: 2m ago
@@ -444,7 +444,7 @@ codesearch:
     # Backend service
     - name: backend
       type: remote
-      url: https://github.com/company/backend.git
+      url: https://github.com/example/backend.git
       branches: [main, develop]
       indexing:
         mode: webhook
@@ -452,7 +452,7 @@ codesearch:
     # Frontend service
     - name: frontend
       type: remote
-      url: https://github.com/company/frontend.git
+      url: https://github.com/example/frontend.git
       branches: [main, develop]
       indexing:
         mode: webhook
@@ -460,7 +460,7 @@ codesearch:
     # Shared library
     - name: shared-lib
       type: remote
-      url: https://github.com/company/shared-lib.git
+      url: https://github.com/example/shared-lib.git
       branches: ["v1.*", "v2.*"]
       indexing:
         mode: poll
@@ -469,7 +469,7 @@ codesearch:
     # My active work (hybrid)
     - name: my-microservice
       type: hybrid
-      url: https://github.com/company/backend.git
+      url: https://github.com/example/backend.git
       local_path: /workspace/backend
       branch: feature/new-api
       sync:
@@ -596,7 +596,7 @@ data:
 # Reference in repository config
 repositories:
   - name: private-repo
-    url: https://github.com/company/private.git
+    url: https://github.com/example/private.git
     credentials:
       secret: github-token
 ```

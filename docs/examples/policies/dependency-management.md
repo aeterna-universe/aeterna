@@ -11,7 +11,7 @@ Control which libraries and packages can be used across your organization.
 **Cedar Policy**:
 ```cedar
 // Policy: no-mysql
-// Scope: company
+// Scope: tenant
 // Severity: block
 // Reference: ADR-042
 
@@ -57,7 +57,7 @@ when {
 **Cedar Policy**:
 ```cedar
 // Policy: no-moment
-// Scope: company
+// Scope: tenant
 // Severity: error
 // Reference: https://momentjs.com/docs/#/-project-status/
 
@@ -214,7 +214,7 @@ tracing-opentelemetry = "0.22"
 **Cedar Policy**:
 ```cedar
 // Policy: no-deprecated-deps
-// Scope: company
+// Scope: tenant
 // Severity: error
 
 forbid(
@@ -264,7 +264,7 @@ Deprecated packages don't receive security updates and may have known vulnerabil
 **Cedar Policy**:
 ```cedar
 // Policy: require-security-updates
-// Scope: company
+// Scope: tenant
 // Severity: block (critical), error (high), warn (medium)
 
 forbid(
@@ -397,7 +397,7 @@ Floating major versions can introduce breaking changes unexpectedly. Pinning at 
 **Cedar Policy**:
 ```cedar
 // Policy: no-install-scripts
-// Scope: company
+// Scope: tenant
 // Severity: warn
 
 forbid(
@@ -462,7 +462,7 @@ when {
 **Cedar Policy**:
 ```cedar
 // Policy: require-license-check
-// Scope: company
+// Scope: tenant
 // Severity: block
 
 forbid(
@@ -484,7 +484,7 @@ when {
   ]
 }
 advice {
-  message: "License not in approved list. Contact legal@company.com for approval."
+  message: "License not in approved list. Contact legal@example.com for approval."
 };
 
 // Explicitly block strong copyleft for proprietary products

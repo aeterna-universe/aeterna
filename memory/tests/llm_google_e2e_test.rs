@@ -107,7 +107,7 @@ mod google_llm_e2e {
             id: "no-lodash".to_string(),
             name: "No Vulnerable Lodash".to_string(),
             description: Some("Block lodash < 4.17.21 due to CVE-2021-23337".to_string()),
-            layer: KnowledgeLayer::Company,
+            layer: KnowledgeLayer::Tenant,
             mode: PolicyMode::Mandatory,
             merge_strategy: RuleMergeStrategy::Merge,
             rules: vec![PolicyRule {

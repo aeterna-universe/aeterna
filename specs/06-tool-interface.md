@@ -175,10 +175,10 @@ interface MemoryAddInput {
    * - project: This project/repository
    * - team: This team
    * - org: This organization
-   * - company: Company-wide
+   * - tenant: Tenant-wide
    * @default "user"
    */
-  layer?: 'agent' | 'user' | 'session' | 'project' | 'team' | 'org' | 'company';
+  layer?: 'agent' | 'user' | 'session' | 'project' | 'team' | 'org' | 'tenant';
   
   /**
    * Tags for categorization and filtering.
@@ -410,7 +410,7 @@ interface KnowledgeQueryInput {
   /**
    * Filter by layer.
    */
-  layer?: 'company' | 'org' | 'team' | 'project';
+  layer?: 'tenant' | 'org' | 'team' | 'project';
   
   /**
    * Filter by tags.
@@ -824,7 +824,7 @@ interface SyncStatusOutput {
     },
     "layer": {
       "type": "string",
-      "enum": ["agent", "user", "session", "project", "team", "org", "company"],
+      "enum": ["agent", "user", "session", "project", "team", "org", "tenant"],
       "default": "user",
       "description": "Memory scope"
     },
@@ -858,7 +858,7 @@ interface SyncStatusOutput {
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["agent", "user", "session", "project", "team", "org", "company"]
+        "enum": ["agent", "user", "session", "project", "team", "org", "tenant"]
       },
       "description": "Layers to search"
     },
@@ -904,7 +904,7 @@ interface SyncStatusOutput {
     },
     "layer": {
       "type": "string",
-      "enum": ["company", "org", "team", "project"],
+      "enum": ["tenant", "org", "team", "project"],
       "description": "Filter by layer"
     },
     "tags": {
@@ -1024,7 +1024,7 @@ interface ToolError {
   "message": "Knowledge item 'adr-999' not found",
   "details": {
     "requestedId": "adr-999",
-    "searchedLayers": ["company", "org", "project"]
+    "searchedLayers": ["tenant", "org", "project"]
   },
   "retryable": false
 }

@@ -68,7 +68,7 @@ pub struct EntityCounts {
     pub graph_edges: u64,
     /// Number of Cedar/OPAL policies.
     pub policies: u64,
-    /// Number of organizational units (companies, orgs, teams, projects).
+    /// Number of organizational units (tenants, orgs, teams, projects).
     pub org_units: u64,
     /// Number of role assignments.
     pub role_assignments: u64,

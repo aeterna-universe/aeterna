@@ -10,7 +10,7 @@ import type { LocalConfig } from "./config.js";
 import type { LocalMemoryManager } from "./manager.js";
 
 const PERSONAL_LAYERS: readonly MemoryLayer[] = ["agent", "user", "session"];
-const SHARED_LAYERS: readonly MemoryLayer[] = ["project", "team", "org", "company"];
+const SHARED_LAYERS: readonly MemoryLayer[] = ["project", "team", "org", "tenant"];
 
 export class MemoryRouter {
   constructor(
@@ -30,7 +30,7 @@ export class MemoryRouter {
             "project",
             "team",
             "org",
-            "company",
+            "tenant",
           ];
 
     const localLayers = allLayers.filter((layer) => PERSONAL_LAYERS.includes(layer));

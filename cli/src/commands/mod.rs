@@ -1,3 +1,4 @@
+pub mod account;
 pub mod admin;
 pub mod agent;
 pub mod auth;
@@ -69,6 +70,9 @@ pub enum Commands {
 
     #[command(subcommand, about = "Create, validate, and manage policies")]
     Policy(policy::PolicyCommand),
+
+    #[command(subcommand, about = "Manage accounts and tenant/account attachments")]
+    Account(account::AccountCommand),
 
     #[command(subcommand, about = "Manage organizations")]
     Org(org::OrgCommand),

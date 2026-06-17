@@ -455,10 +455,8 @@ impl McpServer {
                     warn!(tool = %name, "No specific Cedar action mapping; using InvokeMcpTool fallback");
                 }
 
-                let cedar_resource = format!(
-                    "Aeterna::Company::\"{}\"",
-                    tenant_context.tenant_id.as_str()
-                );
+                let cedar_resource =
+                    format!("Aeterna::Tenant::\"{}\"", tenant_context.tenant_id.as_str());
                 let auth_result = self
                     .auth_service
                     .check_permission(&tenant_context, cedar_action, &cedar_resource)
@@ -1436,7 +1434,7 @@ mod tests {
                 },
                 "arguments": {
                     "content": "injected",
-                    "layer": "company"
+                    "layer": "tenant"
                 }
             })),
         };

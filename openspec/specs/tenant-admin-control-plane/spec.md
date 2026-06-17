@@ -43,7 +43,7 @@ The system SHALL provide supported API and CLI workflows for organization, team,
 - **AND** inherited policies and parent-child relationships SHALL be preserved according to the hierarchy rules
 
 #### Scenario: Tenant admin manages membership and scoped roles
-- **WHEN** a tenant administrator adds, removes, or updates a member role at company, organization, team, or project scope
+- **WHEN** a tenant administrator adds, removes, or updates a member role at tenant, organization, team, or project scope
 - **THEN** the system SHALL persist the scoped membership change
 - **AND** the system SHALL emit an auditable role or membership event for the mutation
 

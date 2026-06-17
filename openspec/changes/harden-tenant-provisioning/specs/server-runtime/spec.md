@@ -4,7 +4,7 @@
 At server startup, for every tenant record loaded from persistent storage, the runtime SHALL resolve all declared providers (memory layers, LLM, embedding, repository binding) before marking the tenant available to serve requests. A tenant whose provider wiring fails SHALL be placed in `loading_failed` state with a structured reason, and its requests SHALL return HTTP 503 with body `{error: "tenant_unavailable", tenantSlug, reason}` rather than HTTP 500 from downstream code paths.
 
 #### Scenario: Missing memory provider blocks the tenant
-- **WHEN** a tenant manifest declares `providers.memoryLayers` for layers `[Company, Org, Team, User, Session, Project, Agent]`
+- **WHEN** a tenant manifest declares `providers.memoryLayers` for layers `[Tenant, Org, Team, User, Session, Project, Agent]`
 - **AND** at startup the runtime cannot register a provider for one of those layers
 - **THEN** the tenant SHALL be marked `loading_failed` with `reason: "memory_provider_missing"` and the missing layer name
 - **AND** requests to that tenant's `/api/v1/memory/*` endpoints SHALL return HTTP 503

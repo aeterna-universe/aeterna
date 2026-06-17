@@ -8,11 +8,11 @@ use mk_core::types::{LayerSummary, MemoryLayer, SummaryConfig, SummaryDepth};
 use std::collections::HashMap;
 
 /// Return the child layers below `layer` in the knowledge hierarchy
-/// (Company > Org > Team > Project).  For memory-only layers (Session,
+/// (Tenant > Org > Team > Project).  For memory-only layers (Session,
 /// User, Agent) there are no children.
 fn child_layers(layer: MemoryLayer) -> Vec<MemoryLayer> {
     match layer {
-        MemoryLayer::Company => vec![MemoryLayer::Org, MemoryLayer::Team, MemoryLayer::Project],
+        MemoryLayer::Tenant => vec![MemoryLayer::Org, MemoryLayer::Team, MemoryLayer::Project],
         MemoryLayer::Org => vec![MemoryLayer::Team, MemoryLayer::Project],
         MemoryLayer::Team => vec![MemoryLayer::Project],
         _ => vec![],
@@ -795,7 +795,7 @@ mod tests {
 
     #[test]
     fn test_child_layers_company() {
-        let children = child_layers(MemoryLayer::Company);
+        let children = child_layers(MemoryLayer::Tenant);
         assert_eq!(
             children,
             vec![MemoryLayer::Org, MemoryLayer::Team, MemoryLayer::Project]

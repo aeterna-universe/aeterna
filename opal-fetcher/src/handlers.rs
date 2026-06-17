@@ -86,7 +86,7 @@ opal_fetcher_up 1
 
 /// GET /v1/hierarchy?tenant=<uuid>
 ///
-/// Returns the organizational hierarchy (Company → Organization → Team →
+/// Returns the organizational hierarchy (Tenant → Organization → Team →
 /// Project) as Cedar entities for OPAL consumption, scoped to a single
 /// tenant. The `tenant` query parameter is **required** — missing it
 /// returns 400 via `serde_urlencoded` deserialization failure, surfaced
@@ -109,9 +109,6 @@ pub async fn get_hierarchy(
         r"
         SELECT
             tenant_id,
-            company_id,
-            company_slug,
-            company_name,
             org_id,
             org_slug,
             org_name,
@@ -184,8 +181,6 @@ pub async fn get_users(
             role,
             permissions,
             org_id,
-            company_id,
-            company_slug,
             org_slug,
             team_slug
         FROM v_user_permissions
@@ -242,7 +237,7 @@ pub async fn get_agents(
             delegated_by_agent_id,
             delegation_depth,
             capabilities,
-            allowed_company_ids,
+            allowed_tenant_ids,
             allowed_org_ids,
             allowed_team_ids,
             allowed_project_ids,
@@ -302,17 +297,17 @@ pub async fn get_all_entities(
         codesearch_id_rows,
     ) = tokio::try_join!(
         sqlx::query_as::<_, HierarchyRow>(
-            r"SELECT tenant_id, company_id, company_slug, company_name, org_id, org_slug, org_name, team_id, team_slug, team_name, project_id, project_slug, project_name, git_remote FROM v_hierarchy WHERE tenant_id = $1"
+            r"SELECT tenant_id, org_id, org_slug, org_name, team_id, team_slug, team_name, project_id, project_slug, project_name, git_remote FROM v_hierarchy WHERE tenant_id = $1"
         )
         .bind(tenant_id)
         .fetch_all(&state.pool),
         sqlx::query_as::<_, UserPermissionRow>(
-            r"SELECT tenant_id, user_id, email, user_name, user_status, team_id, role, permissions, org_id, company_id, company_slug, org_slug, team_slug FROM v_user_permissions WHERE tenant_id = $1"
+            r"SELECT tenant_id, user_id, email, user_name, user_status, team_id, role, permissions, org_id, org_slug, team_slug FROM v_user_permissions WHERE tenant_id = $1"
         )
         .bind(tenant_id)
         .fetch_all(&state.pool),
         sqlx::query_as::<_, AgentPermissionRow>(
-            r"SELECT tenant_id, agent_id, agent_name, agent_type, delegated_by_user_id, delegated_by_agent_id, delegation_depth, capabilities, allowed_company_ids, allowed_org_ids, allowed_team_ids, allowed_project_ids, agent_status, delegating_user_email, delegating_user_name FROM v_agent_permissions WHERE tenant_id = $1"
+            r"SELECT tenant_id, agent_id, agent_name, agent_type, delegated_by_user_id, delegated_by_agent_id, delegation_depth, capabilities, allowed_tenant_ids, allowed_org_ids, allowed_team_ids, allowed_project_ids, agent_status, delegating_user_email, delegating_user_name FROM v_agent_permissions WHERE tenant_id = $1"
         )
         .bind(tenant_id)
         .fetch_all(&state.pool),

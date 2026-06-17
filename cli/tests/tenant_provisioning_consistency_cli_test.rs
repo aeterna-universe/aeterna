@@ -227,7 +227,7 @@ async fn seed_platform_admin_user(state: &AppState) {
         .create_unit(&OrganizationalUnit {
             id: root_unit_id.clone(),
             name: "Instance Scope".to_string(),
-            unit_type: UnitType::Company,
+            unit_type: UnitType::Organization,
             parent_id: None,
             tenant_id: TenantId::new(INSTANCE_SCOPE_TENANT_ID.to_string())
                 .expect("INSTANCE_SCOPE_TENANT_ID is a valid TenantId"),
@@ -364,7 +364,7 @@ async fn consistency_cli_runner_full_sequence() {
 
     let scenarios = [
         "01-bootstrap.json",
-        "02-add-company.json",
+        "02-add-tenant-root.json",
         "03-rotate-reference.json",
         "04-noop-reapply.json",
         "05-prune.json",

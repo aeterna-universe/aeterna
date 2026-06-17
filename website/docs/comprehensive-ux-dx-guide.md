@@ -186,7 +186,7 @@ memory:
 
 knowledge:
   repository:
-    url: "https://github.com/company/knowledge.git"
+    url: "https://github.com/example/knowledge.git"
     branch: "main"
     sync_interval: "5m"
 
@@ -342,7 +342,7 @@ aeterna policy list
 # Add new policy
 aeterna policy add \
   --file ./policies/security-baseline.yaml \
-  --approver sam@company.com
+  --approver sam@example.com
 
 # Validate policy syntax
 aeterna policy validate --file ./policies/new-policy.yaml
@@ -364,7 +364,7 @@ aeterna governance policy --validate
 
 # Test RBAC rules
 aeterna governance rbac --test \
-  --user alex@company.com \
+  --user alex@example.com \
   --action "knowledge:write" \
   --resource "team:api"
 
@@ -481,7 +481,7 @@ Authorization: Bearer aeterna_...
   "tags": ["typescript", "frontend"],
   "metadata": {
     "source": "team-meeting",
-    "author": "alex@company.com"
+    "author": "alex@example.com"
   }
 }
 
@@ -1074,7 +1074,7 @@ Agent A: [Receives solution]
          
          ```typescript
          // Fetch latest public key
-         const jwks = await fetch('https://api.company.com/.well-known/jwks.json');
+         const jwks = await fetch('https://api.example.com/.well-known/jwks.json');
          const publicKey = jwks.keys[0];
          
          // Update validator
@@ -1491,10 +1491,10 @@ sequenceDiagram
 
 ### Example 1: Large-Scale Microservices Migration
 
-**Company:** 300 engineers, migrating monolith → microservices over 2 years
+**Tenant:** 300 engineers, migrating monolith → microservices over 2 years
 
 **Aeterna Setup:**
-- Company layer: Strangler Fig pattern ADR
+- Tenant layer: Strangler Fig pattern ADR
 - Org layer: Service standards (gRPC, PostgreSQL, Kafka)
 - Team layers: Service-specific patterns
 
@@ -1513,7 +1513,7 @@ sequenceDiagram
    ```
    [Aeterna Sync] New ADR detected
    ✓ Indexed for semantic search
-   ✓ Promoted to company layer
+   ✓ Promoted to tenant layer
    ✓ Notified 45 active agents
    ```
 
@@ -1549,10 +1549,10 @@ sequenceDiagram
 
 ### Example 2: Security Policy Enforcement
 
-**Company:** Financial services, strict compliance requirements
+**Tenant:** Financial services, strict compliance requirements
 
 **Aeterna Setup:**
-- Company layer: Security baseline policies
+- Tenant layer: Security baseline policies
 - Org layer: PCI-DSS compliance rules
 - Team layers: Service-specific security patterns
 
@@ -1598,7 +1598,7 @@ constraints:
    Agent: [Calls knowledge_check]
           ❌ POLICY VIOLATION
           
-          Policy: security-baseline (company level)
+          Policy: security-baseline (tenant level)
           Constraint: MUST_NOT_USE basic-auth IN production
           Severity: BLOCKING
           Reason: Basic auth not secure for production
@@ -1612,7 +1612,7 @@ constraints:
    ```
    [Aeterna Audit Log]
    2026-02-01 14:32:15 UTC
-   User: casey@company.com
+   User: casey@example.com
    Action: policy_violation_proposed
    Policy: security-baseline
    Constraint: MUST_NOT_USE basic-auth
@@ -1649,7 +1649,7 @@ constraints:
 
 ### Example 3: Multi-Agent Collaboration
 
-**Company:** Building autonomous customer support system with specialized agents
+**Tenant:** Building autonomous customer support system with specialized agents
 
 **Agents:**
 - **Intake Agent**: First contact, triage

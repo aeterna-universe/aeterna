@@ -27,11 +27,12 @@ pub use env::Environment;
 pub use hints::{HintPreset, HintsConfig, OperationHints};
 pub use secret::{SecretBytes, SecretReference};
 pub use types::{
-    BranchPolicy, ConstraintOperator, ConstraintSeverity, ConstraintTarget, CredentialKind,
-    HierarchyPath, KnowledgeEntry, KnowledgeEntryWithRelations, KnowledgeLayer,
-    KnowledgeQueryResult, KnowledgeRelation, KnowledgeRelationType, KnowledgeStatus, KnowledgeType,
-    KnowledgeVariantRole, MemoryLayer, PromotionDecision, PromotionMode, PromotionRequest,
-    PromotionRequestStatus, RecordSource, RepositoryKind, TenantConfigDocument, TenantConfigField,
-    TenantConfigOwnership, TenantContext, TenantId, TenantRecord, TenantRepositoryBinding,
-    TenantSecretEntry, TenantSecretReference, TenantStatus, UserId,
+    AccountRecord, AccountRef, BranchPolicy, ConstraintOperator, ConstraintSeverity,
+    ConstraintTarget, CredentialKind, HierarchyPath, KnowledgeEntry, KnowledgeEntryWithRelations,
+    KnowledgeLayer, KnowledgeQueryResult, KnowledgeRelation, KnowledgeRelationType,
+    KnowledgeStatus, KnowledgeType, KnowledgeVariantRole, MemoryLayer, PromotionDecision,
+    PromotionMode, PromotionRequest, PromotionRequestStatus, RecordSource, RepositoryKind,
+    TenantConfigDocument, TenantConfigField, TenantConfigOwnership, TenantContext, TenantId,
+    TenantRecord, TenantRepositoryBinding, TenantSecretEntry, TenantSecretReference, TenantStatus,
+    UserId,
 };

@@ -20,7 +20,7 @@ CCA is based on the paper "Confucius: Iterative Tool Learning from Introspection
 The Context Architect compresses hierarchical memory into efficient context summaries that fit within token budgets. It queries multiple memory layers simultaneously and intelligently prioritizes the most relevant information.
 
 **Key Features:**
-- Hierarchical compression across 7 memory layers (Company → Org → Team → Project → Session → User → Agent)
+- Hierarchical compression across 7 memory layers (Tenant → Org → Team → Project → Session → User → Agent)
 - Token budget management with configurable limits (100-32,000 tokens)
 - Relevance scoring with semantic deduplication
 - Parallel layer queries with early termination
@@ -146,7 +146,7 @@ CCA capabilities are deeply integrated with Aeterna's 7-layer memory hierarchy:
 4. **Meta-Agent** leverages full memory context for each iteration
 
 This integration means CCA benefits from:
-- Multi-tenant isolation at the Company level
+- Multi-tenant isolation at the Tenant level
 - Memory-R1 reward signals for promoting valuable learnings
 - Graph layer for discovering related memories and error patterns
 - Policy enforcement to prevent invalid knowledge capture
@@ -179,7 +179,7 @@ Aeterna's CCA implementation extends the original research:
 | Hindsight Learning | Yes | Yes, with semantic promotion |
 | Meta-Agent | Yes | Yes, with timeout controls |
 | Production Controls | No | Cost, time, staleness, latency |
-| Multi-Tenancy | No | Company/Org/Team isolation |
+| Multi-Tenancy | No | Tenant/Org/Team isolation |
 | Extension System | No | Client-side customization |
 | State Management | No | LRU caching with compression |
 | Policy Integration | No | Cedar/Permit.io enforcement |

@@ -16,7 +16,7 @@ Aeterna combines hierarchical memory, Git-backed knowledge, tenant-aware governa
 4. **Project**: Shared across a specific project.
 5. **Team**: Shared across a team.
 6. **Org**: Shared across an organization.
-7. **Company**: Shared across the entire company.
+7. **Tenant**: Shared across the entire tenant.
 
 ## Tenant control plane and knowledge binding
 

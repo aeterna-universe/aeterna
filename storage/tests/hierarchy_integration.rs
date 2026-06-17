@@ -50,41 +50,18 @@ async fn test_hierarchy_strict_enforcement() {
 
     let tenant_id = "tenant-1";
 
-    // 1. Root must be a Company
-    let org_root = create_test_unit("org-1", "Org Root", UnitType::Organization, None, tenant_id);
-    let result = backend.create_unit(&org_root).await;
-    assert!(result.is_err(), "Root unit must be a Company");
+    // 1. Root must be an Organization
+    let team_root = create_test_unit("team-1", "Team Root", UnitType::Team, None, tenant_id);
+    let result = backend.create_unit(&team_root).await;
+    assert!(result.is_err(), "Root unit must be an Organization");
 
-    let company = create_test_unit("comp-1", "Comp Root", UnitType::Company, None, tenant_id);
-    backend
-        .create_unit(&company)
-        .await
-        .expect("Company can be root");
-
-    // 2. Organization must be under Company
-    let team_under_comp = create_test_unit(
-        "team-1",
-        "Team Under Comp",
-        UnitType::Team,
-        Some("comp-1".to_string()),
-        tenant_id,
-    );
-    let result = backend.create_unit(&team_under_comp).await;
-    assert!(result.is_err(), "Team cannot be directly under Company");
-
-    let org = create_test_unit(
-        "org-1",
-        "Org",
-        UnitType::Organization,
-        Some("comp-1".to_string()),
-        tenant_id,
-    );
+    let org = create_test_unit("org-1", "Org", UnitType::Organization, None, tenant_id);
     backend
         .create_unit(&org)
         .await
-        .expect("Organization can be under Company");
+        .expect("Organization can be root");
 
-    // 3. Team must be under Organization
+    // 2. Team must be under Organization
     let project_under_org = create_test_unit(
         "proj-1",
         "Proj Under Org",
@@ -140,15 +117,8 @@ async fn test_recursive_hierarchy_navigation() {
         UserId::default(),
     );
 
-    // Build hierarchy: Comp -> Org -> Team -> Proj
-    let company = create_test_unit("comp-2", "Comp", UnitType::Company, None, tenant_id);
-    let org = create_test_unit(
-        "org-2",
-        "Org",
-        UnitType::Organization,
-        Some("comp-2".to_string()),
-        tenant_id,
-    );
+    // Build hierarchy: Org -> Team -> Proj
+    let org = create_test_unit("org-2", "Org", UnitType::Organization, None, tenant_id);
     let team = create_test_unit(
         "team-2",
         "Team",
@@ -164,27 +134,15 @@ async fn test_recursive_hierarchy_navigation() {
         tenant_id,
     );
 
-    backend.create_unit(&company).await.unwrap();
     backend.create_unit(&org).await.unwrap();
     backend.create_unit(&team).await.unwrap();
     backend.create_unit(&project).await.unwrap();
 
     // Test Ancestors of Project
     let ancestors = backend.get_ancestors_scoped(&ctx, "proj-2").await.unwrap();
-    assert_eq!(ancestors.len(), 3);
+    assert_eq!(ancestors.len(), 2);
     assert_eq!(ancestors[0].id, "team-2");
     assert_eq!(ancestors[1].id, "org-2");
-    assert_eq!(ancestors[2].id, "comp-2");
-
-    // Test Descendants of Company
-    let descendants = backend
-        .get_unit_descendants_scoped(&ctx, "comp-2")
-        .await
-        .unwrap();
-    assert_eq!(descendants.len(), 3);
-    assert_eq!(descendants[0].id, "org-2");
-    assert_eq!(descendants[1].id, "team-2");
-    assert_eq!(descendants[2].id, "proj-2");
 
     // Test Descendants of Organization
     let descendants_org = backend
@@ -194,4 +152,12 @@ async fn test_recursive_hierarchy_navigation() {
     assert_eq!(descendants_org.len(), 2);
     assert_eq!(descendants_org[0].id, "team-2");
     assert_eq!(descendants_org[1].id, "proj-2");
+
+    // Test Descendants of Team
+    let descendants_team = backend
+        .get_unit_descendants_scoped(&ctx, "team-2")
+        .await
+        .unwrap();
+    assert_eq!(descendants_team.len(), 1);
+    assert_eq!(descendants_team[0].id, "proj-2");
 }

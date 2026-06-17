@@ -431,7 +431,7 @@ interface SyncConfig {
 ```typescript
 interface IdentifiersConfig {
   /**
-   * Company/tenant identifier.
+   * Tenant/tenant identifier.
    */
   companyId?: string;
   
@@ -564,7 +564,7 @@ MK_<SECTION>_<PROPERTY>=value
 | `MK_KNOWLEDGE_CENTRAL_HUB` | string | - | Central hub URL |
 | `MK_SYNC_ENABLED` | boolean | `true` | Enable sync |
 | `MK_SYNC_INTERVAL` | string | `1h` | Sync interval |
-| `MK_ID_COMPANY` | string | - | Company ID |
+| `MK_ID_COMPANY` | string | - | Tenant ID |
 | `MK_ID_ORG` | string | - | Organization ID |
 | `MK_ID_TEAM` | string | - | Team ID |
 | `MK_ID_PROJECT` | string | - | Project ID |
@@ -745,7 +745,7 @@ function getDefaultConfig(): MemoryKnowledgeConfig {
   "knowledge": {
     "repository": ".knowledge",
     "federation": {
-      "centralHub": "https://github.com/company/knowledge-hub.git"
+      "centralHub": "https://github.com/example/knowledge-hub.git"
     }
   }
 }
@@ -765,7 +765,7 @@ memory:
 knowledge:
   repository: .knowledge
   federation:
-    centralHub: https://github.com/company/knowledge-hub.git
+    centralHub: https://github.com/example/knowledge-hub.git
 ```
 
 ---
@@ -795,7 +795,7 @@ const configSchema = {
         },
         defaultLayer: {
           type: 'string',
-          enum: ['agent', 'user', 'session', 'project', 'team', 'org', 'company']
+          enum: ['agent', 'user', 'session', 'project', 'team', 'org', 'tenant']
         }
         // ... more properties
       }
@@ -928,17 +928,17 @@ class ConfigValidationError extends Error {
       "indexName": "production-memories"
     },
     "defaultLayer": "user",
-    "enabledLayers": ["user", "project", "team", "org", "company"],
+    "enabledLayers": ["user", "project", "team", "org", "tenant"],
     "lifecycle": {
       "enableDecay": true,
       "decayRate": 0.005
     }
   },
   "knowledge": {
-    "repository": "git@github.com:company/knowledge-repo.git",
+    "repository": "git@github.com:example/knowledge-repo.git",
     "branch": "main",
     "federation": {
-      "centralHub": "git@github.com:company/central-knowledge.git",
+      "centralHub": "git@github.com:example/central-knowledge.git",
       "syncInterval": "1h"
     },
     "constraints": {
@@ -976,25 +976,25 @@ class ConfigValidationError extends Error {
   "memory": {
     "provider": "qdrant",
     "providerConfig": {
-      "url": "https://qdrant.internal.company.com",
+      "url": "https://qdrant.internal.example.com",
       "apiKey": "${MK_QDRANT_API_KEY}",
       "collectionPrefix": "${MK_ID_COMPANY}_"
     },
-    "enabledLayers": ["agent", "user", "session", "project", "team", "org", "company"]
+    "enabledLayers": ["agent", "user", "session", "project", "team", "org", "tenant"]
   },
   "knowledge": {
     "repository": ".knowledge",
     "federation": {
-      "centralHub": "git@github.com:company/central-knowledge.git",
+      "centralHub": "git@github.com:example/central-knowledge.git",
       "upstreams": [
         {
-          "id": "company",
-          "url": "git@github.com:company/company-policies.git",
-          "layers": ["company"]
+          "id": "tenant",
+          "url": "git@github.com:example/tenant-policies.git",
+          "layers": ["tenant"]
         },
         {
           "id": "org",
-          "url": "git@github.com:company/${MK_ID_ORG}-knowledge.git",
+          "url": "git@github.com:example/${MK_ID_ORG}-knowledge.git",
           "layers": ["org"]
         }
       ]

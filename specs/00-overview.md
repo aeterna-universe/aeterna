@@ -41,7 +41,7 @@ This specification defines two complementary systems:
 ### 1. Memory System
 Semantic, searchable storage for agent experiences and learnings.
 
-- **Hierarchical layers**: agent → user → session → project → team → org → company
+- **Hierarchical layers**: agent → user → session → project → team → org → tenant
 - **Vector-based retrieval**: Natural language search across memories
 - **Provider abstraction**: Mem0, Letta, Chroma, Pinecone, etc.
 
@@ -50,7 +50,7 @@ Structured, versioned storage for organizational decisions and policies.
 
 - **Git-based versioning**: Full audit trail, branching, merging
 - **Constraint enforcement**: Policies that guide agent behavior
-- **Multi-tenant federation**: Company → Org → Team → Project layers
+- **Multi-tenant federation**: Tenant → Org → Team → Project layers
 
 ### 3. Sync Bridge
 Bidirectional synchronization keeping memory and knowledge aligned.
@@ -124,7 +124,7 @@ Bidirectional synchronization keeping memory and knowledge aligned.
 |------|-------------|
 | **Provider Agnostic** | Switch between Mem0, Letta, Chroma without code changes |
 | **Ecosystem Agnostic** | Work with LangChain, AutoGen, CrewAI, OpenCode equally |
-| **Hierarchical Memory** | 7-layer precedence (agent → company) |
+| **Hierarchical Memory** | 7-layer precedence (agent → tenant) |
 | **Versioned Knowledge** | Git-based immutable commits |
 | **Constraint DSL** | Declarative policy enforcement |
 | **Offline-First** | Work without network, sync when available |
@@ -135,7 +135,7 @@ Bidirectional synchronization keeping memory and knowledge aligned.
 |------|-------------|
 | **Delta Sync** | Efficient change propagation |
 | **Conflict Resolution** | Deterministic merge strategies |
-| **Multi-Tenant** | Company → Org → Team → Project isolation |
+| **Multi-Tenant** | Tenant → Org → Team → Project isolation |
 | **Audit Trail** | Full history of all changes |
 
 ### Nice to Have (P2)

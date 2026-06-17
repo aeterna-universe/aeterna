@@ -1,3 +1,4 @@
+pub mod account_store;
 pub mod approval_workflow;
 pub mod budget_storage;
 pub mod cascade;
@@ -43,6 +44,7 @@ pub mod tenant_router;
 pub mod tenant_store;
 
 // Re-export Redis lock types for job coordination
+pub use account_store::AccountStore;
 pub use redis::{JobSkipReason, LockResult};
 
 // Re-export generic Redis-backed store

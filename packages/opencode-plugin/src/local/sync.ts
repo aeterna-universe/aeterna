@@ -3,7 +3,7 @@ import type { SyncPushEntry } from "../types.js";
 import type { LocalConfig } from "./config.js";
 import type { LocalMemoryManager } from "./manager.js";
 
-const SHARED_LAYERS = ["project", "team", "org", "company"] as const;
+const SHARED_LAYERS = ["project", "team", "org", "tenant"] as const;
 
 export class SyncEngine {
   private pushInterval: NodeJS.Timeout | null = null;

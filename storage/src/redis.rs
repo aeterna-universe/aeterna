@@ -1025,11 +1025,11 @@ mod tests {
 
         let key_detailed = RedisStorage::summary_cache_key(
             "org-x",
-            &MemoryLayer::Company,
+            &MemoryLayer::Tenant,
             "entry-789",
             &SummaryDepth::Detailed,
         );
-        assert_eq!(key_detailed, "summary:org-x:company:entry-789:detailed");
+        assert_eq!(key_detailed, "summary:org-x:tenant:entry-789:detailed");
     }
 
     #[test]
@@ -1037,7 +1037,7 @@ mod tests {
         use mk_core::types::{MemoryLayer, SummaryDepth};
 
         let layers = [
-            (MemoryLayer::Company, "company"),
+            (MemoryLayer::Tenant, "tenant"),
             (MemoryLayer::Org, "org"),
             (MemoryLayer::Team, "team"),
             (MemoryLayer::Project, "project"),

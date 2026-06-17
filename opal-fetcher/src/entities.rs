@@ -24,9 +24,6 @@ use crate::error::Result;
 #[derive(Debug, Clone, FromRow)]
 pub struct HierarchyRow {
     pub tenant_id: Uuid,
-    pub company_id: Option<Uuid>,
-    pub company_slug: Option<String>,
-    pub company_name: Option<String>,
     pub org_id: Option<Uuid>,
     pub org_slug: Option<String>,
     pub org_name: Option<String>,
@@ -55,8 +52,6 @@ pub struct UserPermissionRow {
     pub role: String,
     pub permissions: serde_json::Value,
     pub org_id: Uuid,
-    pub company_id: Uuid,
-    pub company_slug: String,
     pub org_slug: String,
     pub team_slug: String,
 }
@@ -84,7 +79,7 @@ pub struct AgentPermissionRow {
     pub delegated_by_agent_id: Option<Uuid>,
     pub delegation_depth: i32,
     pub capabilities: serde_json::Value,
-    pub allowed_company_ids: Option<Vec<Uuid>>,
+    pub allowed_tenant_ids: Option<Vec<Uuid>>,
     pub allowed_org_ids: Option<Vec<Uuid>>,
     pub allowed_team_ids: Option<Vec<Uuid>>,
     pub allowed_project_ids: Option<Vec<Uuid>>,
@@ -195,34 +190,25 @@ impl CedarEntitiesResponse {
 
 /// Transforms hierarchy rows into Cedar entities.
 ///
-/// Creates entities for: Company, Organization, Team, Project
-/// with proper parent relationships (in Cedar format).
+/// Creates entities for: Tenant, Organization, Team, Project.
 pub fn transform_hierarchy(rows: Vec<HierarchyRow>) -> Result<Vec<CedarEntity>> {
     let mut entities: Vec<CedarEntity> = Vec::new();
-    let mut seen_companies = std::collections::HashSet::new();
+    let mut seen_tenants = std::collections::HashSet::new();
     let mut seen_orgs = std::collections::HashSet::new();
     let mut seen_teams = std::collections::HashSet::new();
     let mut seen_projects = std::collections::HashSet::new();
 
     for row in rows {
-        // Company entity
-        if let (Some(id), Some(slug), Some(name)) =
-            (&row.company_id, &row.company_slug, &row.company_name)
-            && seen_companies.insert(*id)
-        {
+        if seen_tenants.insert(row.tenant_id) {
             entities.push(CedarEntity {
-                uid: CedarEntityUid::new("Aeterna::Company", id.to_string()),
-                attrs: serde_json::json!({
-                    "slug": slug,
-                    "name": name,
-                }),
+                uid: CedarEntityUid::new("Aeterna::Tenant", row.tenant_id.to_string()),
+                attrs: serde_json::json!({}),
                 parents: vec![],
             });
         }
 
         // Organization entity
-        if let (Some(id), Some(slug), Some(name), Some(company_id)) =
-            (&row.org_id, &row.org_slug, &row.org_name, &row.company_id)
+        if let (Some(id), Some(slug), Some(name)) = (&row.org_id, &row.org_slug, &row.org_name)
             && seen_orgs.insert(*id)
         {
             entities.push(CedarEntity {
@@ -232,8 +218,8 @@ pub fn transform_hierarchy(rows: Vec<HierarchyRow>) -> Result<Vec<CedarEntity>> 
                     "name": name,
                 }),
                 parents: vec![CedarEntityUid::new(
-                    "Aeterna::Company",
-                    company_id.to_string(),
+                    "Aeterna::Tenant",
+                    row.tenant_id.to_string(),
                 )],
             });
         }
@@ -466,10 +452,10 @@ pub fn transform_agents(rows: Vec<AgentPermissionRow>) -> Result<Vec<CedarEntity
         }
 
         // Add scope arrays
-        if let Some(ids) = &row.allowed_company_ids
+        if let Some(ids) = &row.allowed_tenant_ids
             && !ids.is_empty()
         {
-            attrs["allowed_company_ids"] = serde_json::json!(ids);
+            attrs["allowed_tenant_ids"] = serde_json::json!(ids);
         }
         if let Some(ids) = &row.allowed_org_ids
             && !ids.is_empty()
@@ -560,8 +546,6 @@ mod tests {
             role: "developer".to_string(),
             permissions: serde_json::json!([]),
             org_id: Uuid::new_v4(),
-            company_id: Uuid::new_v4(),
-            company_slug: "acme-corp".to_string(),
             org_slug: "platform-engineering".to_string(),
             team_slug: "api-team".to_string(),
         }
@@ -570,9 +554,6 @@ mod tests {
     fn sample_hierarchy_row() -> HierarchyRow {
         HierarchyRow {
             tenant_id: Uuid::new_v4(),
-            company_id: Some(Uuid::new_v4()),
-            company_slug: Some("acme-corp".to_string()),
-            company_name: Some("Acme Corporation".to_string()),
             org_id: Some(Uuid::new_v4()),
             org_slug: Some("platform-engineering".to_string()),
             org_name: Some("Platform Engineering".to_string()),
@@ -613,16 +594,15 @@ mod tests {
 
         let entities = transform_hierarchy(rows).unwrap();
 
-        // Should create 4 entities: Company, Org, Team, Project
+        // Should create 4 entities: Tenant, Org, Team, Project
         assert_eq!(entities.len(), 4);
 
-        // Verify Company
-        let company = entities
+        // Verify Tenant
+        let tenant = entities
             .iter()
-            .find(|e| e.uid.entity_type == "Aeterna::Company")
+            .find(|e| e.uid.entity_type == "Aeterna::Tenant")
             .unwrap();
-        assert!(company.parents.is_empty());
-        assert_eq!(company.attrs["slug"], "acme-corp");
+        assert!(tenant.parents.is_empty());
 
         // Verify Organization
         let org = entities
@@ -630,7 +610,7 @@ mod tests {
             .find(|e| e.uid.entity_type == "Aeterna::Organization")
             .unwrap();
         assert_eq!(org.parents.len(), 1);
-        assert_eq!(org.parents[0].entity_type, "Aeterna::Company");
+        assert_eq!(org.parents[0].entity_type, "Aeterna::Tenant");
 
         // Verify Team
         let team = entities
@@ -832,7 +812,7 @@ mod tests {
             delegated_by_agent_id: None,
             delegation_depth: 1,
             capabilities: serde_json::json!(["memory:read", "memory:write"]),
-            allowed_company_ids: None,
+            allowed_tenant_ids: None,
             allowed_org_ids: None,
             allowed_team_ids: Some(vec![team_id]),
             allowed_project_ids: None,
@@ -876,7 +856,7 @@ mod tests {
             delegated_by_agent_id: Some(delegating_agent_id),
             delegation_depth: 2,
             capabilities: serde_json::json!(["knowledge:read"]),
-            allowed_company_ids: None,
+            allowed_tenant_ids: None,
             allowed_org_ids: None,
             allowed_team_ids: None,
             allowed_project_ids: None,

@@ -21,7 +21,6 @@ use super::{AppState, tenant_scoped_context};
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct OrgListQuery {
-    company: Option<String>,
     /// `?tenant=` — see #44.d RFC. Accepts `*` / `all` / `<slug>`.
     tenant: Option<String>,
     /// Retained for backward compatibility with pre-RFC experimental clients.
@@ -30,74 +29,63 @@ struct OrgListQuery {
 }
 
 /// Request body for `POST /api/v1/org`. Despite the legacy route name, this
-/// endpoint creates *any* organizational unit type — the request used to be
-/// hardcoded to `UnitType::Organization` with a mandatory `companyId`
-/// pointing at the parent Company, which created a UI dead-end whenever the
-/// target tenant had zero Companies (rc.9 triage item B-create-org). The
-/// request shape is now type-agnostic; the handler resolves the effective
-/// `unit_type` and the effective parent, then forwards to
-/// [`storage::postgres::create_unit_scoped`] which enforces the hierarchy
-/// rules (Company has no parent; Organization → Company; Team →
-/// Organization; Project → Team).
+/// endpoint creates tenant-root hierarchy units. Organization is now the root
+/// type inside a tenant; Team remains parented under Organization and Project
+/// under Team.
 ///
-/// Backward compatibility:
-///
-/// - `unit_type` is optional and defaults to `Organization` so admin-ui
-///   builds shipped before v1.5.0 keep working unchanged.
-/// - `company_id` is retained as a deprecated alias for `parent_id`. CLI
-///   tools (`cli/src/commands/org.rs`) and the tools-crate JSON schemas
-///   still send `companyId`. When both are present, `parent_id` wins.
-///
-/// The deprecated alias should be removed in 1.6.0 once those callers are
-/// migrated; until then, the handler normalizes them in
-/// [`CreateOrgRequest::resolve_parent_id`].
+/// `unit_type` is optional and defaults to `Organization` so callers that do
+/// not send it still create a tenant-root organization.
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(rename_all = "PascalCase")]
+enum CreateOrgUnitType {
+    Organization,
+    Team,
+    Project,
+}
+
+impl From<CreateOrgUnitType> for UnitType {
+    fn from(value: CreateOrgUnitType) -> Self {
+        match value {
+            CreateOrgUnitType::Organization => UnitType::Organization,
+            CreateOrgUnitType::Team => UnitType::Team,
+            CreateOrgUnitType::Project => UnitType::Project,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CreateOrgRequest {
     name: String,
     description: Option<String>,
     /// Defaults to [`UnitType::Organization`] for back-compat with
     /// pre-v1.5.0 admin-ui clients that never sent this field.
     #[serde(default)]
-    unit_type: Option<UnitType>,
-    /// Parent unit id. Required for Organization/Team/Project, must be
-    /// absent for Company. The handler validates the cheap rules; the
-    /// storage layer validates parent existence and tenant ownership.
+    unit_type: Option<CreateOrgUnitType>,
+    /// Parent unit id. Required for Team/Project, omitted for Organization.
     #[serde(default)]
     parent_id: Option<String>,
-    /// Deprecated alias for `parent_id`. Pre-v1.5.0 callers send only this
-    /// field with the Company id. Remove in 1.6.0.
-    #[serde(default)]
-    company_id: Option<String>,
 }
 
 impl CreateOrgRequest {
-    /// Returns the effective parent id, preferring the modern `parent_id`
-    /// field over the deprecated `company_id` alias when both are set.
-    /// Pure — no I/O — so the precedence rule is unit-testable.
     fn resolve_parent_id(&self) -> Option<&str> {
-        self.parent_id.as_deref().or(self.company_id.as_deref())
+        self.parent_id.as_deref()
     }
 
     /// Returns the effective unit type, defaulting to
     /// [`UnitType::Organization`] for back-compat.
     fn resolve_unit_type(&self) -> UnitType {
-        self.unit_type.unwrap_or(UnitType::Organization)
+        self.unit_type
+            .map(UnitType::from)
+            .unwrap_or(UnitType::Organization)
     }
 }
 
 /// Returns the [`UnitType`] that the parent of a given child type must
-/// have, or `None` if the child type is a hierarchy root (only `Company`).
-///
-/// Mirrors the matrix in [`storage::postgres::create_unit_scoped`]
-/// (lines 1095–1108 at the time of writing). Kept pure — no DB calls — so
-/// the matrix is unit-testable and so any divergence from the storage
-/// layer's truth surfaces at compile time when `UnitType` gains a variant
-/// (the `match` is exhaustive).
+/// have, or `None` if the child type is a tenant-root organization.
 fn expected_parent_type(child: UnitType) -> Option<UnitType> {
     match child {
-        UnitType::Company => None,
-        UnitType::Organization => Some(UnitType::Company),
+        UnitType::Organization => None,
         UnitType::Team => Some(UnitType::Organization),
         UnitType::Project => Some(UnitType::Team),
     }
@@ -176,9 +164,6 @@ async fn list_orgs(
     if !ctx.has_known_role(&Role::PlatformAdmin) {
         units.retain(|unit| unit.tenant_id == ctx.tenant_id);
     }
-    if let Some(company_id) = query.company.as_deref() {
-        units.retain(|unit| unit.parent_id.as_deref() == Some(company_id));
-    }
     units.sort_by(|a, b| a.name.cmp(&b.name).then(a.id.cmp(&b.id)));
     Json(units).into_response()
 }
@@ -189,7 +174,7 @@ async fn list_orgs(
 /// rationale on shape reuse + in-memory narrowing.
 async fn list_orgs_cross_tenant(
     state: &AppState,
-    query: &OrgListQuery,
+    _query: &OrgListQuery,
     single_tenant: Option<&super::context::ResolvedTenant>,
 ) -> axum::response::Response {
     let mut units = match state.postgres.list_all_units().await {
@@ -200,9 +185,6 @@ async fn list_orgs_cross_tenant(
     };
     if let Some(t) = single_tenant {
         units.retain(|unit| unit.tenant_id.as_str() == t.id.as_str());
-    }
-    if let Some(company_id) = query.company.as_deref() {
-        units.retain(|unit| unit.parent_id.as_deref() == Some(company_id));
     }
     // Stable ordering: tenant first, then org name, then id.
     units.sort_by(|a, b| {
@@ -299,13 +281,13 @@ async fn create_org(
     // surface a 422 with a more actionable error_code so the admin-ui
     // can render targeted form errors (parent picker vs. type picker).
     match (expected_parent, parent_id_str.as_deref()) {
-        // Company — no parent. Anything else is a client-side bug.
+        // Organization — tenant-root, so no parent.
         (None, None) => {}
         (None, Some(_)) => {
             return error_response(
                 StatusCode::UNPROCESSABLE_ENTITY,
-                "parent_forbidden_for_company",
-                "Company units must not have a parent; omit parentId.",
+                "parent_forbidden_for_organization",
+                "Organization units are tenant-root; omit parentId.",
             );
         }
         // Organization / Team / Project — parent required and must be of
@@ -670,7 +652,7 @@ async fn require_assign_roles_permission(
     state: &AppState,
     ctx: &TenantContext,
 ) -> Result<(), axum::response::Response> {
-    let resource = format!("Aeterna::Company::\"{}\"", ctx.tenant_id.as_str());
+    let resource = format!("Aeterna::Tenant::\"{}\"", ctx.tenant_id.as_str());
     match state
         .auth_service
         .check_permission(ctx, "AssignRoles", &resource)
@@ -790,8 +772,7 @@ mod tests {
     //! Unit tests for the pure helpers introduced in the v1.5.0
     //! Create-Unit dialog generalisation. The HTTP-level behaviour of
     //! `create_org` is exercised end-to-end in `cli/tests/server_runtime_test.rs`
-    //! (the existing `companyId`-based smoke tests still pass; new
-    //! per-unit-type cases are added there).
+    //! with tenant-root hierarchy request shapes.
     use super::*;
 
     // -------------------------------------------------------------------------
@@ -800,16 +781,8 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn expected_parent_company_is_a_root() {
-        assert_eq!(expected_parent_type(UnitType::Company), None);
-    }
-
-    #[test]
-    fn expected_parent_organization_is_company() {
-        assert_eq!(
-            expected_parent_type(UnitType::Organization),
-            Some(UnitType::Company)
-        );
+    fn expected_parent_organization_is_tenant_root() {
+        assert_eq!(expected_parent_type(UnitType::Organization), None);
     }
 
     #[test]
@@ -829,41 +802,27 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // CreateOrgRequest::resolve_parent_id — precedence between the modern
-    // parent_id and the deprecated company_id alias.
+    // CreateOrgRequest::resolve_parent_id
     // -------------------------------------------------------------------------
 
-    fn req(parent_id: Option<&str>, company_id: Option<&str>) -> CreateOrgRequest {
+    fn req(parent_id: Option<&str>) -> CreateOrgRequest {
         CreateOrgRequest {
             name: "x".to_string(),
             description: None,
             unit_type: None,
             parent_id: parent_id.map(str::to_owned),
-            company_id: company_id.map(str::to_owned),
         }
     }
 
     #[test]
-    fn resolve_parent_prefers_parent_id_over_company_id() {
-        let r = req(Some("p-modern"), Some("p-legacy"));
-        assert_eq!(r.resolve_parent_id(), Some("p-modern"));
-    }
-
-    #[test]
-    fn resolve_parent_falls_back_to_company_id() {
-        let r = req(None, Some("p-legacy"));
-        assert_eq!(r.resolve_parent_id(), Some("p-legacy"));
-    }
-
-    #[test]
-    fn resolve_parent_returns_none_when_both_absent() {
-        let r = req(None, None);
+    fn resolve_parent_returns_none_when_absent() {
+        let r = req(None);
         assert_eq!(r.resolve_parent_id(), None);
     }
 
     #[test]
-    fn resolve_parent_uses_parent_id_even_when_company_id_absent() {
-        let r = req(Some("p-modern"), None);
+    fn resolve_parent_uses_parent_id_when_present() {
+        let r = req(Some("p-modern"));
         assert_eq!(r.resolve_parent_id(), Some("p-modern"));
     }
 
@@ -876,52 +835,46 @@ mod tests {
         // This default exists for pre-v1.5.0 admin-ui clients which never
         // sent `unitType`. Removing or changing the default is a wire
         // contract change.
-        let r = req(Some("p"), None);
+        let r = req(Some("p"));
         assert_eq!(r.resolve_unit_type(), UnitType::Organization);
     }
 
     #[test]
     fn resolve_unit_type_honours_explicit_choice() {
-        for ut in [
-            UnitType::Company,
-            UnitType::Organization,
-            UnitType::Team,
-            UnitType::Project,
+        for (requested, expected) in [
+            (CreateOrgUnitType::Organization, UnitType::Organization),
+            (CreateOrgUnitType::Team, UnitType::Team),
+            (CreateOrgUnitType::Project, UnitType::Project),
         ] {
             let r = CreateOrgRequest {
                 name: "x".to_string(),
                 description: None,
-                unit_type: Some(ut),
+                unit_type: Some(requested),
                 parent_id: None,
-                company_id: None,
             };
-            assert_eq!(r.resolve_unit_type(), ut);
+            assert_eq!(r.resolve_unit_type(), expected);
         }
     }
 
     // -------------------------------------------------------------------------
     // Wire-format regression tests — these guard the camelCase contract on
-    // the request body. Pre-v1.5.0 admin-ui clients send `companyId`; the
-    // CLI tools crate sends both `companyId` and `name`. v1.5.0 clients
-    // can additionally send `unitType` and `parentId`. ALL of the
-    // following payloads MUST deserialise.
+    // the request body. The strict tenant-root model accepts `parentId`
+    // only; legacy root aliases are no longer supported.
     // -------------------------------------------------------------------------
 
     #[test]
-    fn deserialises_legacy_company_id_only_payload() {
-        let json = r#"{"name":"acme-eng","companyId":"comp-1"}"#;
+    fn deserialises_org_root_payload_without_parent() {
+        let json = r#"{"name":"acme-eng"}"#;
         let r: CreateOrgRequest = serde_json::from_str(json).unwrap();
         assert_eq!(r.name, "acme-eng");
-        assert_eq!(r.resolve_parent_id(), Some("comp-1"));
+        assert_eq!(r.resolve_parent_id(), None);
         assert_eq!(r.resolve_unit_type(), UnitType::Organization);
     }
 
     #[test]
-    fn deserialises_modern_unit_type_and_parent_id_payload() {
-        let json = r#"{"name":"acme","unitType":"Company","parentId":null}"#;
-        let r: CreateOrgRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(r.resolve_unit_type(), UnitType::Company);
-        assert_eq!(r.resolve_parent_id(), None);
+    fn rejects_unknown_root_unit_type_payload() {
+        let json = r#"{"name":"acme","unitType":"Tenant","parentId":null}"#;
+        assert!(serde_json::from_str::<CreateOrgRequest>(json).is_err());
     }
 
     #[test]
@@ -933,13 +886,9 @@ mod tests {
     }
 
     #[test]
-    fn deserialises_payload_with_both_parent_id_and_company_id() {
-        // When the admin-ui sends parentId but a stale CLI client also
-        // sends companyId, parentId must win — this is the documented
-        // precedence rule that keeps the deprecation transition safe.
-        let json = r#"{"name":"x","parentId":"new","companyId":"old"}"#;
-        let r: CreateOrgRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(r.resolve_parent_id(), Some("new"));
+    fn rejects_unknown_legacy_root_alias_field() {
+        let json = r#"{"name":"x","parentId":"new","rootId":"old"}"#;
+        assert!(serde_json::from_str::<CreateOrgRequest>(json).is_err());
     }
 
     #[test]

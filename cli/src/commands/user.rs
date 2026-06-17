@@ -229,7 +229,7 @@ async fn run_register(args: UserRegisterArgs) -> anyhow::Result<()> {
                 println!("  3. Request membership in specified org/team");
                 println!("  4. Wait for admin approval (if required)");
             } else {
-                println!("  3. Grant access to company-level resources");
+                println!("  3. Grant access to tenant-wide resources");
             }
             println!();
 
@@ -481,7 +481,7 @@ async fn run_roles(args: UserRolesArgs) -> anyhow::Result<()> {
             return Err(anyhow::anyhow!("Invalid role"));
         }
 
-        let scope = args.scope.clone().unwrap_or_else(|| "company".to_string());
+        let scope = args.scope.clone().unwrap_or_else(|| "tenant".to_string());
 
         if let Some(client) = get_live_client().await {
             let result = client
@@ -539,7 +539,7 @@ async fn run_roles(args: UserRolesArgs) -> anyhow::Result<()> {
     }
 
     if let Some(ref role_to_revoke) = args.revoke {
-        let scope = args.scope.clone().unwrap_or_else(|| "company".to_string());
+        let scope = args.scope.clone().unwrap_or_else(|| "tenant".to_string());
 
         if let Some(client) = get_live_client().await {
             let result = client
@@ -1077,7 +1077,7 @@ mod tests {
             list: false,
             grant: None,
             revoke: Some("admin".to_string()),
-            scope: Some("company".to_string()),
+            scope: Some("tenant".to_string()),
             json: false,
         };
         assert_eq!(args.revoke, Some("admin".to_string()));
@@ -1151,7 +1151,7 @@ mod tests {
     fn test_email_validation_valid() {
         let valid_emails = [
             "user@example.com",
-            "alice.smith@company.org",
+            "alice.smith@example.org",
             "bob+tag@domain.co.uk",
         ];
         for email in valid_emails {
@@ -1205,7 +1205,7 @@ mod tests {
     #[test]
     fn test_user_register_args_email_only() {
         let args = UserRegisterArgs {
-            email: Some("test@company.com".to_string()),
+            email: Some("test@example.com".to_string()),
             name: None,
             org: None,
             team: None,
@@ -1246,7 +1246,7 @@ mod tests {
 
     #[test]
     fn test_user_roles_args_scope_levels() {
-        let scopes = ["company", "org", "team", "project"];
+        let scopes = ["tenant", "org", "team", "project"];
         for scope in scopes {
             let args = UserRolesArgs {
                 user: Some("user@example.com".to_string()),

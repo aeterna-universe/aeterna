@@ -169,7 +169,7 @@ pub fn default_bootstrap_templates() -> Vec<BootstrapTaskTemplate> {
         BootstrapTaskTemplate::moderate(
             "org_standards",
             "coding guidelines",
-            vec![MemoryLayer::Org, MemoryLayer::Company],
+            vec![MemoryLayer::Org, MemoryLayer::Tenant],
         ),
         BootstrapTaskTemplate::complex(
             "complex_comparison",

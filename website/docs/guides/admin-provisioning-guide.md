@@ -87,8 +87,8 @@ server:
 When the server starts with valid bootstrap configuration:
 
 1. **Organizational unit** — creates the instance-scope organizational unit (`__root__`)
-2. **Company** — creates the root company record
-3. **Organization** — creates a `platform` organization under the company
+2. **Tenant** — creates the root tenant record
+3. **Organization** — creates a `platform` organization under the tenant
 4. **Team** — creates an `admins` team within the platform organization
 5. **User** — upserts a user row with the configured email, provider, and subject
 6. **Membership** — adds the user to the `admins` team with `admin` role
@@ -384,7 +384,7 @@ aeterna permissions matrix
 
 ## 8. Organizational Hierarchy
 
-Aeterna uses a four-level hierarchy: **Company → Organization → Team → Project**.
+Aeterna uses a four-level hierarchy: **Tenant → Organization → Team → Project**.
 
 ### Create an Organization
 

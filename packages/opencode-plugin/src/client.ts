@@ -569,7 +569,7 @@ export class AeternaClient {
         context: "",
         tokensUsed: 0,
         tokenBudget: params.tokenBudget ?? 8000,
-        layerBreakdown: { agent: 0, user: 0, session: 0, project: 0, team: 0, org: 0, company: 0 } as Record<MemoryLayer, number>,
+        layerBreakdown: { agent: 0, user: 0, session: 0, project: 0, team: 0, org: 0, tenant: 0 } as Record<MemoryLayer, number>,
         truncated: false,
         sources: [],
       };

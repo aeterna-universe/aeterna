@@ -230,10 +230,10 @@ impl EntityUid {
         Self::new("Aeterna::Organization", id)
     }
 
-    /// Create a Company entity UID.
+    /// Create a Tenant entity UID.
     #[must_use]
-    pub fn company(id: impl Into<String>) -> Self {
-        Self::new("Aeterna::Company", id)
+    pub fn tenant(id: impl Into<String>) -> Self {
+        Self::new("Aeterna::Tenant", id)
     }
 
     /// Create an Action entity UID.
@@ -815,7 +815,7 @@ impl CedarClient {
 
     /// Get accessible memory layers for a user.
     ///
-    /// Returns the hierarchy of accessible entities (Company -> Org -> Team ->
+    /// Returns the hierarchy of accessible entities (Tenant -> Org -> Team ->
     /// Project).
     pub async fn get_accessible_layers(&self, user_id: &str) -> Result<AccessibleLayers> {
         let user = self.resolve_entity(&EntityUid::user(user_id)).await?;
@@ -836,13 +836,13 @@ impl CedarClient {
                                 layers.org_ids.push(team_parent.id.clone());
                             }
 
-                            // Find the org to get its company
+                            // Find the org to get its tenant root
                             if let Some(org) = all_entities.iter().find(|e| e.uid == *team_parent) {
                                 for org_parent in &org.parents {
-                                    if org_parent.entity_type == "Aeterna::Company"
-                                        && !layers.company_ids.contains(&org_parent.id)
+                                    if org_parent.entity_type == "Aeterna::Tenant"
+                                        && !layers.tenant_ids.contains(&org_parent.id)
                                     {
-                                        layers.company_ids.push(org_parent.id.clone());
+                                        layers.tenant_ids.push(org_parent.id.clone());
                                     }
                                 }
                             }
@@ -957,8 +957,8 @@ impl CedarClient {
 /// Represents the layers accessible to a user.
 #[derive(Debug, Clone, Default)]
 pub struct AccessibleLayers {
-    /// Accessible company IDs.
-    pub company_ids: Vec<String>,
+    /// Accessible tenant IDs.
+    pub tenant_ids: Vec<String>,
 
     /// Accessible organization IDs.
     pub org_ids: Vec<String>,
@@ -974,7 +974,7 @@ impl AccessibleLayers {
     /// Check if any layers are accessible.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.company_ids.is_empty()
+        self.tenant_ids.is_empty()
             && self.org_ids.is_empty()
             && self.team_ids.is_empty()
             && self.project_ids.is_empty()
@@ -983,7 +983,7 @@ impl AccessibleLayers {
     /// Get total count of accessible entities.
     #[must_use]
     pub fn total_count(&self) -> usize {
-        self.company_ids.len() + self.org_ids.len() + self.team_ids.len() + self.project_ids.len()
+        self.tenant_ids.len() + self.org_ids.len() + self.team_ids.len() + self.project_ids.len()
     }
 }
 
@@ -1154,7 +1154,7 @@ mod tests {
     #[test]
     fn test_accessible_layers_total_count() {
         let layers = AccessibleLayers {
-            company_ids: vec!["c1".to_string()],
+            tenant_ids: vec!["c1".to_string()],
             org_ids: vec!["o1".to_string(), "o2".to_string()],
             team_ids: vec!["t1".to_string()],
             project_ids: vec!["p1".to_string(), "p2".to_string(), "p3".to_string()],
@@ -1202,14 +1202,14 @@ mod integration_tests {
     fn create_test_entities() -> serde_json::Value {
         serde_json::json!([
             {
-                "uid": {"type": "Aeterna::Company", "id": "acme-corp"},
+                "uid": {"type": "Aeterna::Tenant", "id": "acme-corp"},
                 "attrs": {"name": "Acme Corporation", "slug": "acme"},
                 "parents": []
             },
             {
                 "uid": {"type": "Aeterna::Organization", "id": "org-platform"},
                 "attrs": {"name": "Platform Engineering"},
-                "parents": [{"type": "Aeterna::Company", "id": "acme-corp"}]
+                "parents": [{"type": "Aeterna::Tenant", "id": "acme-corp"}]
             },
             {
                 "uid": {"type": "Aeterna::Team", "id": "team-api"},
@@ -1223,7 +1223,7 @@ mod integration_tests {
             },
             {
                 "uid": {"type": "Aeterna::User", "id": "user-alice"},
-                "attrs": {"email": "alice@acme.com", "name": "Alice", "company_slug": "acme"},
+                "attrs": {"email": "alice@acme.com", "name": "Alice", "tenant_slug": "acme"},
                 "parents": [{"type": "Aeterna::Team", "id": "team-api"}]
             },
             {
@@ -1307,7 +1307,7 @@ mod integration_tests {
             .iter()
             .map(|e| e.uid.entity_type.as_str())
             .collect();
-        assert!(types.contains(&"Aeterna::Company"));
+        assert!(types.contains(&"Aeterna::Tenant"));
         assert!(types.contains(&"Aeterna::Organization"));
         assert!(types.contains(&"Aeterna::Team"));
         assert!(types.contains(&"Aeterna::Project"));
@@ -1334,7 +1334,7 @@ mod integration_tests {
         assert_eq!(user.uid.entity_type, "Aeterna::User");
         assert_eq!(user.uid.id, "user-alice");
         assert_eq!(user.get_attr_str("email"), Some("alice@acme.com"));
-        assert_eq!(user.get_attr_str("company_slug"), Some("acme"));
+        assert_eq!(user.get_attr_str("tenant_slug"), Some("acme"));
     }
 
     #[tokio::test]
@@ -1504,7 +1504,7 @@ mod integration_tests {
         assert!(layers.org_ids.contains(&"org-platform".to_string()));
 
         // org-platform is in acme-corp
-        assert!(layers.company_ids.contains(&"acme-corp".to_string()));
+        assert!(layers.tenant_ids.contains(&"acme-corp".to_string()));
 
         // proj-payments is in team-api
         assert!(layers.project_ids.contains(&"proj-payments".to_string()));

@@ -494,7 +494,7 @@ Knowledge layers map to memory layers for pointer storage:
 
 | Knowledge Layer | Default Memory Layer | Rationale |
 |-----------------|---------------------|-----------|
-| `company` | `company` | 1:1 mapping |
+| `tenant` | `tenant` | 1:1 mapping |
 | `org` | `org` | 1:1 mapping |
 | `team` | `team` | 1:1 mapping |
 | `project` | `project` | 1:1 mapping |

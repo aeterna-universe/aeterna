@@ -62,7 +62,7 @@ Each policy includes:
 ### Scope Levels
 
 ```
-Company (highest precedence)
+Tenant (highest precedence)
     ↓ Mandatory policies flow down
 Organization
     ↓ Department standards

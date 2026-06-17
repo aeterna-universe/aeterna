@@ -109,7 +109,7 @@ MK_KNOWLEDGE_ENFORCEMENT=warn
 |---------------------|----------------------|-------|
 | `MemoryEntry` | `Memory` | Direct mapping |
 | `KnowledgeItem` | `KnowledgeItem` | 1:1 correspondence |
-| `MemoryLayer` | `MemoryLayer` | Extended with company layer |
+| `MemoryLayer` | `MemoryLayer` | Extended with tenant layer |
 | `Constraint` | `Constraint` | Same schema |
 
 ### TypeScript Interface Mapping
@@ -235,7 +235,7 @@ const knowledgeQueryTool = {
     properties: {
       query: { type: 'string' },
       type: { type: 'string', enum: ['adr', 'policy', 'pattern', 'spec'] },
-      layer: { type: 'string', enum: ['project', 'team', 'org', 'company'] }
+      layer: { type: 'string', enum: ['project', 'team', 'org', 'tenant'] }
     }
   },
   handler: async (input) => {

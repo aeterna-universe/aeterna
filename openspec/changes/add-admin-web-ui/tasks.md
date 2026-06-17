@@ -51,7 +51,7 @@
 
 ## 6. Organizational hierarchy
 
-- [ ] 6.1 Create `src/pages/organizations/OrgTreePage.tsx` — Visual tree view showing Company → Organization → Team → Project hierarchy using a collapsible tree component.
+- [ ] 6.1 Create `src/pages/organizations/OrgTreePage.tsx` — Visual tree view showing Tenant → Organization → Team → Project hierarchy using a collapsible tree component.
 - [ ] 6.2 Create `src/pages/organizations/OrgUnitCreateDialog.tsx` — Dialog for creating org units (type, name, description, parent) with parent selection from the tree.
 - [ ] 6.3 Create `src/pages/organizations/OrgUnitDetailPanel.tsx` — Side panel showing org unit details, metadata, and member list with roles.
 - [ ] 6.4 Create `src/pages/organizations/MemberManagement.tsx` — Component for adding/removing members and setting roles within an org unit scope.
@@ -67,7 +67,7 @@
 
 ## 8. Knowledge management
 
-- [ ] 8.1 Create `src/pages/knowledge/KnowledgeSearchPage.tsx` — Search interface with query input, type filter (ADR, Policy, Pattern, Spec, Hindsight), layer filter (Company → Project), and paginated results with relevance scores.
+- [ ] 8.1 Create `src/pages/knowledge/KnowledgeSearchPage.tsx` — Search interface with query input, type filter (ADR, Policy, Pattern, Spec, Hindsight), layer filter (Tenant → Project), and paginated results with relevance scores.
 - [ ] 8.2 Create `src/pages/knowledge/KnowledgeDetailPage.tsx` — Detail view showing knowledge item content (rendered markdown), metadata, type, layer, status, relations, and promotion history.
 - [ ] 8.3 Create `src/pages/knowledge/KnowledgeEditorDialog.tsx` — Markdown editor dialog for creating/editing knowledge items with live preview, type selector, layer selector, and tag management.
 - [ ] 8.4 Create `src/pages/knowledge/PromotionWorkflowPanel.tsx` — Panel showing promotion requests for a knowledge item: request → preview → approve/reject with comments. Includes promotion mode selection (Full/Partial).
@@ -76,7 +76,7 @@
 
 ## 9. Memory management
 
-- [ ] 9.1 Create `src/pages/memory/MemorySearchPage.tsx` — Semantic search interface with query input, layer filter (Agent → Company), threshold slider, and results list with relevance scores.
+- [ ] 9.1 Create `src/pages/memory/MemorySearchPage.tsx` — Semantic search interface with query input, layer filter (Agent → Tenant), threshold slider, and results list with relevance scores.
 - [ ] 9.2 Create `src/pages/memory/MemoryListPage.tsx` — Memory list by selected layer with pagination and sorting by importance/recency.
 - [ ] 9.3 Create `src/pages/memory/MemoryDetailView.tsx` — Detail view showing memory content, metadata, layer, importance score, tags, and feedback history.
 - [ ] 9.4 Create `src/pages/memory/MemoryAddDialog.tsx` — Dialog for adding a memory (content, layer, tags, metadata).

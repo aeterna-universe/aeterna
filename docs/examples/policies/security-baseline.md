@@ -11,7 +11,7 @@ Essential security policies that every enterprise organization should implement.
 **Cedar Policy**:
 ```cedar
 // Policy: no-vulnerable-lodash
-// Scope: company (mandatory)
+// Scope: tenant (mandatory)
 // Severity: block
 // Reference: CVE-2021-23337
 
@@ -30,7 +30,7 @@ when {
 Lodash versions before 4.17.21 contain a prototype pollution vulnerability (CVE-2021-23337) that can lead to remote code execution. This policy blocks any project from using vulnerable versions.
 
 **Use Cases**:
-- Company-wide security baseline
+- Tenant-wide security baseline
 - Compliance requirements (SOC2, PCI-DSS)
 - Supply chain security
 
@@ -57,7 +57,7 @@ when {
 **Cedar Policy**:
 ```cedar
 // Policy: require-tls-1-3
-// Scope: company (mandatory)
+// Scope: tenant (mandatory)
 // Severity: block
 
 forbid(
@@ -104,7 +104,7 @@ when {
 **Cedar Policy**:
 ```cedar
 // Policy: no-eval
-// Scope: company (mandatory)
+// Scope: tenant (mandatory)
 // Severity: block
 
 forbid(
@@ -150,7 +150,7 @@ when {
 **Cedar Policy**:
 ```cedar
 // Policy: require-security-md
-// Scope: company
+// Scope: tenant
 // Severity: warn (upgrade to block after grace period)
 
 permit(
@@ -195,7 +195,7 @@ SECURITY.md provides a standard location for security policies and vulnerability
 | 1.x     | ❌        |
 
 ## Reporting a Vulnerability
-Email security@company.com with:
+Email security@example.com with:
 - Description of vulnerability
 - Steps to reproduce
 - Impact assessment
@@ -212,7 +212,7 @@ Response within 48 hours.
 **Cedar Policy**:
 ```cedar
 // Policy: no-hardcoded-secrets
-// Scope: company (mandatory)
+// Scope: tenant (mandatory)
 // Severity: block
 
 forbid(
@@ -360,7 +360,7 @@ when {
 **Cedar Policy**:
 ```cedar
 // Policy: no-sql-string-concat
-// Scope: company (mandatory)
+// Scope: tenant (mandatory)
 // Severity: block
 
 forbid(
@@ -401,16 +401,16 @@ format!("SELECT * FROM users WHERE id = {}", user_id)
 
 To implement this security baseline:
 
-1. **Import as company-level policies**:
+1. **Import as tenant-level policies**:
    ```bash
    $ aeterna policy import docs/examples/policies/security-baseline.md \
-       --scope company \
+       --scope tenant \
        --mode mandatory
    ```
 
 2. **Run simulation on all projects**:
    ```bash
-   $ aeterna policy simulate security-baseline --scope company
+   $ aeterna policy simulate security-baseline --scope tenant
    ```
 
 3. **Review violations and plan remediation**:
@@ -425,7 +425,7 @@ To implement this security baseline:
 
 5. **Monitor compliance**:
    ```bash
-   $ aeterna status --scope company --include-compliance
+   $ aeterna status --scope tenant --include-compliance
    ```
 
 ---

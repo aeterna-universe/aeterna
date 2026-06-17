@@ -2,7 +2,7 @@
 //!
 //! This module defines who can govern at each level of the organizational
 //! hierarchy. Meta-governance policies control:
-//! - Who can create/approve policies at each layer (company, org, team,
+//! - Who can create/approve policies at each layer (tenant, org, team,
 //!   project)
 //! - Delegation rules for AI agents (what they can do autonomously vs needing
 //!   human approval)
@@ -26,7 +26,7 @@ const DEFAULT_GOVERNANCE_SUBMISSIONS_PER_DAY: u64 = 5;
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum GovernanceLayer {
-    Company,
+    Tenant,
     Org,
     Team,
     Project,
@@ -35,7 +35,7 @@ pub enum GovernanceLayer {
 impl std::fmt::Display for GovernanceLayer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GovernanceLayer::Company => write!(f, "company"),
+            GovernanceLayer::Tenant => write!(f, "tenant"),
             GovernanceLayer::Org => write!(f, "org"),
             GovernanceLayer::Team => write!(f, "team"),
             GovernanceLayer::Project => write!(f, "project"),
@@ -48,12 +48,12 @@ impl std::str::FromStr for GovernanceLayer {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "company" => Ok(GovernanceLayer::Company),
+            "tenant" => Ok(GovernanceLayer::Tenant),
             "org" | "organization" => Ok(GovernanceLayer::Org),
             "team" => Ok(GovernanceLayer::Team),
             "project" => Ok(GovernanceLayer::Project),
             _ => Err(format!(
-                "Invalid governance layer: {}. Use: company, org, team, project",
+                "Invalid governance layer: {}. Use: tenant, org, team, project",
                 s
             )),
         }
@@ -579,7 +579,7 @@ pub fn create_default_policies() -> Vec<MetaGovernancePolicy> {
     vec![
         MetaGovernancePolicy {
             id: Uuid::new_v4(),
-            layer: GovernanceLayer::Company,
+            layer: GovernanceLayer::Tenant,
             scope_id: None,
             min_role_for_governance: RoleLevel::Admin,
             action_permissions: vec![
@@ -1335,7 +1335,7 @@ mod tests {
 
     #[test]
     fn test_governance_layer_display() {
-        assert_eq!(GovernanceLayer::Company.to_string(), "company");
+        assert_eq!(GovernanceLayer::Tenant.to_string(), "tenant");
         assert_eq!(GovernanceLayer::Org.to_string(), "org");
         assert_eq!(GovernanceLayer::Team.to_string(), "team");
         assert_eq!(GovernanceLayer::Project.to_string(), "project");
@@ -1344,8 +1344,8 @@ mod tests {
     #[test]
     fn test_governance_layer_parse() {
         assert_eq!(
-            "company".parse::<GovernanceLayer>().unwrap(),
-            GovernanceLayer::Company
+            "tenant".parse::<GovernanceLayer>().unwrap(),
+            GovernanceLayer::Tenant
         );
         assert_eq!(
             "organization".parse::<GovernanceLayer>().unwrap(),
@@ -1398,7 +1398,7 @@ mod tests {
         assert_eq!(policies.len(), 4);
 
         let layers: Vec<_> = policies.iter().map(|p| p.layer).collect();
-        assert!(layers.contains(&GovernanceLayer::Company));
+        assert!(layers.contains(&GovernanceLayer::Tenant));
         assert!(layers.contains(&GovernanceLayer::Org));
         assert!(layers.contains(&GovernanceLayer::Team));
         assert!(layers.contains(&GovernanceLayer::Project));
@@ -1407,14 +1407,14 @@ mod tests {
     #[test]
     fn test_company_policy_most_restrictive() {
         let policies = create_default_policies();
-        let company = policies
+        let tenant = policies
             .iter()
-            .find(|p| p.layer == GovernanceLayer::Company)
+            .find(|p| p.layer == GovernanceLayer::Tenant)
             .unwrap();
 
-        assert_eq!(company.min_role_for_governance, RoleLevel::Admin);
-        assert!(!company.agent_delegation.autonomous_enabled);
-        assert_eq!(company.agent_delegation.max_delegation_depth, 1);
+        assert_eq!(tenant.min_role_for_governance, RoleLevel::Admin);
+        assert!(!tenant.agent_delegation.autonomous_enabled);
+        assert_eq!(tenant.agent_delegation.max_delegation_depth, 1);
     }
 
     #[test]
@@ -1433,12 +1433,12 @@ mod tests {
     #[test]
     fn test_authorization_check_role_insufficient() {
         let policies = create_default_policies();
-        let company = policies
+        let tenant = policies
             .iter()
-            .find(|p| p.layer == GovernanceLayer::Company)
+            .find(|p| p.layer == GovernanceLayer::Tenant)
             .unwrap();
 
-        let result = company.check_authorization(
+        let result = tenant.check_authorization(
             PrincipalType::User,
             RoleLevel::Developer,
             GovernanceActionType::ApprovePolicy,
@@ -1472,12 +1472,12 @@ mod tests {
     #[test]
     fn test_authorization_check_agent_no_autonomous() {
         let policies = create_default_policies();
-        let company = policies
+        let tenant = policies
             .iter()
-            .find(|p| p.layer == GovernanceLayer::Company)
+            .find(|p| p.layer == GovernanceLayer::Tenant)
             .unwrap();
 
-        let result = company.check_authorization(
+        let result = tenant.check_authorization(
             PrincipalType::Agent,
             RoleLevel::Admin, // Even admin agent can't act autonomously
             GovernanceActionType::CreatePolicy,

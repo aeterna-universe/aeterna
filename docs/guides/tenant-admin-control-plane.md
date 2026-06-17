@@ -1,6 +1,6 @@
 # Tenant Admin Control Plane
 
-End-to-end guide for tenant ownership boundaries, tenant bootstrap, tenant configuration/secrets, shared Git provider connections, and scoped administrative workflows.
+End-to-end guide for account-owned tenant lifecycle boundaries, tenant bootstrap, tenant configuration/secrets, shared Git provider connections, and scoped administrative workflows.
 
 ---
 
@@ -26,10 +26,10 @@ End-to-end guide for tenant ownership boundaries, tenant bootstrap, tenant confi
 Aeterna uses two administrative roles that sit above the standard tenant-scoped
 role hierarchy:
 
-| Role | Rust variant | Cedar value | Scope |
-|---|---|---|---|
+| Role              | Rust variant              | Cedar value        | Scope                                                                   |
+| ----------------- | ------------------------- | ------------------ | ----------------------------------------------------------------------- |
 | **PlatformAdmin** | `RoleKind::PlatformAdmin` | `"platform_admin"` | Cross-tenant — tenant lifecycle, repo bindings, cross-tenant inspection |
-| **TenantAdmin** | `RoleKind::TenantAdmin` | `"tenant_admin"` | Within a single tenant — same permissions as `admin` |
+| **TenantAdmin**   | `RoleKind::TenantAdmin`   | `"tenant_admin"`   | Within a single tenant — same permissions as `admin`                    |
 
 The existing five tenant-scoped roles (`admin`, `architect`, `tech_lead`,
 `developer`, `viewer`) continue to operate exactly as before.
@@ -62,12 +62,12 @@ The existing five tenant-scoped roles (`admin`, `architect`, `tech_lead`,
 
 The control plane uses one ownership vocabulary everywhere:
 
-| Surface | Tenant-owned | Platform-owned |
-|---|---|---|
-| Tenant config fields | Runtime settings owned by the tenant | Deployment or platform-enforced fields |
-| Tenant secret entries | Tenant integration credentials, webhook secrets, API tokens | Shared/platform bootstrap secrets |
-| Repository binding | Canonical repo binding for a tenant | Validation and cross-tenant control by PlatformAdmin |
-| Git provider connections | Never directly owned by a tenant | Shared GitHub App connectivity and secret refs |
+| Surface                  | Tenant-owned                                                | Platform-owned                                       |
+| ------------------------ | ----------------------------------------------------------- | ---------------------------------------------------- |
+| Tenant config fields     | Runtime settings owned by the tenant                        | Deployment or platform-enforced fields               |
+| Tenant secret entries    | Tenant integration credentials, webhook secrets, API tokens | Shared/platform bootstrap secrets                    |
+| Repository binding       | Canonical repo binding for a tenant                         | Validation and cross-tenant control by PlatformAdmin |
+| Git provider connections | Never directly owned by a tenant                            | Shared GitHub App connectivity and secret refs       |
 
 Rules:
 
@@ -84,11 +84,13 @@ Rules:
 
 ```bash
 aeterna tenant create \
-  --slug acme \
-  --name "Acme Corp"
+  --slug acme-prod \
+  --name "Acme Prod" \
+  --account acme \
+  --environment prod
 ```
 
-The server creates a tenant record, assigns a tenant UUID, and emits audit/governance events.
+The server creates a tenant record, assigns a tenant UUID, persists the optional account/environment metadata, and emits audit/governance events.
 
 ### 2.2 List all tenants
 
@@ -131,7 +133,7 @@ begin returning `tenant_deactivated` errors. The record is retained for audit.
 aeterna auth login
 
 # Create the tenant record
-aeterna tenant create --slug acme --name "Acme Corp"
+aeterna tenant create --slug acme-prod --name "Acme Prod" --account acme --environment prod
 
 # Bootstrap the repository binding
 aeterna tenant repo-binding set \
@@ -157,15 +159,15 @@ how knowledge reads and writes resolve storage for that tenant.
 
 ### Binding model
 
-| Field | Required | Notes |
-|---|---|---|
-| `kind` | Yes | `local`, `gitRemote`, or `github` |
-| `localPath` | For `local` | Filesystem path |
-| `remoteUrl` | For `gitRemote` / `github` | Remote repository URL |
-| `branch` | Usually yes | Default branch for reads/writes |
-| `credentialRef` | Optional | Secret reference only — never raw secret material |
-| `gitProviderConnectionId` | Optional | Reference to a shared platform-owned Git provider connection |
-| `sourceOwner` | Auto | Record ownership metadata |
+| Field                     | Required                   | Notes                                                        |
+| ------------------------- | -------------------------- | ------------------------------------------------------------ |
+| `kind`                    | Yes                        | `local`, `gitRemote`, or `github`                            |
+| `localPath`               | For `local`                | Filesystem path                                              |
+| `remoteUrl`               | For `gitRemote` / `github` | Remote repository URL                                        |
+| `branch`                  | Usually yes                | Default branch for reads/writes                              |
+| `credentialRef`           | Optional                   | Secret reference only — never raw secret material            |
+| `gitProviderConnectionId` | Optional                   | Reference to a shared platform-owned Git provider connection |
+| `sourceOwner`             | Auto                       | Record ownership metadata                                    |
 
 ### Show the current binding
 
@@ -229,13 +231,13 @@ Example payload:
 
 ```json
 {
-  "fields": {
-    "runtime.logLevel": {
-      "ownership": "tenant",
-      "value": "info"
-    }
-  },
-  "secretReferences": {}
+    "fields": {
+        "runtime.logLevel": {
+            "ownership": "tenant",
+            "value": "info"
+        }
+    },
+    "secretReferences": {}
 }
 ```
 
@@ -318,8 +320,8 @@ All CLI command groups that modify or inspect tenant-scoped state accept an opti
 
 ## 10. Permission Inspection
 
-Roles can be assigned at four scopes: `company` (tenant root), `org`, `team`,
-and `project`. The `govern roles` command is the primary interface.
+Roles can be assigned at four scopes: `tenant` (root), `org`, `team`, and
+`project`. The `govern roles` command is the primary interface.
 
 ### List role assignments
 
@@ -335,13 +337,13 @@ aeterna govern roles list --json
 aeterna govern roles assign \
   --principal alice@acme.com \
   --role developer \
-  --scope "company:acme"
+  --scope "tenant"
 
 # Platform-admin assigning a role in another tenant
 aeterna govern roles assign \
   --principal bob@other.com \
   --role tenant_admin \
-  --scope "company:other" \
+  --scope "tenant" \
   --target-tenant <other-tenant-id>
 ```
 
@@ -351,20 +353,20 @@ aeterna govern roles assign \
 aeterna govern roles revoke \
   --principal alice@acme.com \
   --role developer \
-  --scope "company:acme"
+  --scope "tenant"
 ```
 
 ### Available role values
 
-| Value | Maps to |
-|---|---|
+| Value            | Maps to                   |
+| ---------------- | ------------------------- |
 | `platform_admin` | `RoleKind::PlatformAdmin` |
-| `tenant_admin` | `RoleKind::TenantAdmin` |
-| `admin` | `RoleKind::Admin` |
-| `architect` | `RoleKind::Architect` |
-| `tech_lead` | `RoleKind::TechLead` |
-| `developer` | `RoleKind::Developer` |
-| `viewer` | `RoleKind::Viewer` |
+| `tenant_admin`   | `RoleKind::TenantAdmin`   |
+| `admin`          | `RoleKind::Admin`         |
+| `architect`      | `RoleKind::Architect`     |
+| `tech_lead`      | `RoleKind::TechLead`      |
+| `developer`      | `RoleKind::Developer`     |
+| `viewer`         | `RoleKind::Viewer`        |
 
 ---
 
@@ -382,11 +384,11 @@ aeterna permissions effective --user-id <id>
 
 The control-plane authority model is expressed in three Cedar files:
 
-| File | Contains |
-|---|---|
+| File                                 | Contains                                                                                                    |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | `policies/cedar/aeterna.cedarschema` | Entity types (`TenantRecord`, `TenantRepoBinding`, extended `User` with `platform_admin` flag), new actions |
-| `policies/cedar/rbac.cedar` | `platform_admin` and `tenant_admin` role permit policies |
-| `policies/cedar/forbid.cedar` | Cross-tenant boundary forbid rules; `tenant_admin` lifecycle restrictions |
+| `policies/cedar/rbac.cedar`          | `platform_admin` and `tenant_admin` role permit policies                                                    |
+| `policies/cedar/forbid.cedar`        | Cross-tenant boundary forbid rules; `tenant_admin` lifecycle restrictions                                   |
 
 The canonical role catalog in Rust is `RoleKind` (defined in `server/`). Cedar
 role strings (`"platform_admin"`, `"tenant_admin"`, etc.) must match the
@@ -404,15 +406,15 @@ aeterna permissions matrix
 All tenant-lifecycle and role-mutation operations emit durable audit events. The
 event schema follows the governance audit model:
 
-| Operation | Event kind |
-|---|---|
-| Tenant create | `tenant.created` |
-| Tenant update | `tenant.updated` |
-| Tenant deactivate | `tenant.deactivated` |
-| Repo binding set | `tenant_repo_binding.set` |
+| Operation              | Event kind                      |
+| ---------------------- | ------------------------------- |
+| Tenant create          | `tenant.created`                |
+| Tenant update          | `tenant.updated`                |
+| Tenant deactivate      | `tenant.deactivated`            |
+| Repo binding set       | `tenant_repo_binding.set`       |
 | Repo binding validated | `tenant_repo_binding.validated` |
-| Role assigned | `role.assigned` |
-| Role revoked | `role.revoked` |
+| Role assigned          | `role.assigned`                 |
+| Role revoked           | `role.revoked`                  |
 
 View the audit trail:
 
@@ -427,11 +429,11 @@ Platform-admins can view audit events across tenants using `--target-tenant`.
 
 ## 12. Error Reference
 
-| Error key | HTTP status | Meaning |
-|---|---|---|
-| `forbidden` | 403 | Caller lacks the required control-plane role or targets a forbidden tenant/config surface |
-| `tenant_not_found` | 404 | Tenant ID does not exist |
-| `tenant_deactivated` | 403 | Target tenant is deactivated |
-| `invalid_credential_ref` | 422 | Repository binding contains raw or unsupported credential material |
-| `git_provider_connection_*` | 404 / 422 | Shared Git provider connection not found or invalid |
-| `tenant_config_invalid` | 422 | Tenant config fails validation (raw secret material, wrong ownership, cross-tenant secret refs) |
+| Error key                   | HTTP status | Meaning                                                                                         |
+| --------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| `forbidden`                 | 403         | Caller lacks the required control-plane role or targets a forbidden tenant/config surface       |
+| `tenant_not_found`          | 404         | Tenant ID does not exist                                                                        |
+| `tenant_deactivated`        | 403         | Target tenant is deactivated                                                                    |
+| `invalid_credential_ref`    | 422         | Repository binding contains raw or unsupported credential material                              |
+| `git_provider_connection_*` | 404 / 422   | Shared Git provider connection not found or invalid                                             |
+| `tenant_config_invalid`     | 422         | Tenant config fails validation (raw secret material, wrong ownership, cross-tenant secret refs) |

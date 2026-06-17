@@ -60,7 +60,7 @@ pub struct MemorySearchArgs {
     #[arg(short, long, default_value = "0.0")]
     pub threshold: f32,
 
-    /// Filter by layer (agent, user, session, project, team, org, company)
+    /// Filter by layer (agent, user, session, project, team, org, tenant)
     #[arg(long)]
     pub layer: Option<String>,
 
@@ -90,7 +90,7 @@ pub struct MemoryAddArgs {
     /// Memory content to store
     pub content: String,
 
-    /// Layer to store in (agent, user, session, project, team, org, company)
+    /// Layer to store in (agent, user, session, project, team, org, tenant)
     #[arg(short, long, default_value = "project")]
     pub layer: String,
 
@@ -135,7 +135,7 @@ pub struct MemoryDeleteArgs {
 
 #[derive(Args)]
 pub struct MemoryListArgs {
-    /// Layer to list (agent, user, session, project, team, org, company)
+    /// Layer to list (agent, user, session, project, team, org, tenant)
     #[arg(short, long, default_value = "project")]
     pub layer: String,
 
@@ -382,7 +382,7 @@ async fn run_add(args: MemoryAddArgs) -> anyhow::Result<()> {
     // Validate layer
     let layer = args.layer.to_lowercase();
     let valid_layers = [
-        "agent", "user", "session", "project", "team", "org", "company",
+        "agent", "user", "session", "project", "team", "org", "tenant",
     ];
     if !valid_layers.contains(&layer.as_str()) {
         let err = ux_error::invalid_layer(&layer, &valid_layers);
@@ -520,7 +520,7 @@ async fn run_delete(args: MemoryDeleteArgs) -> anyhow::Result<()> {
     // Validate layer
     let layer = args.layer.to_lowercase();
     let valid_layers = [
-        "agent", "user", "session", "project", "team", "org", "company",
+        "agent", "user", "session", "project", "team", "org", "tenant",
     ];
     if !valid_layers.contains(&layer.as_str()) {
         let err = ux_error::invalid_layer(&layer, &valid_layers);
@@ -564,7 +564,7 @@ async fn run_list(args: MemoryListArgs) -> anyhow::Result<()> {
     // Validate layer
     let layer = args.layer.to_lowercase();
     let valid_layers = [
-        "agent", "user", "session", "project", "team", "org", "company",
+        "agent", "user", "session", "project", "team", "org", "tenant",
     ];
     if !valid_layers.contains(&layer.as_str()) {
         let err = ux_error::invalid_layer(&layer, &valid_layers);
@@ -609,7 +609,7 @@ async fn run_feedback(args: MemoryFeedbackArgs) -> anyhow::Result<()> {
     // Validate layer
     let layer = args.layer.to_lowercase();
     let valid_layers = [
-        "agent", "user", "session", "project", "team", "org", "company",
+        "agent", "user", "session", "project", "team", "org", "tenant",
     ];
     if !valid_layers.contains(&layer.as_str()) {
         let err = ux_error::invalid_layer(&layer, &valid_layers);
@@ -687,7 +687,7 @@ fn layer_order(l: &str) -> usize {
         "project" => 3,
         "team" => 4,
         "org" => 5,
-        "company" => 6,
+        "tenant" => 6,
         _ => 0,
     }
 }
@@ -699,7 +699,7 @@ async fn run_promote(args: MemoryPromoteArgs) -> anyhow::Result<()> {
     let from_layer = args.from_layer.to_lowercase();
     let to_layer = args.to_layer.to_lowercase();
     let valid_layers = [
-        "agent", "user", "session", "project", "team", "org", "company",
+        "agent", "user", "session", "project", "team", "org", "tenant",
     ];
 
     if !valid_layers.contains(&from_layer.as_str()) {
@@ -835,7 +835,7 @@ mod tests {
         assert_eq!(layer_order("project"), 3);
         assert_eq!(layer_order("team"), 4);
         assert_eq!(layer_order("org"), 5);
-        assert_eq!(layer_order("company"), 6);
+        assert_eq!(layer_order("tenant"), 6);
     }
 
     #[test]
@@ -848,7 +848,7 @@ mod tests {
     fn test_layer_hierarchy_promotion_valid() {
         assert!(layer_order("team") > layer_order("project"));
         assert!(layer_order("org") > layer_order("team"));
-        assert!(layer_order("company") > layer_order("org"));
+        assert!(layer_order("tenant") > layer_order("org"));
     }
 
     #[test]

@@ -5,10 +5,8 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{delete, get};
 use axum::{Json, Router};
-use mk_core::traits::StorageBackend;
 use mk_core::types::{
-    KnowledgeLayer, OrganizationalUnit, Policy, PolicyMode, RecordSource, Role, RuleMergeStrategy,
-    SYSTEM_USER_ID, TenantContext, UnitType,
+    KnowledgeLayer, Policy, PolicyMode, Role, RuleMergeStrategy, SYSTEM_USER_ID, TenantContext,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -128,14 +126,14 @@ async fn status(
         );
     };
 
-    let (company_id, org_id, team_id, project_id) =
+    let (tenant_id, org_id, team_id, project_id) =
         match current_scope_ids(&state, &ctx, scope_q.scope.as_deref()).await {
             Ok(ids) => ids,
             Err(response) => return response,
         };
 
     let config = match storage
-        .get_effective_config(company_id, org_id, team_id, project_id)
+        .get_effective_config(tenant_id, org_id, team_id, project_id)
         .await
     {
         Ok(config) => config,
@@ -149,7 +147,7 @@ async fn status(
     };
     let pending_all = match storage
         .list_pending_requests(&RequestFilters {
-            company_id,
+            tenant_id,
             org_id,
             team_id,
             project_id,
@@ -209,7 +207,7 @@ async fn list_pending(
             }
         },
     };
-    let (company_id, org_id, team_id, project_id) =
+    let (tenant_id, org_id, team_id, project_id) =
         match scope_ids_for_layer(&state, &ctx, query.layer.as_deref()).await {
             Ok(ids) => ids,
             Err(response) => return response,
@@ -226,7 +224,7 @@ async fn list_pending(
     match storage
         .list_pending_requests(&RequestFilters {
             request_type,
-            company_id,
+            tenant_id,
             org_id,
             team_id,
             project_id,
@@ -418,14 +416,14 @@ async fn show_config(
             "Governance storage is not configured",
         );
     };
-    let (company_id, org_id, team_id, project_id) =
+    let (tenant_id, org_id, team_id, project_id) =
         match current_scope_ids(&state, &ctx, scope_q.scope.as_deref()).await {
             Ok(ids) => ids,
             Err(response) => return response,
         };
 
     match storage
-        .get_effective_config(company_id, org_id, team_id, project_id)
+        .get_effective_config(tenant_id, org_id, team_id, project_id)
         .await
     {
         Ok(config) => Json(config).into_response(),
@@ -454,14 +452,14 @@ async fn update_config(
             "Governance storage is not configured",
         );
     };
-    let (company_id, org_id, team_id, project_id) =
+    let (tenant_id, org_id, team_id, project_id) =
         match current_scope_ids(&state, &ctx, scope_q.scope.as_deref()).await {
             Ok(ids) => ids,
             Err(response) => return response,
         };
 
     let mut config = match storage
-        .get_effective_config(company_id, org_id, team_id, project_id)
+        .get_effective_config(tenant_id, org_id, team_id, project_id)
         .await
     {
         Ok(config) => config,
@@ -494,7 +492,7 @@ async fn update_config(
     if let Some(escalation_contact) = req.escalation_contact.clone() {
         config.escalation_contact = Some(escalation_contact);
     }
-    config.company_id = company_id;
+    config.tenant_id = tenant_id;
     config.org_id = org_id;
     config.team_id = team_id;
     config.project_id = project_id;
@@ -718,11 +716,11 @@ async fn list_roles(State(state): State<Arc<AppState>>, headers: HeaderMap) -> i
             "Governance storage is not configured",
         );
     };
-    let company_id = match resolve_company_scope(&state, &ctx).await {
-        Ok(company_id) => company_id,
+    let tenant_id = match resolve_tenant_scope_uuid(&ctx) {
+        Ok(tenant_id) => tenant_id,
         Err(response) => return response,
     };
-    match storage.list_roles(Some(company_id), None, None).await {
+    match storage.list_roles(Some(tenant_id), None, None).await {
         Ok(roles) => Json(
             roles
                 .into_iter()
@@ -785,7 +783,7 @@ async fn assign_role(
             );
         }
     };
-    let (company_id, org_id, team_id, project_id, scope) =
+    let (tenant_id, org_id, team_id, project_id, scope) =
         match resolve_govern_scope(&state, &ctx, req.scope.as_deref()).await {
             Ok(scope) => scope,
             Err(response) => return response,
@@ -795,7 +793,7 @@ async fn assign_role(
         principal_type,
         principal_id,
         role: req.role.clone(),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id,
         team_id,
         project_id,
@@ -874,21 +872,21 @@ async fn current_scope_ids(
 }
 
 async fn scope_ids_for_layer(
-    state: &AppState,
+    _state: &AppState,
     ctx: &TenantContext,
     layer: Option<&str>,
 ) -> Result<(Option<Uuid>, Option<Uuid>, Option<Uuid>, Option<Uuid>), axum::response::Response> {
-    let company_id = resolve_company_scope(state, ctx).await?;
-    match layer.unwrap_or("company") {
-        "company" => Ok((Some(company_id), None, None, None)),
+    let tenant_id = resolve_tenant_scope_uuid(ctx)?;
+    match layer.unwrap_or("tenant") {
+        "tenant" => Ok((Some(tenant_id), None, None, None)),
         value if value.starts_with("org:") => {
-            Ok((Some(company_id), Some(parse_uuid_scope(value)?), None, None))
+            Ok((Some(tenant_id), Some(parse_uuid_scope(value)?), None, None))
         }
         value if value.starts_with("team:") => {
-            Ok((Some(company_id), None, Some(parse_uuid_scope(value)?), None))
+            Ok((Some(tenant_id), None, Some(parse_uuid_scope(value)?), None))
         }
         value if value.starts_with("project:") => {
-            Ok((Some(company_id), None, None, Some(parse_uuid_scope(value)?)))
+            Ok((Some(tenant_id), None, None, Some(parse_uuid_scope(value)?)))
         }
         "org" | "team" | "project" => Err(error_response(
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -932,7 +930,7 @@ fn current_scope_string(
     } else if let Some(org_id) = org_id {
         format!("org:{org_id}")
     } else {
-        "company".to_string()
+        "tenant".to_string()
     }
 }
 
@@ -976,68 +974,28 @@ fn parse_since(value: &str) -> Result<chrono::DateTime<chrono::Utc>, String> {
     Ok(now - duration)
 }
 
-async fn resolve_company_scope(
-    state: &AppState,
-    ctx: &TenantContext,
-) -> Result<Uuid, axum::response::Response> {
-    let units = state.postgres.list_all_units().await.map_err(|err| {
-        error_response(
-            StatusCode::BAD_REQUEST,
-            "scope_resolution_failed",
-            &err.to_string(),
-        )
-    })?;
-    let companies: Vec<_> = units
-        .into_iter()
-        .filter(|unit| unit.tenant_id == ctx.tenant_id && unit.unit_type == UnitType::Company)
-        .collect();
-    let company_id_str = match companies.as_slice() {
-        [company] => company.id.clone(),
-        [] => {
-            let new_unit = OrganizationalUnit {
-                id: Uuid::new_v4().to_string(),
-                name: ctx.tenant_id.to_string(),
-                unit_type: UnitType::Company,
-                parent_id: None,
-                tenant_id: ctx.tenant_id.clone(),
-                metadata: Default::default(),
-                source_owner: RecordSource::Admin,
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-            };
-            let id = new_unit.id.clone();
-            if let Err(err) = state.postgres.create_unit_scoped(ctx, &new_unit).await {
-                return Err(error_response(
-                    StatusCode::NOT_FOUND,
-                    "company_not_found",
-                    &format!("No company unit exists and auto-creation failed: {err}"),
-                ));
-            }
-            id
-        }
-        companies => companies[0].id.clone(),
-    };
-    Uuid::parse_str(&company_id_str).map_err(|_| {
+fn resolve_tenant_scope_uuid(ctx: &TenantContext) -> Result<Uuid, axum::response::Response> {
+    Uuid::parse_str(ctx.tenant_id.as_str()).map_err(|_| {
         error_response(
             StatusCode::UNPROCESSABLE_ENTITY,
-            "invalid_company_id",
-            "Company unit id must be a UUID for governance operations",
+            "invalid_tenant_id",
+            "Tenant id must be a UUID for governance operations",
         )
     })
 }
 
 async fn resolve_govern_scope(
-    state: &AppState,
+    _state: &AppState,
     ctx: &TenantContext,
     raw_scope: Option<&str>,
 ) -> Result<(Uuid, Option<Uuid>, Option<Uuid>, Option<Uuid>, String), axum::response::Response> {
-    let company_id = resolve_company_scope(state, ctx).await?;
+    let tenant_id = resolve_tenant_scope_uuid(ctx)?;
     let Some(scope) = raw_scope else {
-        return Ok((company_id, None, None, None, "company".to_string()));
+        return Ok((tenant_id, None, None, None, "tenant".to_string()));
     };
     let Some((kind, id)) = scope.split_once(':') else {
         return match scope {
-            "company" => Ok((company_id, None, None, None, "company".to_string())),
+            "tenant" => Ok((tenant_id, None, None, None, "tenant".to_string())),
             "org" | "team" | "project" => Err(error_response(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "explicit_scope_target_required",
@@ -1046,7 +1004,7 @@ async fn resolve_govern_scope(
             _ => Err(error_response(
                 StatusCode::BAD_REQUEST,
                 "invalid_scope",
-                "Scope must be company, org:<uuid>, team:<uuid>, or project:<uuid>",
+                "Scope must be tenant, org:<uuid>, team:<uuid>, or project:<uuid>",
             )),
         };
     };
@@ -1058,20 +1016,14 @@ async fn resolve_govern_scope(
         )
     })?;
     match kind {
-        "company" => Ok((parsed, None, None, None, format!("company:{id}"))),
-        "org" => Ok((company_id, Some(parsed), None, None, format!("org:{id}"))),
-        "team" => Ok((company_id, None, Some(parsed), None, format!("team:{id}"))),
-        "project" => Ok((
-            company_id,
-            None,
-            None,
-            Some(parsed),
-            format!("project:{id}"),
-        )),
+        "tenant" => Ok((parsed, None, None, None, format!("tenant:{id}"))),
+        "org" => Ok((tenant_id, Some(parsed), None, None, format!("org:{id}"))),
+        "team" => Ok((tenant_id, None, Some(parsed), None, format!("team:{id}"))),
+        "project" => Ok((tenant_id, None, None, Some(parsed), format!("project:{id}"))),
         _ => Err(error_response(
             StatusCode::BAD_REQUEST,
             "invalid_scope",
-            "Scope must be company, org:<uuid>, team:<uuid>, or project:<uuid>",
+            "Scope must be tenant, org:<uuid>, team:<uuid>, or project:<uuid>",
         )),
     }
 }
@@ -1083,10 +1035,10 @@ fn govern_scope_string(entry: &storage::governance::GovernanceRole) -> String {
         format!("team:{team_id}")
     } else if let Some(org_id) = entry.org_id {
         format!("org:{org_id}")
-    } else if let Some(company_id) = entry.company_id {
-        format!("company:{company_id}")
+    } else if let Some(tenant_id) = entry.tenant_id {
+        format!("tenant:{tenant_id}")
     } else {
-        "company".to_string()
+        "tenant".to_string()
     }
 }
 
@@ -1111,13 +1063,13 @@ async fn list_policies(
         Ok(ctx) => ctx,
         Err(response) => return response,
     };
-    let company_id = match resolve_company_scope(&state, &ctx).await {
+    let tenant_id = match resolve_tenant_scope_uuid(&ctx) {
         Ok(id) => id,
         Err(response) => return response,
     };
     match state
         .postgres
-        .get_unit_policies_scoped(&ctx, company_id.to_string().as_str())
+        .get_unit_policies_scoped(&ctx, tenant_id.to_string().as_str())
         .await
     {
         Ok(policies) => Json(json!({ "policies": policies })).into_response(),
@@ -1138,12 +1090,12 @@ async fn create_policy(
         Ok(ctx) => ctx,
         Err(response) => return response,
     };
-    let company_id = match resolve_company_scope(&state, &ctx).await {
+    let tenant_id = match resolve_tenant_scope_uuid(&ctx) {
         Ok(id) => id,
         Err(response) => return response,
     };
-    let layer = match body.layer.as_deref().unwrap_or("company") {
-        "company" => KnowledgeLayer::Company,
+    let layer = match body.layer.as_deref().unwrap_or("tenant") {
+        "tenant" => KnowledgeLayer::Tenant,
         "org" | "organization" => KnowledgeLayer::Org,
         "team" => KnowledgeLayer::Team,
         "project" => KnowledgeLayer::Project,
@@ -1179,7 +1131,7 @@ async fn create_policy(
     let policy_id = policy.id.clone();
     match state
         .postgres
-        .add_unit_policy_scoped(&ctx, company_id.to_string().as_str(), &policy)
+        .add_unit_policy_scoped(&ctx, tenant_id.to_string().as_str(), &policy)
         .await
     {
         Ok(()) => (

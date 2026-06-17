@@ -53,8 +53,8 @@ impl LlmClient for MockLlmClient {
 async fn create_tenant(storage: &PostgresBackend, tenant_id: &str) -> Result<(), anyhow::Error> {
     let unit = OrganizationalUnit {
         id: tenant_id.to_string(),
-        name: format!("Test Company {}", tenant_id),
-        unit_type: UnitType::Company,
+        name: format!("Test Tenant {}", tenant_id),
+        unit_type: UnitType::Organization,
         parent_id: None,
         tenant_id: TenantId::new(tenant_id.to_string()).unwrap(),
         metadata: std::collections::HashMap::new(),

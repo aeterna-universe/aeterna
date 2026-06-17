@@ -358,7 +358,7 @@ async fn query_handler(
             |kl| vec![kl],
         ),
         None => vec![
-            mk_core::types::KnowledgeLayer::Company,
+            mk_core::types::KnowledgeLayer::Tenant,
             mk_core::types::KnowledgeLayer::Org,
             mk_core::types::KnowledgeLayer::Team,
             mk_core::types::KnowledgeLayer::Project,
@@ -732,7 +732,7 @@ async fn metadata_handler(
     match find_entry_by_id(&state, &ctx, &id).await {
         Some(entry) => {
             let layer_str = match entry.layer {
-                mk_core::types::KnowledgeLayer::Company => "company",
+                mk_core::types::KnowledgeLayer::Tenant => "tenant",
                 mk_core::types::KnowledgeLayer::Org => "org",
                 mk_core::types::KnowledgeLayer::Team => "team",
                 mk_core::types::KnowledgeLayer::Project => "project",
@@ -1385,7 +1385,7 @@ fn reject_invalid_plugin_bearer(
 
 fn parse_layer(s: Option<&str>) -> Option<mk_core::types::KnowledgeLayer> {
     match s {
-        Some("company") => Some(mk_core::types::KnowledgeLayer::Company),
+        Some("tenant") => Some(mk_core::types::KnowledgeLayer::Tenant),
         Some("org" | "organization") => Some(mk_core::types::KnowledgeLayer::Org),
         Some("team") => Some(mk_core::types::KnowledgeLayer::Team),
         Some("project") => Some(mk_core::types::KnowledgeLayer::Project),
@@ -1425,7 +1425,7 @@ fn parse_residual_role(
 
 fn knowledge_entry_to_item(entry: mk_core::types::KnowledgeEntry) -> KnowledgeItem {
     let layer_str = match entry.layer {
-        mk_core::types::KnowledgeLayer::Company => "company",
+        mk_core::types::KnowledgeLayer::Tenant => "tenant",
         mk_core::types::KnowledgeLayer::Org => "org",
         mk_core::types::KnowledgeLayer::Team => "team",
         mk_core::types::KnowledgeLayer::Project => "project",
@@ -1457,7 +1457,7 @@ fn knowledge_entry_with_relations_to_item(
     ewr: mk_core::types::KnowledgeEntryWithRelations,
 ) -> KnowledgeItem {
     let layer_str = match ewr.entry.layer {
-        mk_core::types::KnowledgeLayer::Company => "company",
+        mk_core::types::KnowledgeLayer::Tenant => "tenant",
         mk_core::types::KnowledgeLayer::Org => "org",
         mk_core::types::KnowledgeLayer::Team => "team",
         mk_core::types::KnowledgeLayer::Project => "project",
@@ -1493,7 +1493,7 @@ async fn find_entry_by_id(
         mk_core::types::KnowledgeLayer::Project,
         mk_core::types::KnowledgeLayer::Team,
         mk_core::types::KnowledgeLayer::Org,
-        mk_core::types::KnowledgeLayer::Company,
+        mk_core::types::KnowledgeLayer::Tenant,
     ];
     for layer in &layers {
         if let Ok(entries) = state
@@ -2015,8 +2015,8 @@ mod tests {
     #[test]
     fn test_parse_layer_valid() {
         assert!(matches!(
-            parse_layer(Some("company")),
-            Some(mk_core::types::KnowledgeLayer::Company)
+            parse_layer(Some("tenant")),
+            Some(mk_core::types::KnowledgeLayer::Tenant)
         ));
         assert!(matches!(
             parse_layer(Some("team")),

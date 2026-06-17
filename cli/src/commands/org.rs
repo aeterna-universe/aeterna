@@ -12,7 +12,7 @@ pub enum OrgCommand {
     #[command(about = "Create a new organization")]
     Create(OrgCreateArgs),
 
-    #[command(about = "List organizations in your company")]
+    #[command(about = "List organizations in your tenant")]
     List(OrgListArgs),
 
     #[command(about = "Show organization details")]
@@ -34,9 +34,9 @@ pub struct OrgCreateArgs {
     #[arg(short, long)]
     pub description: Option<String>,
 
-    /// Parent company ID (auto-detected if not provided)
+    /// Parent tenant/root ID (auto-detected if not provided)
     #[arg(long)]
-    pub company: Option<String>,
+    pub tenant_root: Option<String>,
 
     /// Output as JSON
     #[arg(long)]
@@ -49,9 +49,9 @@ pub struct OrgCreateArgs {
 
 #[derive(Args)]
 pub struct OrgListArgs {
-    /// Filter by company
+    /// Filter by tenant/root
     #[arg(long)]
-    pub company: Option<String>,
+    pub tenant_root: Option<String>,
 
     /// Show all organizations you have access to
     #[arg(long)]
@@ -208,8 +208,8 @@ async fn run_create(args: OrgCreateArgs) -> anyhow::Result<()> {
     let resolver = ContextResolver::new();
     let resolved = resolver.resolve()?;
 
-    let company_id = args
-        .company
+    let tenant_root_id = args
+        .tenant_root
         .clone()
         .unwrap_or_else(|| resolved.tenant_id.value.clone());
 
@@ -221,7 +221,7 @@ async fn run_create(args: OrgCreateArgs) -> anyhow::Result<()> {
                 "org": {
                     "name": args.name,
                     "description": args.description,
-                    "companyId": company_id,
+                    "tenantRoot": tenant_root_id,
                 },
                 "context": {
                     "tenantId": resolved.tenant_id.value,
@@ -242,7 +242,7 @@ async fn run_create(args: OrgCreateArgs) -> anyhow::Result<()> {
             if let Some(ref desc) = args.description {
                 println!("  Description: {desc}");
             }
-            println!("  Company:     {company_id}");
+            println!("  Tenant Root:     {tenant_root_id}");
             println!();
             output::info("Dry run mode - organization not created.");
         }
@@ -253,7 +253,7 @@ async fn run_create(args: OrgCreateArgs) -> anyhow::Result<()> {
         let body = json!({
             "name": args.name,
             "description": args.description,
-            "companyId": company_id,
+            "tenantRoot": tenant_root_id,
         });
         let result = client.org_create(&body).await.inspect_err(|e| {
             if args.json {
@@ -279,7 +279,7 @@ async fn run_create(args: OrgCreateArgs) -> anyhow::Result<()> {
             println!("  ID:      {}", get_str(&result, &["id"]).unwrap_or("?"));
             println!("  Name:    {}", get_str(&result, &["name"]).unwrap_or("?"));
             println!(
-                "  Company: {}",
+                "  Tenant Root: {}",
                 get_str(&result, &["parentId", "parent_id"]).unwrap_or("?")
             );
             if let Some(description) = result
@@ -317,7 +317,7 @@ async fn run_list(args: OrgListArgs) -> anyhow::Result<()> {
     if let Some(client) = get_live_client().await {
         let scope = args.scope.to_query_param();
         let result = client
-            .org_list(args.company.as_deref(), args.all, scope.as_deref())
+            .org_list(args.tenant_root.as_deref(), args.all, scope.as_deref())
             .await
             .inspect_err(|e| {
                 if args.json {
@@ -353,16 +353,16 @@ async fn run_list(args: OrgListArgs) -> anyhow::Result<()> {
                 for org in &payload.items {
                     let id = get_str(org, &["id"]).unwrap_or("?");
                     let name = get_str(org, &["name"]).unwrap_or("?");
-                    let company = get_str(org, &["parentId", "parent_id"]).unwrap_or("-");
+                    let tenant_root = get_str(org, &["parentId", "parent_id"]).unwrap_or("-");
                     // In cross-tenant views decorate with the tenant slug
                     // so operators can see WHICH tenant each row belongs
                     // to — otherwise the listing is ambiguous (two orgs
                     // can legitimately share a name across tenants).
                     if args.scope.is_cross_tenant() {
                         let tenant = get_str(org, &["tenantSlug"]).unwrap_or("-");
-                        println!("  [{tenant:<16}] {id:<24} {name:<32} {company}");
+                        println!("  [{tenant:<16}] {id:<24} {name:<32} {tenant_root}");
                     } else {
-                        println!("  {id:<24} {name:<32} {company}");
+                        println!("  {id:<24} {name:<32} {tenant_root}");
                     }
                 }
             }
@@ -417,7 +417,7 @@ async fn run_show(args: OrgShowArgs) -> anyhow::Result<()> {
             println!("  ID:       {}", get_str(&result, &["id"]).unwrap_or("?"));
             println!("  Name:     {}", get_str(&result, &["name"]).unwrap_or("?"));
             println!(
-                "  Company:  {}",
+                "  Tenant Root:  {}",
                 get_str(&result, &["parentId", "parent_id"]).unwrap_or("?")
             );
             println!(

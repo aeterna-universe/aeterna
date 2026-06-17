@@ -310,7 +310,7 @@ impl Default for KnowledgePointerMetadata {
                 source_id: String::new(),
                 content_hash: String::new(),
                 synced_at: 0,
-                source_layer: KnowledgeLayer::Company,
+                source_layer: KnowledgeLayer::Tenant,
                 is_orphaned: false,
             },
             tags: Vec::new(),
@@ -320,7 +320,7 @@ impl Default for KnowledgePointerMetadata {
 
 pub fn map_layer(knowledge_layer: KnowledgeLayer) -> MemoryLayer {
     match knowledge_layer {
-        KnowledgeLayer::Company => MemoryLayer::Company,
+        KnowledgeLayer::Tenant => MemoryLayer::Tenant,
         KnowledgeLayer::Org => MemoryLayer::Org,
         KnowledgeLayer::Team => MemoryLayer::Team,
         KnowledgeLayer::Project => MemoryLayer::Project,
@@ -342,7 +342,7 @@ mod tests {
         assert_eq!(metadata.knowledge_pointer.synced_at, 0);
         assert_eq!(
             metadata.knowledge_pointer.source_layer,
-            KnowledgeLayer::Company
+            KnowledgeLayer::Tenant
         );
         assert!(!metadata.knowledge_pointer.is_orphaned);
         assert!(metadata.tags.is_empty());
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_map_layer_company() {
-        assert_eq!(map_layer(KnowledgeLayer::Company), MemoryLayer::Company);
+        assert_eq!(map_layer(KnowledgeLayer::Tenant), MemoryLayer::Tenant);
     }
 
     #[test]

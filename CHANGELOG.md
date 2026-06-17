@@ -16,34 +16,34 @@ All notable changes to this project will be documented in this file.
   **Externally tagged enum variants** (e.g. `GovernanceEvent::UnitCreated`)
   use serde's default representation, which means the JSON tag is the
   Rust variant name verbatim — **`"UnitCreated"`, not `"unitCreated"`**
-  — and similarly for `KnowledgeLayer` (`"Company"`, `"Org"`, `"Team"`,
+  — and similarly for `KnowledgeLayer` (`"Tenant"`, `"Org"`, `"Team"`,
   `"Project"`), `KnowledgeType` (`"Adr"`, `"Pattern"`, `"Hindsight"`, …),
   `Role` (`"Admin"`, `"Architect"`, …), and other enums under
   `mk_core::types`. One deliberate exception: `ResourceType` keeps
   `#[serde(rename_all = "lowercase")]` (`"organization"`, `"session"`,
   `"tenant"`) for backwards-compatibility with stored RBAC grants.
   Affected endpoints:
-  - `GET /api/v1/govern/audit`
-  - `GET /api/v1/govern/pending`
-  - `GET /api/v1/admin/lifecycle/remediations`
-  - All governance webhook payloads
+    - `GET /api/v1/govern/audit`
+    - `GET /api/v1/govern/pending`
+    - `GET /api/v1/admin/lifecycle/remediations`
+    - All governance webhook payloads
 
 - **Paginated list endpoints return `{ items, total, limit, offset }` envelopes**
   instead of bare arrays. Affected endpoints:
-  - `GET /api/v1/admin/tenants`
-  - `GET /api/v1/user`
-  - `GET /api/v1/govern/policies`
-  - `GET /api/v1/govern/audit`
-  - `GET /api/v1/govern/pending`
-  - `GET /api/v1/govern/roles`
-  - `GET /api/v1/knowledge/promotions`
-  - `GET /api/v1/admin/exports`
-  - `GET /api/v1/admin/imports`
-  - `GET /api/v1/admin/git-provider-connections`
-  - `POST /api/v1/knowledge/query` (response shape unchanged but `offset`
-    added to request body)
-  - `POST /api/v1/memory/search` (`offset` added to request body)
-  - `POST /api/v1/memory/list` (`offset` added to request body)
+    - `GET /api/v1/admin/tenants`
+    - `GET /api/v1/user`
+    - `GET /api/v1/govern/policies`
+    - `GET /api/v1/govern/audit`
+    - `GET /api/v1/govern/pending`
+    - `GET /api/v1/govern/roles`
+    - `GET /api/v1/knowledge/promotions`
+    - `GET /api/v1/admin/exports`
+    - `GET /api/v1/admin/imports`
+    - `GET /api/v1/admin/git-provider-connections`
+    - `POST /api/v1/knowledge/query` (response shape unchanged but `offset`
+      added to request body)
+    - `POST /api/v1/memory/search` (`offset` added to request body)
+    - `POST /api/v1/memory/list` (`offset` added to request body)
 
 ### Added
 
@@ -110,8 +110,9 @@ failures before the alignment).
 ### Migration Notes
 
 Clients consuming the admin API must update:
+
 1. Parse camelCase fields in governance struct payloads.
-2. Parse PascalCase enum tags (`"UnitCreated"`, `"Company"`, `"Adr"`,
+2. Parse PascalCase enum tags (`"UnitCreated"`, `"Tenant"`, `"Adr"`,
    `"Admin"`, …) — this is serde-default for all `mk_core::types` enums
    that don't carry an explicit `rename_all`.
 3. Read list results from `response.items` instead of the top-level array.

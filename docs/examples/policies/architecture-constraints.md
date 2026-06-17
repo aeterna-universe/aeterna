@@ -159,7 +159,7 @@ class UserController {
 **Cedar Policy**:
 ```cedar
 // Policy: require-api-versioning
-// Scope: company
+// Scope: tenant
 // Severity: block
 
 forbid(
@@ -210,9 +210,9 @@ API versioning prevents breaking changes from affecting clients. URL-based versi
 ```yaml
 # openapi.yaml
 servers:
-  - url: https://api.company.com/v1
+  - url: https://api.example.com/v1
     description: Version 1 (current)
-  - url: https://api.company.com/v2
+  - url: https://api.example.com/v2
     description: Version 2 (beta)
 ```
 

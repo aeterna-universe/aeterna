@@ -540,7 +540,7 @@ async fn test_governance_blocking_sync() -> Result<(), Box<dyn std::error::Error
         id: "p1".to_string(),
         name: "No Secrets".to_string(),
         description: None,
-        layer: KnowledgeLayer::Company,
+        layer: KnowledgeLayer::Tenant,
         mode: mk_core::types::PolicyMode::Mandatory,
         merge_strategy: mk_core::types::RuleMergeStrategy::Override,
         rules: vec![mk_core::types::PolicyRule {

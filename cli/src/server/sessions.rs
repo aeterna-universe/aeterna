@@ -35,7 +35,7 @@ struct SessionContextResponse {
     project: Option<String>,
     team: Option<String>,
     org: Option<String>,
-    company: Option<String>,
+    tenant: Option<String>,
     started_at: String,
 }
 
@@ -78,7 +78,7 @@ async fn start_session_handler(
             project: req.project,
             team: req.team,
             org: req.org,
-            company: None,
+            tenant: None,
             started_at: chrono::Utc::now().to_rfc3339(),
         }),
     )

@@ -5,7 +5,6 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{delete, get};
 use axum::{Json, Router};
-use mk_core::traits::StorageBackend;
 use mk_core::types::{Role, RoleIdentifier, TenantContext, UnitType};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -856,7 +855,7 @@ async fn invite_user(
         }
         format!("org:{org}")
     } else {
-        "company".to_string()
+        "tenant".to_string()
     };
 
     if let Some(storage) = &state.governance_storage {
@@ -1368,7 +1367,6 @@ async fn resolve_unit_scope(
 ) -> Result<String, axum::response::Response> {
     match state.postgres.get_unit_scoped(ctx, unit_id).await {
         Ok(Some(unit)) => Ok(match unit.unit_type {
-            UnitType::Company => "company".to_string(),
             UnitType::Organization => format!("org:{}", unit.id),
             UnitType::Team => format!("team:{}", unit.id),
             UnitType::Project => format!("project:{}", unit.id),
@@ -1387,7 +1385,7 @@ async fn resolve_unit_scope(
 }
 
 async fn resolve_scope_target(
-    state: &AppState,
+    _state: &AppState,
     ctx: &TenantContext,
     scope: &str,
 ) -> Result<(String, String), axum::response::Response> {
@@ -1403,35 +1401,8 @@ async fn resolve_scope_target(
         ));
     };
     match (kind, maybe_id) {
-        ("company", None) => {
-            let units = state.postgres.list_all_units().await.map_err(|err| {
-                error_response(
-                    StatusCode::BAD_REQUEST,
-                    "scope_resolution_failed",
-                    &err.to_string(),
-                )
-            })?;
-            let companies: Vec<_> = units
-                .into_iter()
-                .filter(|unit| {
-                    unit.tenant_id == ctx.tenant_id && unit.unit_type == UnitType::Company
-                })
-                .collect();
-            match companies.as_slice() {
-                [company] => Ok((company.id.clone(), "company".to_string())),
-                [] => Err(error_response(
-                    StatusCode::NOT_FOUND,
-                    "company_not_found",
-                    "No company unit exists for the target tenant",
-                )),
-                _ => Err(error_response(
-                    StatusCode::CONFLICT,
-                    "ambiguous_company_scope",
-                    "Multiple company units exist; use company:<unit-id>",
-                )),
-            }
-        }
-        ("company", Some(id)) => Ok((id.to_string(), format!("company:{id}"))),
+        ("tenant", None) => Ok((ctx.tenant_id.as_str().to_string(), "tenant".to_string())),
+        ("tenant", Some(id)) => Ok((id.to_string(), format!("tenant:{id}"))),
         ("org", Some(id)) => Ok((id.to_string(), format!("org:{id}"))),
         ("team", Some(id)) => Ok((id.to_string(), format!("team:{id}"))),
         ("project", Some(id)) => Ok((id.to_string(), format!("project:{id}"))),
@@ -1443,7 +1414,7 @@ async fn resolve_scope_target(
         _ => Err(error_response(
             StatusCode::BAD_REQUEST,
             "invalid_scope",
-            "Scope must be company, company:<id>, org:<id>, team:<id>, or project:<id>",
+            "Scope must be tenant, tenant:<id>, org:<id>, team:<id>, or project:<id>",
         )),
     }
 }

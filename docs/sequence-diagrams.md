@@ -94,7 +94,7 @@ sequenceDiagram
 
     Client->>API: POST /api/v1/memory/search
     activate API
-    Note over Client,API: Query: "How to authenticate APIs?"<br/>Layers: [team, org, company]
+    Note over Client,API: Query: "How to authenticate APIs?"<br/>Layers: [team, org, tenant]
     
     API->>MemManager: search(query, layers, limit)
     activate MemManager
@@ -114,7 +114,7 @@ sequenceDiagram
         activate Qdrant
         Qdrant-->>MemManager: results_org[8]
         deactivate Qdrant
-    and Search Layer: Company (PostgreSQL metadata + Qdrant vectors)
+    and Search Layer: Tenant (PostgreSQL metadata + Qdrant vectors)
         MemManager->>Postgres: SELECT metadata WHERE tenant=...
         activate Postgres
         Postgres-->>MemManager: results_company[3]
@@ -123,7 +123,7 @@ sequenceDiagram
     
     MemManager->>Scorer: rank_results(all_results)
     activate Scorer
-    Scorer->>Scorer: Apply layer precedence (team > org > company)
+    Scorer->>Scorer: Apply layer precedence (team > org > tenant)
     Scorer->>Scorer: Calculate relevance scores
     Scorer->>Scorer: Apply recency boost
     Scorer-->>MemManager: ranked_results[16]
@@ -1089,14 +1089,14 @@ sequenceDiagram
     activate AuthService
     AuthService->>AuthService: Verify signature
     AuthService->>AuthService: Check expiration
-    AuthService-->>API: Principal{user_id, company_id, org_id, team_id, roles}
+    AuthService-->>API: Principal{user_id, tenant_id, org_id, team_id, roles}
     deactivate AuthService
     
     API->>TenantResolver: resolve_tenant_hierarchy(principal)
     activate TenantResolver
     
     TenantResolver->>TenantResolver: Build tenant path
-    Note over TenantResolver: company: acme-corp<br/>org: engineering<br/>team: api-team<br/>user: alex@acme.com
+    Note over TenantResolver: tenant: acme-corp<br/>org: engineering<br/>team: api-team<br/>user: alex@acme.com
     
     TenantResolver-->>API: TenantContext{hierarchy, scopes}
     deactivate TenantResolver

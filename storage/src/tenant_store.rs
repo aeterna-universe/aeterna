@@ -1,6 +1,6 @@
 use chrono::Utc;
 use mk_core::types::{
-    BranchPolicy, CredentialKind, RecordSource, RepositoryKind, TenantId, TenantRecord,
+    AccountRef, BranchPolicy, CredentialKind, RecordSource, RepositoryKind, TenantId, TenantRecord,
     TenantRepositoryBinding, TenantStatus,
 };
 use sqlx::FromRow;
@@ -14,10 +14,10 @@ struct TenantRow {
     name: String,
     status: String,
     source_owner: String,
-    // Nullable. See migration 033_tenant_legal_entity.sql for the
-    // rationale and the intended migration path to a first-class
-    // legal_entities FK.
-    legal_entity_name: Option<String>,
+    environment: Option<String>,
+    account_id: Option<String>,
+    account_slug: Option<String>,
+    account_name: Option<String>,
     created_at: chrono::DateTime<Utc>,
     updated_at: chrono::DateTime<Utc>,
     deactivated_at: Option<chrono::DateTime<Utc>>,
@@ -45,7 +45,11 @@ impl TryFrom<TenantRow> for TenantRecord {
             name: row.name,
             status,
             source_owner: row.source_owner.parse().unwrap_or(RecordSource::Admin),
-            legal_entity_name: row.legal_entity_name,
+            account: match (row.account_id, row.account_slug, row.account_name) {
+                (Some(id), Some(slug), Some(name)) => Some(AccountRef { id, slug, name }),
+                _ => None,
+            },
+            environment: row.environment,
             created_at: row.created_at,
             updated_at: row.updated_at,
             deactivated_at: row.deactivated_at,
@@ -135,7 +139,7 @@ impl TenantStore {
         slug: &str,
         name: &str,
     ) -> Result<TenantRecord, PostgresError> {
-        self.create_tenant_with_source(slug, name, RecordSource::Admin)
+        self.create_tenant_with_metadata(slug, name, RecordSource::Admin, None, None)
             .await
     }
 
@@ -149,16 +153,41 @@ impl TenantStore {
         name: &str,
         source_owner: RecordSource,
     ) -> Result<TenantRecord, PostgresError> {
+        self.create_tenant_with_metadata(slug, name, source_owner, None, None)
+            .await
+    }
+
+    pub async fn create_tenant_with_metadata(
+        &self,
+        slug: &str,
+        name: &str,
+        source_owner: RecordSource,
+        account_id: Option<&str>,
+        environment: Option<&str>,
+    ) -> Result<TenantRecord, PostgresError> {
         let row: TenantRow = sqlx::query_as(
             r#"
-            INSERT INTO tenants (slug, name, status, source_owner)
-            VALUES ($1, $2, 'active', $3)
-            RETURNING id::text AS id, slug, name, status, source_owner, legal_entity_name, created_at, updated_at, deactivated_at
+            INSERT INTO tenants (slug, name, status, source_owner, account_id, environment)
+            VALUES ($1, $2, 'active', $3, $4::uuid, $5)
+            RETURNING id::text AS id,
+                      slug,
+                      name,
+                      status,
+                      source_owner,
+                      environment,
+                      (SELECT a.id::text FROM accounts a WHERE a.id = account_id AND a.deleted_at IS NULL) AS account_id,
+                      (SELECT a.slug FROM accounts a WHERE a.id = account_id AND a.deleted_at IS NULL) AS account_slug,
+                      (SELECT a.name FROM accounts a WHERE a.id = account_id AND a.deleted_at IS NULL) AS account_name,
+                      created_at,
+                      updated_at,
+                      deactivated_at
             "#,
         )
         .bind(slug)
         .bind(name)
         .bind(source_owner.to_string())
+        .bind(account_id)
+        .bind(environment)
         .fetch_one(&self.pool)
         .await?;
 
@@ -171,13 +200,56 @@ impl TenantStore {
     ) -> Result<Vec<TenantRecord>, PostgresError> {
         let rows: Vec<TenantRow> = sqlx::query_as(
             r#"
-            SELECT id::text AS id, slug, name, status, source_owner, legal_entity_name, created_at, updated_at, deactivated_at
-            FROM tenants
-            WHERE ($1::bool = true OR status = 'active')
-            ORDER BY created_at ASC
+            SELECT t.id::text AS id,
+                   t.slug,
+                   t.name,
+                   t.status,
+                   t.source_owner,
+                   t.environment,
+                   a.id::text AS account_id,
+                   a.slug AS account_slug,
+                   a.name AS account_name,
+                   t.created_at,
+                   t.updated_at,
+                   t.deactivated_at
+              FROM tenants t
+              LEFT JOIN accounts a ON a.id = t.account_id AND a.deleted_at IS NULL
+             WHERE ($1::bool = true OR t.status = 'active')
+             ORDER BY t.created_at ASC
             "#,
         )
         .bind(include_inactive)
+        .fetch_all(&self.pool)
+        .await?;
+
+        rows.into_iter().map(TryInto::try_into).collect()
+    }
+
+    pub async fn list_tenants_for_account(
+        &self,
+        account_ref: &str,
+    ) -> Result<Vec<TenantRecord>, PostgresError> {
+        let rows: Vec<TenantRow> = sqlx::query_as(
+            r#"
+            SELECT t.id::text AS id,
+                   t.slug,
+                   t.name,
+                   t.status,
+                   t.source_owner,
+                   t.environment,
+                   a.id::text AS account_id,
+                   a.slug AS account_slug,
+                   a.name AS account_name,
+                   t.created_at,
+                   t.updated_at,
+                   t.deactivated_at
+              FROM tenants t
+              JOIN accounts a ON a.id = t.account_id AND a.deleted_at IS NULL
+             WHERE a.id::text = $1 OR a.slug = $1 OR a.name = $1
+             ORDER BY t.created_at ASC
+            "#,
+        )
+        .bind(account_ref)
         .fetch_all(&self.pool)
         .await?;
 
@@ -190,10 +262,22 @@ impl TenantStore {
     ) -> Result<Option<TenantRecord>, PostgresError> {
         let row: Option<TenantRow> = sqlx::query_as(
             r#"
-            SELECT id::text AS id, slug, name, status, source_owner, legal_entity_name, created_at, updated_at, deactivated_at
-            FROM tenants
-            WHERE id::text = $1 OR slug = $1 OR name = $1
-            LIMIT 1
+            SELECT t.id::text AS id,
+                   t.slug,
+                   t.name,
+                   t.status,
+                   t.source_owner,
+                   t.environment,
+                   a.id::text AS account_id,
+                   a.slug AS account_slug,
+                   a.name AS account_name,
+                   t.created_at,
+                   t.updated_at,
+                   t.deactivated_at
+              FROM tenants t
+              LEFT JOIN accounts a ON a.id = t.account_id AND a.deleted_at IS NULL
+             WHERE t.id::text = $1 OR t.slug = $1 OR t.name = $1
+             LIMIT 1
             "#,
         )
         .bind(tenant_ref)
@@ -203,49 +287,110 @@ impl TenantStore {
         row.map(TryInto::try_into).transpose()
     }
 
-    /// Patch a tenant row.
-    ///
-    /// Each `Option<&str>` field follows the standard "leave alone" /
-    /// "set" pattern via `COALESCE`. The `legal_entity_name` field uses
-    /// the slightly fancier `Option<Option<&str>>` shape so that callers
-    /// can explicitly *clear* the value:
-    ///
-    /// | Caller passes               | Behaviour                                |
-    /// |-----------------------------|------------------------------------------|
-    /// | `None`                      | column is left untouched (`COALESCE`)    |
-    /// | `Some(None)`                | column is explicitly set to `NULL`       |
-    /// | `Some(Some("Acme Holding"))`| column is set to that string             |
-    ///
-    /// This is intentional: silently coercing "absent" to "clear" would
-    /// lose data the moment the API gateway forgot to forward the field.
     pub async fn update_tenant(
         &self,
         tenant_ref: &str,
         slug: Option<&str>,
         name: Option<&str>,
-        legal_entity_name: Option<Option<&str>>,
+        environment: Option<&str>,
     ) -> Result<Option<TenantRecord>, PostgresError> {
-        // $4 is "do we touch the column at all", $5 is the new value
-        // (which may itself be NULL when the caller asked to clear it).
-        let touch_legal_entity = legal_entity_name.is_some();
-        let new_legal_entity: Option<&str> = legal_entity_name.flatten();
-
         let row: Option<TenantRow> = sqlx::query_as(
             r#"
-            UPDATE tenants
-            SET slug = COALESCE($2, slug),
-                name = COALESCE($3, name),
-                legal_entity_name = CASE WHEN $4 THEN $5 ELSE legal_entity_name END,
-                updated_at = NOW()
-            WHERE id::text = $1 OR slug = $1 OR name = $1
-            RETURNING id::text AS id, slug, name, status, source_owner, legal_entity_name, created_at, updated_at, deactivated_at
+            UPDATE tenants t
+               SET slug = COALESCE($2, t.slug),
+                   name = COALESCE($3, t.name),
+                   environment = COALESCE($4, t.environment),
+                   updated_at = NOW()
+             WHERE t.id::text = $1 OR t.slug = $1 OR t.name = $1
+         RETURNING t.id::text AS id,
+                   t.slug,
+                   t.name,
+                   t.status,
+                   t.source_owner,
+                   t.environment,
+                   (SELECT a.id::text FROM accounts a WHERE a.id = t.account_id AND a.deleted_at IS NULL) AS account_id,
+                   (SELECT a.slug FROM accounts a WHERE a.id = t.account_id AND a.deleted_at IS NULL) AS account_slug,
+                   (SELECT a.name FROM accounts a WHERE a.id = t.account_id AND a.deleted_at IS NULL) AS account_name,
+                   t.created_at,
+                   t.updated_at,
+                   t.deactivated_at
             "#,
         )
         .bind(tenant_ref)
         .bind(slug)
         .bind(name)
-        .bind(touch_legal_entity)
-        .bind(new_legal_entity)
+        .bind(environment)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            return row.try_into().map(Some);
+        }
+
+        self.get_tenant(tenant_ref).await
+    }
+
+    pub async fn attach_account(
+        &self,
+        tenant_ref: &str,
+        account_id: &str,
+    ) -> Result<Option<TenantRecord>, PostgresError> {
+        let row: Option<TenantRow> = sqlx::query_as(
+            r#"
+            UPDATE tenants t
+               SET account_id = $2::uuid,
+                   updated_at = NOW()
+             WHERE (t.id::text = $1 OR t.slug = $1 OR t.name = $1)
+               AND EXISTS (
+                   SELECT 1 FROM accounts a WHERE a.id::text = $2 AND a.deleted_at IS NULL
+               )
+         RETURNING t.id::text AS id,
+                   t.slug,
+                   t.name,
+                   t.status,
+                   t.source_owner,
+                   t.environment,
+                   (SELECT a.id::text FROM accounts a WHERE a.id = t.account_id AND a.deleted_at IS NULL) AS account_id,
+                   (SELECT a.slug FROM accounts a WHERE a.id = t.account_id AND a.deleted_at IS NULL) AS account_slug,
+                   (SELECT a.name FROM accounts a WHERE a.id = t.account_id AND a.deleted_at IS NULL) AS account_name,
+                   t.created_at,
+                   t.updated_at,
+                   t.deactivated_at
+            "#,
+        )
+        .bind(tenant_ref)
+        .bind(account_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        row.map(TryInto::try_into).transpose()
+    }
+
+    pub async fn detach_account(
+        &self,
+        tenant_ref: &str,
+    ) -> Result<Option<TenantRecord>, PostgresError> {
+        let row: Option<TenantRow> = sqlx::query_as(
+            r#"
+            UPDATE tenants t
+               SET account_id = NULL,
+                   updated_at = NOW()
+             WHERE t.id::text = $1 OR t.slug = $1 OR t.name = $1
+         RETURNING t.id::text AS id,
+                   t.slug,
+                   t.name,
+                   t.status,
+                   t.source_owner,
+                   t.environment,
+                   NULL::text AS account_id,
+                   NULL::text AS account_slug,
+                   NULL::text AS account_name,
+                   t.created_at,
+                   t.updated_at,
+                   t.deactivated_at
+            "#,
+        )
+        .bind(tenant_ref)
         .fetch_optional(&self.pool)
         .await?;
 
@@ -258,19 +403,34 @@ impl TenantStore {
     ) -> Result<Option<TenantRecord>, PostgresError> {
         let row: Option<TenantRow> = sqlx::query_as(
             r#"
-            UPDATE tenants
-            SET status = 'inactive',
-                deactivated_at = COALESCE(deactivated_at, NOW()),
-                updated_at = NOW()
-            WHERE id::text = $1 OR slug = $1 OR name = $1
-            RETURNING id::text AS id, slug, name, status, source_owner, legal_entity_name, created_at, updated_at, deactivated_at
+            UPDATE tenants t
+               SET status = 'inactive',
+                   deactivated_at = COALESCE(deactivated_at, NOW()),
+                   updated_at = NOW()
+             WHERE t.id::text = $1 OR t.slug = $1 OR t.name = $1
+         RETURNING t.id::text AS id,
+                   t.slug,
+                   t.name,
+                   t.status,
+                   t.source_owner,
+                   t.environment,
+                   (SELECT a.id::text FROM accounts a WHERE a.id = t.account_id AND a.deleted_at IS NULL) AS account_id,
+                   (SELECT a.slug FROM accounts a WHERE a.id = t.account_id AND a.deleted_at IS NULL) AS account_slug,
+                   (SELECT a.name FROM accounts a WHERE a.id = t.account_id AND a.deleted_at IS NULL) AS account_name,
+                   t.created_at,
+                   t.updated_at,
+                   t.deactivated_at
             "#,
         )
         .bind(tenant_ref)
         .fetch_optional(&self.pool)
         .await?;
 
-        row.map(TryInto::try_into).transpose()
+        if let Some(row) = row {
+            return row.try_into().map(Some);
+        }
+
+        self.get_tenant(tenant_ref).await
     }
 
     pub async fn resolve_tenant_id(

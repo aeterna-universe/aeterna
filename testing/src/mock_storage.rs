@@ -690,7 +690,7 @@ mod tests {
             tenant_id: TenantId::new("t".to_string()).unwrap(),
             payload: GovernanceEvent::ConfigUpdated {
                 config_id: "cfg-1".to_string(),
-                scope: "company".to_string(),
+                scope: "tenant".to_string(),
                 tenant_id: TenantId::new("t".to_string()).unwrap(),
                 timestamp: 0,
             },

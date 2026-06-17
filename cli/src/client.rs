@@ -1117,13 +1117,13 @@ impl AeternaClient {
     /// preserves the pre-#44.d behavior (tenant-scoped listing).
     pub async fn org_list(
         &self,
-        company: Option<&str>,
+        tenant_root: Option<&str>,
         all: bool,
         tenant_scope: Option<&str>,
     ) -> Result<serde_json::Value> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(c) = company {
-            params.push(("company", c.to_string()));
+        if let Some(root) = tenant_root {
+            params.push(("tenantRoot", root.to_string()));
         }
         if all {
             params.push(("all", "true".to_string()));

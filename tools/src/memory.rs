@@ -102,7 +102,7 @@ impl Tool for MemoryAddTool {
             "project" => mk_core::types::MemoryLayer::Project,
             "team" => mk_core::types::MemoryLayer::Team,
             "org" => mk_core::types::MemoryLayer::Org,
-            "company" => mk_core::types::MemoryLayer::Company,
+            "tenant" => mk_core::types::MemoryLayer::Tenant,
             _ => return Err(format!("Unknown layer: {}", p.layer).into()),
         };
 
@@ -233,7 +233,7 @@ impl Tool for MemoryDeleteTool {
             "project" => mk_core::types::MemoryLayer::Project,
             "team" => mk_core::types::MemoryLayer::Team,
             "org" => mk_core::types::MemoryLayer::Org,
-            "company" => mk_core::types::MemoryLayer::Company,
+            "tenant" => mk_core::types::MemoryLayer::Tenant,
             _ => return Err(format!("Unknown layer: {}", p.layer).into()),
         };
 
@@ -410,7 +410,7 @@ impl Tool for MemoryFeedbackTool {
             "project" => mk_core::types::MemoryLayer::Project,
             "team" => mk_core::types::MemoryLayer::Team,
             "org" => mk_core::types::MemoryLayer::Org,
-            "company" => mk_core::types::MemoryLayer::Company,
+            "tenant" => mk_core::types::MemoryLayer::Tenant,
             _ => return Err(format!("Unknown layer: {}", p.layer).into()),
         };
 
@@ -470,7 +470,7 @@ impl Tool for MemoryOptimizeTool {
         json!({
             "type": "object",
             "properties": {
-                "layer": { "type": "string", "enum": ["agent", "user", "session", "project", "team", "org", "company"] },
+                "layer": { "type": "string", "enum": ["agent", "user", "session", "project", "team", "org", "tenant"] },
                 "tenantContext": { "$ref": "#/definitions/TenantContext" }
             },
             "required": ["layer"]
@@ -490,7 +490,7 @@ impl Tool for MemoryOptimizeTool {
             "project" => mk_core::types::MemoryLayer::Project,
             "team" => mk_core::types::MemoryLayer::Team,
             "org" => mk_core::types::MemoryLayer::Org,
-            "company" => mk_core::types::MemoryLayer::Company,
+            "tenant" => mk_core::types::MemoryLayer::Tenant,
             _ => return Err(format!("Unknown layer: {}", p.layer).into()),
         };
 
@@ -583,14 +583,14 @@ impl PromotionGovernance for DefaultPromotionGovernance {
         to_layer: mk_core::types::MemoryLayer,
     ) -> bool {
         use mk_core::types::MemoryLayer;
-        // GOVERNANCE RULE: Cross-scope promotions (project→team, team→org, org→company)
+        // GOVERNANCE RULE: Cross-scope promotions (project→team, team→org, org→tenant)
         // require approval; same-scope promotions (session→project, agent→user)
         // auto-approve
         matches!(
             (from_layer, to_layer),
             (MemoryLayer::Project, MemoryLayer::Team)
                 | (MemoryLayer::Team, MemoryLayer::Org)
-                | (MemoryLayer::Org, MemoryLayer::Company)
+                | (MemoryLayer::Org, MemoryLayer::Tenant)
                 | (MemoryLayer::User, MemoryLayer::Team)
         )
     }
@@ -609,8 +609,8 @@ impl PromotionGovernance for DefaultPromotionGovernance {
             MemoryLayer::Org => {
                 vec![format!("architect@{}.org", tenant)]
             }
-            MemoryLayer::Company => {
-                vec![format!("admin@{}.company", tenant)]
+            MemoryLayer::Tenant => {
+                vec![format!("admin@{}.tenant", tenant)]
             }
             _ => vec![],
         };
@@ -651,7 +651,7 @@ impl<G: PromotionGovernance> MemoryPromoteTool<G> {
             "project" => Ok(mk_core::types::MemoryLayer::Project),
             "team" => Ok(mk_core::types::MemoryLayer::Team),
             "org" => Ok(mk_core::types::MemoryLayer::Org),
-            "company" => Ok(mk_core::types::MemoryLayer::Company),
+            "tenant" => Ok(mk_core::types::MemoryLayer::Tenant),
             _ => Err(format!("Unknown layer: {}", layer)),
         }
     }
@@ -664,7 +664,7 @@ impl<G: PromotionGovernance> MemoryPromoteTool<G> {
             mk_core::types::MemoryLayer::Project => "project".to_string(),
             mk_core::types::MemoryLayer::Team => "team".to_string(),
             mk_core::types::MemoryLayer::Org => "org".to_string(),
-            mk_core::types::MemoryLayer::Company => "company".to_string(),
+            mk_core::types::MemoryLayer::Tenant => "tenant".to_string(),
         }
     }
 
@@ -676,7 +676,7 @@ impl<G: PromotionGovernance> MemoryPromoteTool<G> {
             mk_core::types::MemoryLayer::Project => 3,
             mk_core::types::MemoryLayer::Team => 4,
             mk_core::types::MemoryLayer::Org => 5,
-            mk_core::types::MemoryLayer::Company => 6,
+            mk_core::types::MemoryLayer::Tenant => 6,
         }
     }
 
@@ -792,7 +792,7 @@ impl<G: PromotionGovernance> MemoryPromoteTool<G> {
             MemoryLayer::Project,
             MemoryLayer::Team,
             MemoryLayer::Org,
-            MemoryLayer::Company,
+            MemoryLayer::Tenant,
         ];
 
         for layer in layers {
@@ -869,7 +869,7 @@ impl<G: PromotionGovernance + 'static> Tool for MemoryPromoteTool<G> {
                 },
                 "toLayer": {
                     "type": "string",
-                    "enum": ["user", "project", "team", "org", "company"],
+                    "enum": ["user", "project", "team", "org", "tenant"],
                     "description": "Target layer to promote to (must be broader than current)"
                 },
                 "reason": {
@@ -961,7 +961,7 @@ impl MemoryAutoPromoteTool {
             "project" => Ok(mk_core::types::MemoryLayer::Project),
             "team" => Ok(mk_core::types::MemoryLayer::Team),
             "org" => Ok(mk_core::types::MemoryLayer::Org),
-            "company" => Ok(mk_core::types::MemoryLayer::Company),
+            "tenant" => Ok(mk_core::types::MemoryLayer::Tenant),
             _ => Err(format!("Unknown layer: {}", layer)),
         }
     }
@@ -974,7 +974,7 @@ impl MemoryAutoPromoteTool {
             mk_core::types::MemoryLayer::Project => "project".to_string(),
             mk_core::types::MemoryLayer::Team => "team".to_string(),
             mk_core::types::MemoryLayer::Org => "org".to_string(),
-            mk_core::types::MemoryLayer::Company => "company".to_string(),
+            mk_core::types::MemoryLayer::Tenant => "tenant".to_string(),
         }
     }
 
@@ -988,8 +988,8 @@ impl MemoryAutoPromoteTool {
             MemoryLayer::User => Some(MemoryLayer::Team),
             MemoryLayer::Project => Some(MemoryLayer::Team),
             MemoryLayer::Team => Some(MemoryLayer::Org),
-            MemoryLayer::Org => Some(MemoryLayer::Company),
-            MemoryLayer::Company => None,
+            MemoryLayer::Org => Some(MemoryLayer::Tenant),
+            MemoryLayer::Tenant => None,
         }
     }
 
@@ -1424,7 +1424,7 @@ mod tests {
                 (from_layer, to_layer),
                 (MemoryLayer::Project, MemoryLayer::Team)
                     | (MemoryLayer::Team, MemoryLayer::Org)
-                    | (MemoryLayer::Org, MemoryLayer::Company)
+                    | (MemoryLayer::Org, MemoryLayer::Tenant)
                     | (MemoryLayer::User, MemoryLayer::Team)
             )
         }
@@ -1437,7 +1437,7 @@ mod tests {
             let approvers = match to_layer {
                 MemoryLayer::Team => vec!["tech-lead@test.team".to_string()],
                 MemoryLayer::Org => vec!["architect@test.org".to_string()],
-                MemoryLayer::Company => vec!["admin@test.company".to_string()],
+                MemoryLayer::Tenant => vec!["admin@test.tenant".to_string()],
                 _ => vec![],
             };
             Ok(approvers)
@@ -1704,7 +1704,7 @@ mod tests {
         );
         assert!(
             governance
-                .requires_approval(MemoryLayer::Org, MemoryLayer::Company)
+                .requires_approval(MemoryLayer::Org, MemoryLayer::Tenant)
                 .await
         );
         assert!(
@@ -1742,11 +1742,11 @@ mod tests {
             .unwrap();
         assert!(org_approvers[0].contains("architect"));
 
-        let company_approvers = governance
-            .get_approvers(MemoryLayer::Company, &ctx)
+        let tenant_approvers = governance
+            .get_approvers(MemoryLayer::Tenant, &ctx)
             .await
             .unwrap();
-        assert!(company_approvers[0].contains("admin"));
+        assert!(tenant_approvers[0].contains("admin"));
     }
 
     #[tokio::test]
@@ -1832,8 +1832,8 @@ mod tests {
             MemoryLayer::Org
         );
         assert_eq!(
-            MemoryPromoteTool::<DefaultPromotionGovernance>::parse_layer("company").unwrap(),
-            MemoryLayer::Company
+            MemoryPromoteTool::<DefaultPromotionGovernance>::parse_layer("tenant").unwrap(),
+            MemoryLayer::Tenant
         );
 
         assert!(MemoryPromoteTool::<DefaultPromotionGovernance>::parse_layer("invalid").is_err());
@@ -1873,7 +1873,7 @@ mod tests {
             MemoryPromoteTool::<DefaultPromotionGovernance>::get_layer_hierarchy_level(
                 MemoryLayer::Org
             ) < MemoryPromoteTool::<DefaultPromotionGovernance>::get_layer_hierarchy_level(
-                MemoryLayer::Company
+                MemoryLayer::Tenant
             )
         );
     }
@@ -2496,19 +2496,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_auto_promote_no_target_for_company() {
-        let manager = setup_manager_with_providers(&[MemoryLayer::Company]).await;
+    async fn test_auto_promote_no_target_for_tenant() {
+        let manager = setup_manager_with_providers(&[MemoryLayer::Tenant]).await;
         let ctx = test_ctx();
 
-        let entry = create_test_entry_with_score("mem_company", MemoryLayer::Company, 0.95);
+        let entry = create_test_entry_with_score("mem_tenant", MemoryLayer::Tenant, 0.95);
         manager
-            .add_to_layer(ctx.clone(), MemoryLayer::Company, entry)
+            .add_to_layer(ctx.clone(), MemoryLayer::Tenant, entry)
             .await
             .unwrap();
 
         let tool = MemoryAutoPromoteTool::new(manager);
         let result = tool
-            .auto_promote(ctx.clone(), MemoryLayer::Company, 0.7, false)
+            .auto_promote(ctx.clone(), MemoryLayer::Tenant, 0.7, false)
             .await
             .unwrap();
 
@@ -2556,10 +2556,10 @@ mod tests {
         );
         assert_eq!(
             MemoryAutoPromoteTool::determine_target_layer(MemoryLayer::Org),
-            Some(MemoryLayer::Company)
+            Some(MemoryLayer::Tenant)
         );
         assert_eq!(
-            MemoryAutoPromoteTool::determine_target_layer(MemoryLayer::Company),
+            MemoryAutoPromoteTool::determine_target_layer(MemoryLayer::Tenant),
             None
         );
     }

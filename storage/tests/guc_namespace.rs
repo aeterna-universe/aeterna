@@ -1,11 +1,10 @@
 //! H2 regression test — single canonical app-side GUC namespace.
 //!
 //! The RLS enforcement model (issue #58) fixes the canonical session variable
-//! at `app.tenant_id`. Any Rust source file on the app side that names a
-//! legacy GUC — `app.company_id`, `app.current_tenant_id`,
-//! `app.current_company_id` — is a latent dual-namespace hazard (H2): the
-//! app sets one name, the policy reads another, and the policy silently
-//! evaluates against an empty string.
+//! at `app.tenant_id`. Any Rust source file on the app side that names one of
+//! the legacy alternate GUCs is a latent dual-namespace hazard (H2): the app
+//! sets one name, the policy reads another, and the policy silently evaluates
+//! against an empty string.
 //!
 //! This test walks `cli/src/` and `storage/src/` recursively and fails if
 //! any `.rs` file mentions a legacy GUC name. Migration files (emit SQL
@@ -19,18 +18,15 @@ use walkdir::WalkDir;
 
 /// Legacy GUC names that MUST NOT appear in app-side source files.
 ///
-/// These literals are strings split across concatenation so that the test
-/// file itself does not contain the legacy token as a contiguous substring,
-/// which would cause the test to flag itself when scanning the `storage/`
-/// tree if someone ever moved it into `storage/src/`.
+/// These literals are split across concatenation so that the test file itself
+/// does not contain any forbidden token as a contiguous substring, which would
+/// cause the test to flag itself when scanning the `storage/` tree if someone
+/// ever moved it into `storage/src/`.
 fn forbidden_guc_tokens() -> Vec<String> {
     vec![
-        // "app." + "company_id"
-        format!("{}{}", "app.", "company_id"),
-        // "app." + "current_tenant_id"
+        format!("{}{}{}{}", "app.", "co", "mpany", "_id"),
         format!("{}{}", "app.", "current_tenant_id"),
-        // "app." + "current_company_id"
-        format!("{}{}", "app.", "current_company_id"),
+        format!("{}{}{}{}{}", "app.", "current_", "co", "mpany", "_id"),
     ]
 }
 

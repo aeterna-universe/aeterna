@@ -177,7 +177,7 @@ impl From<ConstraintSeverity> for PolicySeverity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PolicyScope {
-    Company,
+    Tenant,
     Org,
     Team,
     Project,
@@ -186,7 +186,7 @@ pub enum PolicyScope {
 impl std::fmt::Display for PolicyScope {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PolicyScope::Company => write!(f, "company"),
+            PolicyScope::Tenant => write!(f, "tenant"),
             PolicyScope::Org => write!(f, "org"),
             PolicyScope::Team => write!(f, "team"),
             PolicyScope::Project => write!(f, "project"),
@@ -199,7 +199,7 @@ impl std::str::FromStr for PolicyScope {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "company" | "enterprise" | "global" => Ok(PolicyScope::Company),
+            "tenant" | "enterprise" | "global" => Ok(PolicyScope::Tenant),
             "org" | "organization" | "department" => Ok(PolicyScope::Org),
             "team" | "group" => Ok(PolicyScope::Team),
             "project" | "repository" | "repo" => Ok(PolicyScope::Project),
@@ -1253,8 +1253,8 @@ mod tests {
         assert_eq!("team".parse::<PolicyScope>().unwrap(), PolicyScope::Team);
         assert_eq!("org".parse::<PolicyScope>().unwrap(), PolicyScope::Org);
         assert_eq!(
-            "company".parse::<PolicyScope>().unwrap(),
-            PolicyScope::Company
+            "tenant".parse::<PolicyScope>().unwrap(),
+            PolicyScope::Tenant
         );
     }
 
@@ -1912,13 +1912,13 @@ mod tests {
 
     #[test]
     fn test_policy_scope_display_aliases_and_invalid_parse() {
-        assert_eq!(PolicyScope::Company.to_string(), "company");
+        assert_eq!(PolicyScope::Tenant.to_string(), "tenant");
         assert_eq!(PolicyScope::Org.to_string(), "org");
         assert_eq!(PolicyScope::Team.to_string(), "team");
         assert_eq!(PolicyScope::Project.to_string(), "project");
         assert_eq!(
             "enterprise".parse::<PolicyScope>().unwrap(),
-            PolicyScope::Company
+            PolicyScope::Tenant
         );
         assert_eq!(
             "department".parse::<PolicyScope>().unwrap(),

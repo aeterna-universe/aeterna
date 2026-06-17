@@ -23,11 +23,11 @@ The governance system exposes the following MCP tools for agent interaction:
 
 ### 1. governance_unit_create
 
-Creates a new organizational unit (Company, Organization, Team, or Project).
+Creates a new organizational unit (Tenant, Organization, Team, or Project).
 
 **Parameters:**
 - `name` (string, required): Name of the unit
-- `unit_type` (string, required): Type of the unit. Values: `company`, `organization`, `team`, `project`
+- `unit_type` (string, required): Type of the unit. Values: `tenant`, `organization`, `team`, `project`
 - `parent_id` (string, optional): Parent unit ID
 - `tenantContext` (TenantContext, optional): Tenant context information
 - `metadata` (object, optional): Optional metadata
@@ -78,7 +78,7 @@ let policy = Policy {
     id: "security-policy".to_string(),
     name: "Security Standards".to_string(),
     description: Some("Security constraints for all projects".to_string()),
-    layer: KnowledgeLayer::Company,
+    layer: KnowledgeLayer::Tenant,
     mode: PolicyMode::Mandatory,
     merge_strategy: RuleMergeStrategy::Merge,
     rules: vec![
@@ -410,7 +410,7 @@ pub struct OrganizationalUnit {
 ## Enums
 
 ### KnowledgeLayer
-- `Company`: Company-level policies
+- `Tenant`: Tenant-level policies
 - `Org`: Organization-level policies
 - `Team`: Team-level policies
 - `Project`: Project-level policies
@@ -446,7 +446,7 @@ pub struct OrganizationalUnit {
 - `Agent`: AI agent role (precedence: 0)
 
 ### UnitType
-- `Company`: Company organization unit
+- `Tenant`: Tenant organization unit
 - `Organization`: Organization unit
 - `Team`: Team unit
 - `Project`: Project unit
@@ -508,7 +508,7 @@ let agent_ctx = TenantContext::with_agent(
 
 ## Policy Inheritance and Resolution
 
-Policies are resolved hierarchically from Company → Org → Team → Project layers:
+Policies are resolved hierarchically from Tenant → Org → Team → Project layers:
 
 1. **Collection**: Gather all applicable policies from hierarchy
 2. **Merging**: Apply merge strategies (Override, Merge, Intersect)
@@ -523,7 +523,7 @@ Policies are resolved hierarchically from Company → Org → Team → Project l
 ### Example Policy Resolution
 
 ```
-Company Policy (Mandatory):
+Tenant Policy (Mandatory):
 - Rule A: Must not use unsafe dependencies
 
 Team Policy (Optional):
@@ -568,10 +568,10 @@ let mut engine = GovernanceEngine::new();
 
 // 2. Define security policy
 let security_policy = Policy {
-    id: "company-security".to_string(),
-    name: "Company Security Standards".to_string(),
+    id: "tenant-security".to_string(),
+    name: "Tenant Security Standards".to_string(),
     description: Some("Security constraints for all projects".to_string()),
-    layer: KnowledgeLayer::Company,
+    layer: KnowledgeLayer::Tenant,
     mode: PolicyMode::Mandatory,
     merge_strategy: RuleMergeStrategy::Merge,
     rules: vec![

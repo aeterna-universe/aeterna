@@ -16,7 +16,7 @@ export type MemoryLayer =
   | "project"
   | "team"
   | "org"
-  | "company";
+  | "tenant";
 
 /** Memory entry as stored in Aeterna */
 export interface MemoryEntry {
@@ -124,7 +124,7 @@ export interface SyncPullResponse {
 // =============================================================================
 
 /** Knowledge scope levels */
-export type KnowledgeScope = "project" | "team" | "org" | "company";
+export type KnowledgeScope = "project" | "team" | "org" | "tenant";
 
 /** Knowledge item types */
 export type KnowledgeType = "adr" | "pattern" | "policy" | "reference";
@@ -219,7 +219,7 @@ export interface SessionContext {
   project?: string;
   team?: string;
   org?: string;
-  company?: string;
+  tenant?: string;
   startedAt: string;
 }
 

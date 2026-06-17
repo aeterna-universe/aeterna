@@ -33,8 +33,8 @@ This document establishes the foundational vocabulary and mental models for the 
 |------|------------|
 | **Memory** | A discrete unit of semantic information stored for retrieval. Contains content, metadata, and vector embedding. |
 | **Knowledge** | A structured, versioned artifact representing organizational decisions, policies, patterns, or specifications. |
-| **Memory Layer** | A hierarchical scope for memory isolation (agent, user, session, project, team, org, company). |
-| **Knowledge Layer** | A hierarchical scope for knowledge federation (project, team, org, company). |
+| **Memory Layer** | A hierarchical scope for memory isolation (agent, user, session, project, team, org, tenant). |
+| **Knowledge Layer** | A hierarchical scope for knowledge federation (project, team, org, tenant). |
 | **Provider** | A storage backend that persists memories (e.g., Mem0, Letta, Chroma, Pinecone). |
 | **Ecosystem** | An AI agent framework that consumes this specification (e.g., LangChain, AutoGen, CrewAI, OpenCode). |
 | **Adapter** | A bridge component that translates between this specification and a specific provider or ecosystem. |
@@ -271,13 +271,13 @@ user                                   team
    │                                      │
 session                                org
    │                                      │
-project                                company ◄── Least specific
+project                                tenant ◄── Least specific
    │
 team
    │
 org
    │
-company  ◄── Least specific
+tenant  ◄── Least specific
 ```
 
 **Precedence rule**: More specific layers override less specific layers.

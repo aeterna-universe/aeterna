@@ -509,7 +509,7 @@ Developer Machine                          Aeterna Server
 │                      │                  │                    │
 │  Personal layers:    │                  │  Shared layers:    │
 │  agent, user,        │                  │  project, team,    │
-│  session             │                  │  org, company      │
+│  session             │                  │  org, tenant      │
 └──────────────────────┘                  └────────────────────┘
 ```
 
@@ -541,7 +541,7 @@ Environment variable overrides (take precedence over config file):
 ### Offline Behavior
 
 - **Personal layers** (agent/user/session) work fully offline — all reads and writes go to the local SQLite database
-- **Shared layers** (project/team/org/company) require server connectivity for writes; reads use the local cache with staleness warnings after 10 minutes
+- **Shared layers** (project/team/org/tenant) require server connectivity for writes; reads use the local cache with staleness warnings after 10 minutes
 - When connectivity is restored, the sync engine automatically pushes queued changes and pulls remote updates
 - Conflict resolution is server-wins: if the same memory ID has a newer `updated_at` on the server, the server version takes precedence
 

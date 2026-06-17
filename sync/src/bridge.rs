@@ -599,7 +599,7 @@ impl SyncManager {
         let mut sync_errors = Vec::new();
 
         for layer in [
-            mk_core::types::KnowledgeLayer::Company,
+            mk_core::types::KnowledgeLayer::Tenant,
             mk_core::types::KnowledgeLayer::Org,
             mk_core::types::KnowledgeLayer::Team,
             mk_core::types::KnowledgeLayer::Project,
@@ -738,7 +738,7 @@ impl SyncManager {
                         .knowledge_layers
                         .get(&knowledge_id)
                         .cloned()
-                        .unwrap_or(mk_core::types::KnowledgeLayer::Company);
+                        .unwrap_or(mk_core::types::KnowledgeLayer::Tenant);
                     if let Some(entry) = self
                         .knowledge_manager
                         .get(ctx.clone(), layer, &knowledge_id)
@@ -753,7 +753,7 @@ impl SyncManager {
                     knowledge_id,
                 } => {
                     for layer in [
-                        mk_core::types::MemoryLayer::Company,
+                        mk_core::types::MemoryLayer::Tenant,
                         mk_core::types::MemoryLayer::Org,
                         mk_core::types::MemoryLayer::Team,
                         mk_core::types::MemoryLayer::Project,
@@ -777,7 +777,7 @@ impl SyncManager {
 
                     for mid in memory_ids {
                         for layer in [
-                            mk_core::types::MemoryLayer::Company,
+                            mk_core::types::MemoryLayer::Tenant,
                             mk_core::types::MemoryLayer::Org,
                             mk_core::types::MemoryLayer::Team,
                             mk_core::types::MemoryLayer::Project,
@@ -794,7 +794,7 @@ impl SyncManager {
                         .knowledge_layers
                         .get(&knowledge_id)
                         .cloned()
-                        .unwrap_or(mk_core::types::KnowledgeLayer::Company);
+                        .unwrap_or(mk_core::types::KnowledgeLayer::Tenant);
                     if let Some(entry) = self
                         .knowledge_manager
                         .get(ctx.clone(), layer, &knowledge_id)
@@ -813,7 +813,7 @@ impl SyncManager {
                         .knowledge_layers
                         .get(&knowledge_id)
                         .cloned()
-                        .unwrap_or(mk_core::types::KnowledgeLayer::Company);
+                        .unwrap_or(mk_core::types::KnowledgeLayer::Tenant);
                     if let Some(entry) = self
                         .knowledge_manager
                         .get(ctx.clone(), layer, &knowledge_id)
@@ -908,7 +908,7 @@ impl SyncManager {
                 .knowledge_layers
                 .get(knowledge_id)
                 .cloned()
-                .unwrap_or(mk_core::types::KnowledgeLayer::Company);
+                .unwrap_or(mk_core::types::KnowledgeLayer::Tenant);
             println!("Expected layer for {}: {:?}", knowledge_id, layer);
 
             let entry_res = self
@@ -999,7 +999,7 @@ impl SyncManager {
                 Ok(None) => {
                     let mut found_elsewhere = false;
                     for other_layer in [
-                        mk_core::types::KnowledgeLayer::Company,
+                        mk_core::types::KnowledgeLayer::Tenant,
                         mk_core::types::KnowledgeLayer::Org,
                         mk_core::types::KnowledgeLayer::Team,
                         mk_core::types::KnowledgeLayer::Project,
@@ -1323,7 +1323,7 @@ impl SyncManager {
     pub async fn detect_delta(&self, ctx: TenantContext, state: &SyncState) -> Result<DeltaResult> {
         let mut delta = DeltaResult::default();
         let layers = [
-            KnowledgeLayer::Company,
+            KnowledgeLayer::Tenant,
             KnowledgeLayer::Org,
             KnowledgeLayer::Team,
             KnowledgeLayer::Project,
@@ -1703,7 +1703,7 @@ mod tests {
     async fn create_memory_manager_with_mock_providers() -> Arc<MemoryManager> {
         let memory = Arc::new(MemoryManager::new());
         for layer in [
-            mk_core::types::MemoryLayer::Company,
+            mk_core::types::MemoryLayer::Tenant,
             mk_core::types::MemoryLayer::Org,
             mk_core::types::MemoryLayer::Team,
             mk_core::types::MemoryLayer::Project,
@@ -2378,7 +2378,7 @@ mod tests {
 
         let memory = Arc::new(MemoryManager::new());
         for layer in [
-            mk_core::types::MemoryLayer::Company,
+            mk_core::types::MemoryLayer::Tenant,
             mk_core::types::MemoryLayer::Org,
             mk_core::types::MemoryLayer::Team,
             mk_core::types::MemoryLayer::Project,
@@ -2434,7 +2434,7 @@ mod tests {
 
         let memory = Arc::new(MemoryManager::new());
         for layer in [
-            mk_core::types::MemoryLayer::Company,
+            mk_core::types::MemoryLayer::Tenant,
             mk_core::types::MemoryLayer::Org,
             mk_core::types::MemoryLayer::Team,
             mk_core::types::MemoryLayer::Project,

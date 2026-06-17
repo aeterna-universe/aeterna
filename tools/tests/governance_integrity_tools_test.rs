@@ -24,12 +24,12 @@ fn make_tenant_context(tenant: &str, user: &str) -> TenantContext {
     )
 }
 
-fn create_test_request(requestor_id: Uuid, company_id: Uuid) -> CreateApprovalRequest {
+fn create_test_request(requestor_id: Uuid, tenant_id: Uuid) -> CreateApprovalRequest {
     CreateApprovalRequest {
         request_type: RequestType::Policy,
         target_type: "policy".to_string(),
         target_id: Some(unique_id("policy-target")),
-        company_id: Some(company_id),
+        tenant_id: Some(tenant_id),
         org_id: None,
         team_id: None,
         project_id: None,
@@ -63,9 +63,9 @@ async fn governance_approve_tool_rejects_requestor_self_approval() {
 
     let storage = Arc::new(GovernanceStorage::new(postgres.pool().clone()));
     let requestor_id = Uuid::new_v4();
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let created = storage
-        .create_request(&create_test_request(requestor_id, company_id))
+        .create_request(&create_test_request(requestor_id, tenant_id))
         .await
         .unwrap();
 
@@ -76,7 +76,7 @@ async fn governance_approve_tool_rejects_requestor_self_approval() {
             "approver_id": requestor_id.to_string(),
             "approver_email": "requestor@example.com",
             "comment": "self approve attempt",
-            "tenantContext": tenant_context_json(&company_id.to_string(), "requestor-user")
+            "tenantContext": tenant_context_json(&tenant_id.to_string(), "requestor-user")
         }))
         .await
         .unwrap_err();
@@ -110,9 +110,9 @@ async fn governance_reject_tool_rejects_requestor_self_rejection() {
 
     let storage = Arc::new(GovernanceStorage::new(postgres.pool().clone()));
     let requestor_id = Uuid::new_v4();
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let created = storage
-        .create_request(&create_test_request(requestor_id, company_id))
+        .create_request(&create_test_request(requestor_id, tenant_id))
         .await
         .unwrap();
 
@@ -123,7 +123,7 @@ async fn governance_reject_tool_rejects_requestor_self_rejection() {
             "rejector_id": requestor_id.to_string(),
             "rejector_email": "requestor@example.com",
             "reason": "self reject attempt",
-            "tenantContext": tenant_context_json(&company_id.to_string(), "requestor-user")
+            "tenantContext": tenant_context_json(&tenant_id.to_string(), "requestor-user")
         }))
         .await
         .unwrap_err();
@@ -159,11 +159,11 @@ async fn governance_integrity_allows_distinct_approver_and_rejector() {
     let requestor_id = Uuid::new_v4();
     let approver_id = Uuid::new_v4();
     let rejector_id = Uuid::new_v4();
-    let company_id = Uuid::new_v4();
-    let tenant_context = make_tenant_context(&company_id.to_string(), "requestor-user");
+    let tenant_id = Uuid::new_v4();
+    let tenant_context = make_tenant_context(&tenant_id.to_string(), "requestor-user");
 
     let approval_request = storage
-        .create_request(&create_test_request(requestor_id, company_id))
+        .create_request(&create_test_request(requestor_id, tenant_id))
         .await
         .unwrap();
     let approve_tool =
@@ -191,7 +191,7 @@ async fn governance_integrity_allows_distinct_approver_and_rejector() {
     assert_eq!(approved_request.current_approvals, 1);
 
     let reject_request = storage
-        .create_request(&create_test_request(requestor_id, company_id))
+        .create_request(&create_test_request(requestor_id, tenant_id))
         .await
         .unwrap();
     let reject_tool = GovernanceRejectTool::new(storage.clone(), Arc::new(GovernanceEngine::new()));
@@ -237,13 +237,13 @@ async fn governance_integrity_keeps_requestor_denied_across_multiple_pending_req
     let storage = Arc::new(GovernanceStorage::new(postgres.pool().clone()));
     let requestor_id = Uuid::new_v4();
     let distinct_approver_id = Uuid::new_v4();
-    let company_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4();
     let first_request = storage
-        .create_request(&create_test_request(requestor_id, company_id))
+        .create_request(&create_test_request(requestor_id, tenant_id))
         .await
         .unwrap();
     let second_request = storage
-        .create_request(&create_test_request(requestor_id, company_id))
+        .create_request(&create_test_request(requestor_id, tenant_id))
         .await
         .unwrap();
 
@@ -256,7 +256,7 @@ async fn governance_integrity_keeps_requestor_denied_across_multiple_pending_req
             "approver_id": requestor_id.to_string(),
             "approver_email": "requestor@example.com",
             "comment": "still trying to self approve",
-            "tenantContext": tenant_context_json(&company_id.to_string(), "requestor-user")
+            "tenantContext": tenant_context_json(&tenant_id.to_string(), "requestor-user")
         }))
         .await
         .unwrap_err();
@@ -273,7 +273,7 @@ async fn governance_integrity_keeps_requestor_denied_across_multiple_pending_req
             "approver_id": distinct_approver_id.to_string(),
             "approver_email": "approver@example.com",
             "comment": "approved by a distinct user",
-            "tenantContext": tenant_context_json(&company_id.to_string(), "requestor-user")
+            "tenantContext": tenant_context_json(&tenant_id.to_string(), "requestor-user")
         }))
         .await
         .unwrap();

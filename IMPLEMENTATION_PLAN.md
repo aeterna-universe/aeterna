@@ -107,7 +107,7 @@ This document outlines the complete implementation plan for the Memory-Knowledge
 - ✅ Manifest index for fast lookups
 - ✅ Constraint DSL parser
 - ✅ Constraint evaluation engine
-- ✅ Multi-tenant hierarchy (company/org/team/project)
+- ✅ Multi-tenant hierarchy (tenant/org/team/project)
 - ✅ Federation sync from upstream repos
 - ✅ Status transitions (draft → proposed → accepted)
 

@@ -16,7 +16,7 @@ related:
 The Memory System provides a hierarchical, provider-agnostic semantic memory store for AI agents, enabling long-term learning and knowledge retention across different scopes (agent, user, session, project, etc.).
 ## Requirements
 ### Requirement: Memory Promotion
-The system SHALL support promoting memories from volatile layers (Agent, Session) to persistent layers (User, Project, Team, Org, Company) based on an importance threshold.
+The system SHALL support promoting memories from volatile layers (Agent, Session) to persistent layers (User, Project, Team, Org, Tenant) based on an importance threshold.
 
 #### Scenario: Promote important session memory to project layer
 - **WHEN** a session memory entry has an importance score >= `promotionThreshold` (default 0.8)
@@ -191,8 +191,8 @@ The system SHALL provide a method to list memories with pagination, filtering, a
 The system SHALL merge search results from multiple layers using precedence rules.
 
 #### Scenario: Merge with higher priority from specific layer
-- **WHEN** merging results from project and company layers
-- **THEN** system SHALL sort results with project layer before company layer
+- **WHEN** merging results from project and tenant layers
+- **THEN** system SHALL sort results with project layer before tenant layer
 - **AND** system SHALL break ties with higher similarity score
 
 #### Scenario: Deduplicate similar results
@@ -264,7 +264,7 @@ The system SHALL enforce layer access based on provided identifiers and tenant c
 
 #### Scenario: Determine accessible layers from identifiers and tenant context
 - **WHEN** providing userId and projectId with TenantContext
-- **THEN** system SHALL grant access to: user, project, team, org, company layers within the same tenant
+- **THEN** system SHALL grant access to: user, project, team, org, tenant layers within the same tenant
 - **AND** system SHALL deny access to: agent, session layers
 
 #### Scenario: Access layer without tenant context
@@ -813,7 +813,7 @@ The system SHALL provide operations to retrieve layer summaries for context asse
 #### Scenario: Get all summaries for context
 - **WHEN** assembling context across layers
 - **THEN** system SHALL return summaries for all accessible layers
-- **AND** system SHALL respect layer precedence (project > team > org > company)
+- **AND** system SHALL respect layer precedence (project > team > org > tenant)
 - **AND** system SHALL include token counts for budget calculation
 
 ### Requirement: Context Vector Storage
@@ -874,7 +874,7 @@ The system SHALL implement cost controls for LLM-based summarization to prevent 
 - **AND** system SHALL emit batch efficiency metrics
 
 #### Scenario: Tiered model selection
-- **WHEN** summarization is triggered for low-priority layers (company, org)
+- **WHEN** summarization is triggered for low-priority layers (tenant, org)
 - **THEN** system SHALL use cheaper models (e.g., gpt-4o-mini vs gpt-4o)
 - **AND** system SHALL make model configurable per layer
 - **AND** system SHALL log model used for cost tracking
@@ -1277,7 +1277,7 @@ The system SHALL pull shared-layer memory updates from the remote Aeterna server
 #### Scenario: Pull shared layer updates
 - **WHEN** the sync pull interval elapses (default 60s)
 - **AND** the remote server is reachable
-- **THEN** the system SHALL send a `GET /api/v1/sync/pull?since_cursor={cursor}&layers=project,team,org,company&limit=100`
+- **THEN** the system SHALL send a `GET /api/v1/sync/pull?since_cursor={cursor}&layers=project,team,org,tenant&limit=100`
 - **AND** the system SHALL upsert returned entries into the local `memories` table with `ownership = 'cached'`
 - **AND** the system SHALL update the pull cursor in `sync_cursors`
 
@@ -1426,7 +1426,7 @@ Memory is organized into seven hierarchical layers, from most specific to least 
 │  org           Per-organization          Org-wide policies       │
 │    │                                     Compliance rules        │
 │    │                                                             │
-│  company  ←── Per-company/tenant         Company standards       │
+│  tenant  ←── Per-tenant/tenant         Tenant standards       │
 │               (least specific)           Global policies         │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -1456,7 +1456,7 @@ interface LayerIdentifiers {
   /** Required for org layer and below */
   orgId?: string;
   
-  /** Required for company layer */
+  /** Required for tenant layer */
   companyId?: string;
 }
 ```
@@ -1471,7 +1471,7 @@ interface LayerIdentifiers {
 | project | - | - | - | ✓ | - | - | - |
 | team | - | - | - | - | ✓ | - | - |
 | org | - | - | - | - | - | ✓ | - |
-| company | - | - | - | - | - | - | ✓ |
+| tenant | - | - | - | - | - | - | ✓ |
 
 ---
 
@@ -1516,7 +1516,7 @@ type MemoryLayer =
   | 'project'
   | 'team'
   | 'org'
-  | 'company';
+  | 'tenant';
 ```
 
 ### Metadata Schema
@@ -1886,7 +1886,7 @@ When searching across multiple layers, results are merged using these rules:
 │  4. project                                                     │
 │  5. team                                                        │
 │  6. org                                                         │
-│  7. company  (lowest priority - least specific)                 │
+│  7. tenant  (lowest priority - least specific)                 │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -1926,7 +1926,7 @@ function getLayerPrecedence(layer: MemoryLayer): number {
     project: 4,
     team: 5,
     org: 6,
-    company: 7
+    tenant: 7
   };
   return precedence[layer];
 }
@@ -1939,12 +1939,12 @@ More specific layers **override** less specific layers when content conflicts:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                                                                  │
-│  company layer: "Use spaces for indentation"                    │
+│  tenant layer: "Use spaces for indentation"                    │
 │                              │                                   │
 │                              ▼                                   │
 │  project layer: "Use tabs for indentation"  ◄── WINS            │
 │                                                                  │
-│  Result: Agent uses tabs (project overrides company)            │
+│  Result: Agent uses tabs (project overrides tenant)            │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -1957,8 +1957,8 @@ Layers are only searchable if appropriate identifiers are provided:
 function getAccessibleLayers(identifiers: LayerIdentifiers): MemoryLayer[] {
   const layers: MemoryLayer[] = [];
   
-  // Always accessible with company ID
-  if (identifiers.companyId) layers.push('company');
+  // Always accessible with tenant ID
+  if (identifiers.companyId) layers.push('tenant');
   
   // Org requires org ID
   if (identifiers.orgId) layers.push('org');

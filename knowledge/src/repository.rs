@@ -225,7 +225,7 @@ impl GitRepository {
 
     fn layer_dir(layer: KnowledgeLayer) -> &'static str {
         match layer {
-            KnowledgeLayer::Company => "company",
+            KnowledgeLayer::Tenant => "tenant",
             KnowledgeLayer::Org => "org",
             KnowledgeLayer::Team => "team",
             KnowledgeLayer::Project => "project",
@@ -801,7 +801,7 @@ impl GitRepository {
         path: &str,
     ) -> Result<Option<KnowledgeEntry>, RepositoryError> {
         for layer in [
-            KnowledgeLayer::Company,
+            KnowledgeLayer::Tenant,
             KnowledgeLayer::Org,
             KnowledgeLayer::Team,
             KnowledgeLayer::Project,
@@ -983,7 +983,7 @@ impl KnowledgeRepository for GitRepository {
                     let parts: Vec<&str> = path.split('/').collect();
                     if parts.len() >= 2 {
                         let layer = match parts[0] {
-                            "company" => KnowledgeLayer::Company,
+                            "tenant" => KnowledgeLayer::Tenant,
                             "org" => KnowledgeLayer::Org,
                             "team" => KnowledgeLayer::Team,
                             "project" => KnowledgeLayer::Project,

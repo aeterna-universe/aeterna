@@ -1,0 +1,36 @@
+{
+  "apiVersion": "aeterna.io/v1",
+  "kind": "TenantManifest",
+  "metadata": {
+    "generation": 2,
+    "labels": {
+      "scenario": "add-root-org",
+      "suite": "consistency"
+    }
+  },
+  "tenant": {
+    "slug": "acme-bootstrap",
+    "name": "Acme Bootstrap"
+  },
+  "hierarchy": [
+    {
+      "name": "Engineering",
+      "teams": [
+        {
+          "name": "Platform"
+        },
+        {
+          "name": "Product"
+        }
+      ]
+    },
+    {
+      "name": "Data",
+      "teams": [
+        {
+          "name": "Analytics"
+        }
+      ]
+    }
+  ]
+}

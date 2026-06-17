@@ -931,7 +931,7 @@ mod tests {
 
         let ctx = test_tenant_context();
         let result = client
-            .list_proposals(&ctx, Some(KnowledgeLayer::Company))
+            .list_proposals(&ctx, Some(KnowledgeLayer::Tenant))
             .await;
 
         assert!(result.is_ok());

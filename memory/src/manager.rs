@@ -389,7 +389,7 @@ impl MemoryManager {
                 MemoryLayer::Project,
                 MemoryLayer::Team,
                 MemoryLayer::Org,
-                MemoryLayer::Company,
+                MemoryLayer::Tenant,
             ],
             ..Default::default()
         };
@@ -410,7 +410,7 @@ impl MemoryManager {
                                     MemoryLayer::Project,
                                     MemoryLayer::Team,
                                     MemoryLayer::Org,
-                                    MemoryLayer::Company,
+                                    MemoryLayer::Tenant,
                                 ];
 
                                 for layer in layers {

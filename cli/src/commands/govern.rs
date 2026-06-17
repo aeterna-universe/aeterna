@@ -46,7 +46,7 @@ pub struct GovernPendingArgs {
     #[arg(short = 't', long, default_value = "all")]
     pub request_type: String,
 
-    /// Filter by layer (company, org, team, project)
+    /// Filter by layer (tenant, org, team, project)
     #[arg(short, long)]
     pub layer: Option<String>,
 
@@ -152,7 +152,7 @@ pub struct GovernRolesArgs {
     #[arg(long)]
     pub role: Option<String>,
 
-    /// Scope for the role (company, org, team, project)
+    /// Scope for the role (tenant, org, team, project)
     #[arg(long)]
     pub scope: Option<String>,
 
@@ -1382,7 +1382,7 @@ mod tests {
             request_type: "policy".to_string(),
             title: "Policy request".to_string(),
             requestor: "alice".to_string(),
-            layer: "company".to_string(),
+            layer: "tenant".to_string(),
             created_at: "2024-01-15T10:00:00Z".to_string(),
             approvals: 0,
             required_approvals: 1,
@@ -1424,7 +1424,7 @@ mod tests {
             principal: "alice".to_string(),
             principal_type: "user".to_string(),
             role: "admin".to_string(),
-            scope: "company:acme".to_string(),
+            scope: "tenant:acme".to_string(),
         };
         assert_eq!(role.role, "admin");
     }
@@ -1449,7 +1449,7 @@ mod tests {
                 principal: "user".to_string(),
                 principal_type: "user".to_string(),
                 role: role_name.to_string(),
-                scope: "company:test".to_string(),
+                scope: "tenant:test".to_string(),
             };
             assert_eq!(role.role, role_name);
         }
@@ -1458,7 +1458,7 @@ mod tests {
     #[test]
     fn test_role_assignment_all_scopes() {
         let scopes = [
-            "company:acme",
+            "tenant:acme",
             "org:platform",
             "team:api",
             "project:payments",
@@ -1713,7 +1713,7 @@ mod tests {
             action: "assign".to_string(),
             principal: Some("alice".to_string()),
             role: Some("admin".to_string()),
-            scope: Some("company:acme".to_string()),
+            scope: Some("tenant:acme".to_string()),
             json: false,
         };
         assert_eq!(args.action, "assign");
@@ -1805,7 +1805,7 @@ mod tests {
                 request_type: "knowledge".to_string(),
                 title: "Knowledge 1".to_string(),
                 requestor: "bob".to_string(),
-                layer: "company".to_string(),
+                layer: "tenant".to_string(),
                 created_at: "2024-01-15T08:00:00Z".to_string(),
                 approvals: 0,
                 required_approvals: 2,
@@ -1840,7 +1840,7 @@ mod tests {
                 request_type: "policy".to_string(),
                 title: "Policy 2".to_string(),
                 requestor: "bob".to_string(),
-                layer: "company".to_string(),
+                layer: "tenant".to_string(),
                 created_at: "2024-01-15T08:00:00Z".to_string(),
                 approvals: 0,
                 required_approvals: 2,
@@ -1848,7 +1848,7 @@ mod tests {
             },
         ];
 
-        let layer_filter = Some("company".to_string());
+        let layer_filter = Some("tenant".to_string());
         let filtered: Vec<_> = requests
             .iter()
             .filter(|r| layer_filter.as_ref().is_none_or(|l| &r.layer == l))
