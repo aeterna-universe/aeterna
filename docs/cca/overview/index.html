@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.9.2">
 <title data-rh="true">CCA: Confucius Code Agent Capabilities | Aeterna</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://kikokikok.github.io/aeterna/docs/cca/overview"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="CCA: Confucius Code Agent Capabilities | Aeterna"><meta data-rh="true" name="description" content="Overview"><meta data-rh="true" property="og:description" content="Overview"><link data-rh="true" rel="icon" href="/aeterna/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://kikokikok.github.io/aeterna/docs/cca/overview"><link data-rh="true" rel="alternate" href="https://kikokikok.github.io/aeterna/docs/cca/overview" hreflang="en"><link data-rh="true" rel="alternate" href="https://kikokikok.github.io/aeterna/docs/cca/overview" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"CCA: Confucius Code Agent Capabilities","item":"https://kikokikok.github.io/aeterna/docs/cca/overview"}]}</script><link rel="stylesheet" href="/aeterna/assets/css/styles.a5946a0e.css">
-<script src="/aeterna/assets/js/runtime~main.904bafb5.js" defer="defer"></script>
+<script src="/aeterna/assets/js/runtime~main.a7d85376.js" defer="defer"></script>
 <script src="/aeterna/assets/js/main.5584913d.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -27,7 +27,7 @@
 <p>The Context Architect compresses hierarchical memory into efficient context summaries that fit within token budgets. It queries multiple memory layers simultaneously and intelligently prioritizes the most relevant information.</p>
 <p><strong>Key Features:</strong></p>
 <ul>
-<li class="">Hierarchical compression across 7 memory layers (Company → Org → Team → Project → Session → User → Agent)</li>
+<li class="">Hierarchical compression across 7 memory layers (Tenant → Org → Team → Project → Session → User → Agent)</li>
 <li class="">Token budget management with configurable limits (100-32,000 tokens)</li>
 <li class="">Relevance scoring with semantic deduplication</li>
 <li class="">Parallel layer queries with early termination</li>
@@ -158,7 +158,7 @@
 </ol>
 <p>This integration means CCA benefits from:</p>
 <ul>
-<li class="">Multi-tenant isolation at the Company level</li>
+<li class="">Multi-tenant isolation at the Tenant level</li>
 <li class="">Memory-R1 reward signals for promoting valuable learnings</li>
 <li class="">Graph layer for discovering related memories and error patterns</li>
 <li class="">Policy enforcement to prevent invalid knowledge capture</li>
@@ -265,7 +265,7 @@
 
 
 
-<table><thead><tr><th>Feature</th><th>Research Prototype</th><th>Aeterna Implementation</th></tr></thead><tbody><tr><td>Context Compression</td><td>Yes</td><td>Yes, with hierarchical layers</td></tr><tr><td>Note-Taking</td><td>Yes</td><td>Yes, with async batching</td></tr><tr><td>Hindsight Learning</td><td>Yes</td><td>Yes, with semantic promotion</td></tr><tr><td>Meta-Agent</td><td>Yes</td><td>Yes, with timeout controls</td></tr><tr><td>Production Controls</td><td>No</td><td>Cost, time, staleness, latency</td></tr><tr><td>Multi-Tenancy</td><td>No</td><td>Company/Org/Team isolation</td></tr><tr><td>Extension System</td><td>No</td><td>Client-side customization</td></tr><tr><td>State Management</td><td>No</td><td>LRU caching with compression</td></tr><tr><td>Policy Integration</td><td>No</td><td>Cedar/Permit.io enforcement</td></tr></tbody></table>
+<table><thead><tr><th>Feature</th><th>Research Prototype</th><th>Aeterna Implementation</th></tr></thead><tbody><tr><td>Context Compression</td><td>Yes</td><td>Yes, with hierarchical layers</td></tr><tr><td>Note-Taking</td><td>Yes</td><td>Yes, with async batching</td></tr><tr><td>Hindsight Learning</td><td>Yes</td><td>Yes, with semantic promotion</td></tr><tr><td>Meta-Agent</td><td>Yes</td><td>Yes, with timeout controls</td></tr><tr><td>Production Controls</td><td>No</td><td>Cost, time, staleness, latency</td></tr><tr><td>Multi-Tenancy</td><td>No</td><td>Tenant/Org/Team isolation</td></tr><tr><td>Extension System</td><td>No</td><td>Client-side customization</td></tr><tr><td>State Management</td><td>No</td><td>LRU caching with compression</td></tr><tr><td>Policy Integration</td><td>No</td><td>Cedar/Permit.io enforcement</td></tr></tbody></table>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="getting-started">Getting Started<a href="#getting-started" class="hash-link" aria-label="Direct link to Getting Started" title="Direct link to Getting Started" translate="no">​</a></h2>
 <p>To enable CCA capabilities in your Aeterna deployment:</p>
 <ol>

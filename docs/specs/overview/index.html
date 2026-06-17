@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.9.2">
 <title data-rh="true">Memory-Knowledge System Specification | Aeterna</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://kikokikok.github.io/aeterna/docs/specs/overview"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Memory-Knowledge System Specification | Aeterna"><meta data-rh="true" name="description" content="Executive Summary"><meta data-rh="true" property="og:description" content="Executive Summary"><link data-rh="true" rel="icon" href="/aeterna/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://kikokikok.github.io/aeterna/docs/specs/overview"><link data-rh="true" rel="alternate" href="https://kikokikok.github.io/aeterna/docs/specs/overview" hreflang="en"><link data-rh="true" rel="alternate" href="https://kikokikok.github.io/aeterna/docs/specs/overview" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Memory-Knowledge System Specification","item":"https://kikokikok.github.io/aeterna/docs/specs/overview"}]}</script><link rel="stylesheet" href="/aeterna/assets/css/styles.a5946a0e.css">
-<script src="/aeterna/assets/js/runtime~main.904bafb5.js" defer="defer"></script>
+<script src="/aeterna/assets/js/runtime~main.a7d85376.js" defer="defer"></script>
 <script src="/aeterna/assets/js/main.5584913d.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -61,7 +61,7 @@
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="1-memory-system">1. Memory System<a href="#1-memory-system" class="hash-link" aria-label="Direct link to 1. Memory System" title="Direct link to 1. Memory System" translate="no">​</a></h3>
 <p>Semantic, searchable storage for agent experiences and learnings.</p>
 <ul>
-<li class=""><strong>Hierarchical layers</strong>: agent → user → session → project → team → org → company</li>
+<li class=""><strong>Hierarchical layers</strong>: agent → user → session → project → team → org → tenant</li>
 <li class=""><strong>Vector-based retrieval</strong>: Natural language search across memories</li>
 <li class=""><strong>Provider abstraction</strong>: Mem0, Letta, Chroma, Pinecone, etc.</li>
 </ul>
@@ -70,7 +70,7 @@
 <ul>
 <li class=""><strong>Git-based versioning</strong>: Full audit trail, branching, merging</li>
 <li class=""><strong>Constraint enforcement</strong>: Policies that guide agent behavior</li>
-<li class=""><strong>Multi-tenant federation</strong>: Company → Org → Team → Project layers</li>
+<li class=""><strong>Multi-tenant federation</strong>: Tenant → Org → Team → Project layers</li>
 </ul>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="3-sync-bridge">3. Sync Bridge<a href="#3-sync-bridge" class="hash-link" aria-label="Direct link to 3. Sync Bridge" title="Direct link to 3. Sync Bridge" translate="no">​</a></h3>
 <p>Bidirectional synchronization keeping memory and knowledge aligned.</p>
@@ -116,7 +116,7 @@
 
 
 
-<table><thead><tr><th>Goal</th><th>Description</th></tr></thead><tbody><tr><td><strong>Provider Agnostic</strong></td><td>Switch between Mem0, Letta, Chroma without code changes</td></tr><tr><td><strong>Ecosystem Agnostic</strong></td><td>Work with LangChain, AutoGen, CrewAI, OpenCode equally</td></tr><tr><td><strong>Hierarchical Memory</strong></td><td>7-layer precedence (agent → company)</td></tr><tr><td><strong>Versioned Knowledge</strong></td><td>Git-based immutable commits</td></tr><tr><td><strong>Constraint DSL</strong></td><td>Declarative policy enforcement</td></tr><tr><td><strong>Offline-First</strong></td><td>Work without network, sync when available</td></tr></tbody></table>
+<table><thead><tr><th>Goal</th><th>Description</th></tr></thead><tbody><tr><td><strong>Provider Agnostic</strong></td><td>Switch between Mem0, Letta, Chroma without code changes</td></tr><tr><td><strong>Ecosystem Agnostic</strong></td><td>Work with LangChain, AutoGen, CrewAI, OpenCode equally</td></tr><tr><td><strong>Hierarchical Memory</strong></td><td>7-layer precedence (agent → tenant)</td></tr><tr><td><strong>Versioned Knowledge</strong></td><td>Git-based immutable commits</td></tr><tr><td><strong>Constraint DSL</strong></td><td>Declarative policy enforcement</td></tr><tr><td><strong>Offline-First</strong></td><td>Work without network, sync when available</td></tr></tbody></table>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="should-have-p1">Should Have (P1)<a href="#should-have-p1" class="hash-link" aria-label="Direct link to Should Have (P1)" title="Direct link to Should Have (P1)" translate="no">​</a></h3>
 
 
@@ -143,7 +143,7 @@
 
 
 
-<table><thead><tr><th>Goal</th><th>Description</th></tr></thead><tbody><tr><td><strong>Delta Sync</strong></td><td>Efficient change propagation</td></tr><tr><td><strong>Conflict Resolution</strong></td><td>Deterministic merge strategies</td></tr><tr><td><strong>Multi-Tenant</strong></td><td>Company → Org → Team → Project isolation</td></tr><tr><td><strong>Audit Trail</strong></td><td>Full history of all changes</td></tr></tbody></table>
+<table><thead><tr><th>Goal</th><th>Description</th></tr></thead><tbody><tr><td><strong>Delta Sync</strong></td><td>Efficient change propagation</td></tr><tr><td><strong>Conflict Resolution</strong></td><td>Deterministic merge strategies</td></tr><tr><td><strong>Multi-Tenant</strong></td><td>Tenant → Org → Team → Project isolation</td></tr><tr><td><strong>Audit Trail</strong></td><td>Full history of all changes</td></tr></tbody></table>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="nice-to-have-p2">Nice to Have (P2)<a href="#nice-to-have-p2" class="hash-link" aria-label="Direct link to Nice to Have (P2)" title="Direct link to Nice to Have (P2)" translate="no">​</a></h3>
 
 
