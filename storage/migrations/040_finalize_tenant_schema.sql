@@ -42,6 +42,11 @@ BEGIN
     END IF;
 END $$;
 
+-- RENAME COLUMN keeps the old FK to companies; drop those stale constraints so DROP TABLE companies (below) succeeds.
+ALTER TABLE governance_configs DROP CONSTRAINT IF EXISTS governance_configs_company_id_fkey;
+ALTER TABLE approval_requests DROP CONSTRAINT IF EXISTS approval_requests_company_id_fkey;
+ALTER TABLE governance_roles DROP CONSTRAINT IF EXISTS governance_roles_company_id_fkey;
+
 ALTER INDEX IF EXISTS idx_governance_configs_company RENAME TO idx_governance_configs_tenant;
 ALTER INDEX IF EXISTS idx_approval_requests_company RENAME TO idx_approval_requests_tenant;
 ALTER INDEX IF EXISTS idx_governance_roles_company RENAME TO idx_governance_roles_tenant;
@@ -49,6 +54,9 @@ ALTER INDEX IF EXISTS idx_governance_roles_company RENAME TO idx_governance_role
 -- ---------------------------------------------------------------------
 -- 2. Governance helper function: tenant-root naming and semantics
 -- ---------------------------------------------------------------------
+-- Drop the old company-scoped signature first: CREATE OR REPLACE cannot rename the p_company_id parameter to p_tenant_id (PG restriction).
+DROP FUNCTION IF EXISTS get_effective_governance_config(uuid, uuid, uuid, uuid);
+
 CREATE OR REPLACE FUNCTION get_effective_governance_config(
     p_tenant_id UUID DEFAULT NULL,
     p_org_id UUID DEFAULT NULL,
@@ -219,6 +227,9 @@ CREATE POLICY escalation_queue_tenant_isolation ON escalation_queue
 -- ---------------------------------------------------------------------
 -- 4. Agents: allowed_company_ids -> allowed_tenant_ids (semantic backfill)
 -- ---------------------------------------------------------------------
+-- Drop dependent view before dropping allowed_company_ids (recreated below).
+DROP VIEW IF EXISTS v_agent_permissions;
+
 DO $$
 BEGIN
     ALTER TABLE agents
@@ -315,6 +326,9 @@ BEGIN
     END IF;
 END $$;
 
+-- Drop dependent view before dropping organizations.company_id (recreated below).
+DROP VIEW IF EXISTS v_orphan_organizations;
+
 ALTER TABLE organizations
     DROP COLUMN IF EXISTS company_id;
 
@@ -375,3 +389,33 @@ WHERE o.deleted_at IS NULL
   AND t.id IS NULL;
 
 DROP TABLE IF EXISTS companies;
+
+-- Realign v_pending_requests projection to tenant_id. Its source column was renamed
+-- company_id -> tenant_id above, but the view kept the old output alias "company_id".
+-- CREATE OR REPLACE cannot rename a view column, so drop + recreate.
+DROP VIEW IF EXISTS v_pending_requests;
+CREATE VIEW v_pending_requests AS
+SELECT ar.id,
+    ar.request_number,
+    ar.request_type,
+    ar.target_type,
+    ar.title,
+    ar.description,
+    ar.risk_level,
+    ar.requestor_type,
+    ar.requestor_id,
+    COALESCE(ar.requestor_email, u.email) AS requestor_email,
+    COALESCE(u.name, a.name) AS requestor_name,
+    ar.required_approvals,
+    ar.current_approvals,
+    ar.status,
+    ar.created_at,
+    ar.expires_at,
+    ar.tenant_id,
+    ar.org_id,
+    ar.team_id,
+    ar.project_id
+   FROM approval_requests ar
+     LEFT JOIN users u ON ar.requestor_type = 'user'::text AND ar.requestor_id = u.id
+     LEFT JOIN agents a ON ar.requestor_type = 'agent'::text AND ar.requestor_id = a.id
+  WHERE ar.status = 'pending'::text;
