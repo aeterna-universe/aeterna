@@ -415,8 +415,8 @@ SELECT
     COALESCE(LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]', '-', 'g')), id),
     name,
     COALESCE(metadata, '{}'),
-    to_timestamp(created_at / 1000),
-    to_timestamp(updated_at / 1000)
+    created_at,
+    updated_at
 FROM organizational_units
 WHERE type = 'company'
 ON CONFLICT (slug) DO NOTHING;
@@ -431,6 +431,4 @@ COMMENT ON TABLE projects IS 'Repositories owned by a team.';
 COMMENT ON TABLE users IS 'Human identities with optional IdP integration.';
 COMMENT ON TABLE agents IS 'AI agent identities with delegation chains.';
 COMMENT ON TABLE memberships IS 'User-team relationships with roles.';
-COMMENT ON VIEW v_hierarchy IS 'OPAL view: organizational hierarchy for Cedar entities.';
-COMMENT ON VIEW v_user_permissions IS 'OPAL view: user permissions for Cedar authorization.';
 COMMENT ON VIEW v_agent_permissions IS 'OPAL view: agent permissions for Cedar authorization.';
