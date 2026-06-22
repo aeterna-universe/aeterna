@@ -2,27 +2,28 @@
 # Tiltfile — Aeterna local development on kind
 # ===========================================================================
 #
-# Brings up the full Aeterna stack on a local kind cluster with live reload.
+# One-command full-stack local dev. Installs required operators, deploys all
+# backing services + the Aeterna server, with live reload on source changes.
 #
 # Prerequisites (one-time):
-#
 #   kind create cluster --config deploy/tilt/kind-cluster.yaml
-#   docker network connect kind kind-registry   # if using a local registry
-#   kubectl config use-context kind-aeterna-dev
 #
-# Then:
-#
+# Then just:
 #   tilt up
 #
 # What you get:
-#   - Aeterna server (built from source, live-reloaded on Rust/admin-ui edits)
-#   - PostgreSQL via CloudNativePG (with the managed.roles from PR #195)
+#   - CloudNativePG operator (auto-installed)
+#   - DragonflyDB operator   (auto-installed)
+#   - PostgreSQL via CloudNativePG (with managed.roles from PR #195)
 #   - Dragonfly (Redis-compatible cache)
 #   - Qdrant (vector store)
+#   - OPAL server + Cedar agent (governance)
+#   - Aeterna server (built from source, live-reloaded)
 #   - http://localhost:8080  — Aeterna API + Admin UI
 #   - http://localhost:9090  — Prometheus metrics
+#   - http://localhost:10350 — Tilt UI
 #
-# Press 'q' in the Tilt UI (or Ctrl-C) to tear everything down.
+# Press 'space' in the Tilt UI to open the browser, 'q' or Ctrl-C to stop.
 # ===========================================================================
 
 # --- Config --------------------------------------------------------------
@@ -32,36 +33,65 @@ namespace      = 'aeterna'
 release_prereq = 'aeterna-prereqs'
 release_main   = 'aeterna'
 
-# --- Cluster preflight ---------------------------------------------------
+# Pinned operator versions (bump here when upgrading).
+CNPG_VERSION        = '1.25.1'
+CNPG_MANIFEST_URL   = 'https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-%s.yaml' % CNPG_VERSION
+DRAGONFLY_MANIFEST_URL = 'https://raw.githubusercontent.com/dragonflydb/dragonfly-operator/main/manifests/dragonfly-operator.yaml'
 
-# Fail fast if the kind cluster / kubectl context isn't set up.
-preflight_cmd = '\n'.join([
+# ===========================================================================
+# Operator bootstrap (runs before any chart deploy)
+# ===========================================================================
+#
+# Idempotently installs the CloudNativePG and DragonflyDB operators.
+# The CNPG `poolers` CRD exceeds Kubernetes' 262KB annotation limit, so it
+# requires server-side apply. We handle that with a targeted retry.
+# This resource blocks all downstream k8s deploys via resource_deps.
+
+bootstrap_cmd = '\n'.join([
     'set -euo pipefail',
-    'kubectl config current-context | grep -q kind-aeterna-dev || '
-        + '{ echo "ERROR: kubeconfig context must be kind-aeterna-dev"; exit 1; }',
+    'echo "=== Operator bootstrap ==="',
+
+    # --- CloudNativePG ---
+    'if ! kubectl get crd clusters.postgresql.cnpg.io >/dev/null 2>&1; then',
+    '  echo "[CNPG] Installing CloudNativePG %s..."' % CNPG_VERSION,
+    '  curl -fsSL "%s" -o /tmp/cnpg-operator.yaml' % CNPG_MANIFEST_URL,
+    '  kubectl apply -f /tmp/cnpg-operator.yaml 2>&1 || true',
+    '  # The poolers CRD is too large for client-side apply (>262KB).',
+    '  kubectl apply --server-side --force-conflicts -f /tmp/cnpg-operator.yaml 2>&1 || true',
+    '  kubectl wait --for=condition=Available deployment/cnpg-controller-manager -n cnpg-system --timeout=180s',
+    '  echo "[CNPG] Operator ready"',
+    'else',
+    '  echo "[CNPG] Already installed"',
+    'fi',
+
+    # --- DragonflyDB ---
+    'if ! kubectl get crd dragonflies.dragonflydb.io >/dev/null 2>&1; then',
+    '  echo "[Dragonfly] Installing DragonflyDB operator..."',
+    '  curl -fsSL "%s" -o /tmp/dragonfly-operator.yaml' % DRAGONFLY_MANIFEST_URL,
+    '  kubectl apply -f /tmp/dragonfly-operator.yaml',
+    '  kubectl rollout status deployment/dragonfly-operator-controller-manager -n dragonfly-operator-system --timeout=120s',
+    '  echo "[Dragonfly] Operator ready"',
+    'else',
+    '  echo "[Dragonfly] Already installed"',
+    'fi',
+
+    # --- Namespace ---
     'kubectl get namespace %s >/dev/null 2>&1 || kubectl create namespace %s' % (namespace, namespace),
-    'kubectl get crd clusters.postgresql.cnpg.io >/dev/null 2>&1 || {'
-        + '  echo "ERROR: CloudNativePG CRDs missing. Install with:";'
-        + '  echo "  kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.1.yaml";'
-        + '  echo "  (poolers CRD needs: kubectl apply --server-side --force-conflicts -f <same-file>)";'
-        + '  exit 1;'
-        + '}',
-    'echo "preflight OK"',
+
+    'echo "=== Bootstrap complete ==="',
 ])
 
-local_resource('cluster-preflight', ['bash', '-c', preflight_cmd], allow_parallel=True)
+local_resource(
+    'bootstrap-operators',
+    ['bash', '-c', bootstrap_cmd],
+    trigger_mode=TRIGGER_MODE_MANUAL,
+)
 
-# --- Namespace (created synchronously before any chart deploy) -----------
-
-k8s_yaml(blob('apiVersion: v1\nkind: Namespace\nmetadata:\n  name: %s\n' % namespace))
-
-# --- Prerequisites chart (Postgres/CNPG + Dragonfly + Qdrant) ------------
-#
-# Installs the backing services. The managed.roles block in this chart's
-# values.yaml provisions aeterna_app + aeterna_admin (issue #194).
+# ===========================================================================
+# Backing services — aeterna-prereqs chart
+# ===========================================================================
 
 prereqs_values = [
-    # Keep the cluster small for local dev
     'postgresql.instances=1',
     'postgresql.storage.size=2Gi',
     'postgresql.resources.requests.cpu=100m',
@@ -78,10 +108,18 @@ k8s_yaml(helm(
     set=prereqs_values,
 ))
 
-# --- Build the Aeterna image ---------------------------------------------
-#
-# docker_build builds the multi-stage Dockerfile (admin-ui + Rust + runtime)
-# and pushes to the local registry that kind's containerd is configured to use.
+# The Dragonfly operator creates child resources (Service, StatefulSet) from
+# the Dragonfly CR that Tilt would otherwise try to reconcile and conflict
+# with. Tell Tilt to only track resources we explicitly select, ignoring
+# operator-managed child objects.
+k8s_resource(
+    workload='aeterna-prereqs-dragonfly',
+    discovery_strategy='selectors-only',
+)
+
+# ===========================================================================
+# Build the Aeterna image (multi-stage: admin-ui + Rust + runtime)
+# ===========================================================================
 
 docker_build(
     'aeterna/server',
@@ -92,18 +130,16 @@ docker_build(
         'VCS_REF':    str(local('git rev-parse --short HEAD', quiet=True)).strip(),
     },
     live_update=[
-        # NOTE: full Rust recompile on every edit is slow. For true live update
-        # we'd sync only changed source and recompile inside the container.
-        # The default rebuild on save is still a big DX win over full CI cycles.
+        # Sync source dirs; Tilt rebuilds the binary inside the container.
         sync('./cli/src',     '/app/cli/src'),
         sync('./storage/src', '/app/storage/src'),
         sync('./memory/src',  '/app/memory/src'),
     ],
 )
 
-# --- Main Aeterna chart --------------------------------------------------
-#
-# Points the app at the prereqs services. Uses the locally-built image.
+# ===========================================================================
+# Aeterna server — main chart
+# ===========================================================================
 
 main_values = [
     'aeterna.image.repository=aeterna/server',
@@ -152,7 +188,9 @@ k8s_yaml(helm(
     set=main_values,
 ))
 
-# --- Port forwards -------------------------------------------------------
+# ===========================================================================
+# Port forwards + dev UX
+# ===========================================================================
 
 k8s_resource(
     workload='aeterna',
@@ -160,8 +198,7 @@ k8s_resource(
     extra_pod_selectors=[{'app.kubernetes.io/component': 'aeterna'}],
 )
 
-# --- Convenience: show URLs in the Tilt UI on startup --------------------
-
+# Show URLs in the Tilt UI once the server is up.
 dev_urls_msg = (
     'echo "Aeterna local dev is ready:" && '
     + 'echo "  API:      http://localhost:8080" && '
@@ -170,4 +207,9 @@ dev_urls_msg = (
     + 'echo "  Tilt UI:  http://localhost:10350"'
 )
 
-local_resource('dev-urls', ['bash', '-c', dev_urls_msg], allow_parallel=True, resource_deps=[release_main])
+local_resource(
+    'dev-urls',
+    ['bash', '-c', dev_urls_msg],
+    allow_parallel=True,
+    resource_deps=['aeterna'],
+)
