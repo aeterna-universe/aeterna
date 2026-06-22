@@ -1,0 +1,90 @@
+# Aeterna staging environment overlay
+#
+# Production-like settings for a shared staging cluster.
+# Override secrets via external-secrets or SOPS — never inline real secrets here.
+
+deploymentMode: local
+
+# ── External services ────────────────────────────────────────────────────
+postgresql:
+  host: "aeterna-prereqs-cnpg-rw"
+  port: 5432
+  database: "aeterna"
+  username: "aeterna"
+  existingSecret: "aeterna-prereqs-cnpg-app"
+  passwordKey: "password"
+
+redis:
+  host: "aeterna-prereqs-dragonfly"
+  port: 6379
+
+vectorStore:
+  type: "qdrant"
+  host: "aeterna-prereqs-qdrant"
+  port: 6333
+
+# ── Application ──────────────────────────────────────────────────────────
+aeterna:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ghcr.io/aeterna-universe/aeterna
+    tag: "master"
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+# ── Authorization — policies from git repo ───────────────────────────────
+opal:
+  enabled: true
+  server:
+    replicaCount: 2
+    policyRepoUrl: "https://github.com/aeterna-universe/policies"
+
+# ── Knowledge repo ───────────────────────────────────────────────────────
+knowledgeRepo:
+  enabled: true
+  remoteUrl: "https://github.com/aeterna-universe/knowledge"
+  branch: "main"
+  github:
+    owner: "aeterna-universe"
+    repo: "knowledge"
+    appId: "4119573"
+    installationId: "141993686"
+    pemSecret: "aeterna-knowledge-pem"
+
+# ── GitHub Org sync ──────────────────────────────────────────────────────
+githubOrgSync:
+  enabled: true
+  orgName: "aeterna-universe"
+
+# ── Plugin auth (use real OAuth app for staging) ─────────────────────────
+# pluginAuth:
+#   enabled: true
+#   existingSecret: "aeterna-plugin-auth"
+
+# ── KMS ──────────────────────────────────────────────────────────────────
+# kms:
+#   provider: aws
+#   aws:
+#     keyArn: "arn:aws:kms:region:account:key/..."
+#     auth: "irsa"
+
+# ── Observability ────────────────────────────────────────────────────────
+observability:
+  logging:
+    level: info
+    format: json

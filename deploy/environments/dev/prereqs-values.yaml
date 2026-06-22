@@ -1,0 +1,57 @@
+# Aeterna dev prerequisites overlay
+#
+# Small cluster for local dev / CI. Single-instance Postgres, minimal resources.
+
+postgresql:
+  enabled: true
+  instances: 1
+  database: "aeterna"
+  owner: "aeterna"
+  storage:
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+cache:
+  type: dragonfly
+  dragonfly:
+    enabled: true
+    replicas: 1
+
+vectorStore:
+  type: qdrant
+  qdrant:
+    enabled: true
+
+# OpenBao disabled for local dev — using local KMS
+openbao:
+  enabled: false
+
+# Subchart overrides — minimal resources
+dragonfly:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+qdrant:
+  enabled: true
+  replicaCount: 1
+  persistence:
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
