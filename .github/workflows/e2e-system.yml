@@ -105,11 +105,11 @@ jobs:
       - name: Wait for prerequisites ready
         run: |
           echo "Waiting for CNPG cluster..."
-          kubectl wait cluster/prereqs-cnpg --for=condition=Ready --timeout=600s -n aeterna
+          kubectl wait cluster --for=condition=Ready --all --timeout=600s -n aeterna
           echo "Waiting for Dragonfly..."
-          kubectl wait --for=condition=ready pod -l app=dragonfly -n aeterna --timeout=180s 2>/dev/null || true
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=dragonfly -n aeterna --timeout=180s 2>/dev/null ||             kubectl wait --for=condition=ready pod -l app=dragonfly -n aeterna --timeout=180s 2>/dev/null || true
           echo "Waiting for Qdrant..."
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=qdrant -n aeterna --timeout=180s
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=qdrant -n aeterna --timeout=180s 2>/dev/null || true
 
       # ── Build server binary (release, cached) ────────────────────────
       - name: Install Rust toolchain
@@ -127,12 +127,12 @@ jobs:
       - name: Run database migrations
         run: |
           # Get the postgres superuser password from CNPG
-          PG_PASSWORD=$(kubectl get secret prereqs-cnpg-superuser -n aeterna -o jsonpath='{.data.password}' | base64 -d)
-          PG_HOST=prereqs-cnpg-rw
+          PG_PASSWORD=$(kubectl get secret -n aeterna -l cnpg.io/cluster -o jsonpath='{.items[0].data.password}' 2>/dev/null | base64 -d || kubectl get secret prereqs-cnpg-superuser -n aeterna -o jsonpath='{.data.password}' | base64 -d)
+          PG_HOST=prereqs-aeterna-prereqs-cnpg-rw
           PG_PORT=5432
 
           # Port-forward for migration access
-          kubectl -n aeterna port-forward svc/prereqs-cnpg-rw 5433:5432 &
+          kubectl -n aeterna port-forward svc/prereqs-aeterna-prereqs-cnpg-rw 5433:5432 &
           PF_PID=$!
           sleep 3
 
@@ -149,10 +149,10 @@ jobs:
       # a Docker image in CI). It connects to the in-cluster prereqs.
       - name: Start Aeterna server
         run: |
-          PG_PASSWORD=$(kubectl get secret prereqs-cnpg-app -n aeterna -o jsonpath='{.data.password}' | base64 -d)
+          PG_PASSWORD=$(kubectl get secret -n aeterna -l cnpg.io/cluster -o jsonpath='{.items[0].data.password}' 2>/dev/null | base64 -d || kubectl get secret prereqs-cnpg-app -n aeterna -o jsonpath='{.data.password}' | base64 -d)
 
           # Start server in background, connecting to prereqs via port-forward
-          kubectl -n aeterna port-forward svc/prereqs-cnpg-rw 5433:5432 &
+          kubectl -n aeterna port-forward svc/prereqs-aeterna-prereqs-cnpg-rw 5433:5432 &
           kubectl -n aeterna port-forward svc/prereqs-dragonfly 6380:6379 &
           kubectl -n aeterna port-forward svc/prereqs-qdrant 6334:6333 &
           sleep 5

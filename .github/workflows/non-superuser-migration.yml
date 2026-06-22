@@ -69,9 +69,12 @@ jobs:
 
       - name: Install CNPG operator
         run: |
-          kubectl apply -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.1.yaml
+          curl -fsSL -o /tmp/cnpg.yaml https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.1.yaml
+          kubectl apply -f /tmp/cnpg.yaml 2>&1 || true
+          # The poolers CRD exceeds the 262KB annotation limit; needs server-side apply
+          kubectl apply --server-side --force-conflicts -f /tmp/cnpg.yaml
           kubectl wait --for=condition=Available deployment/cnpg-controller-manager \
-            -n cnpg-system --timeout=120s
+            -n cnpg-system --timeout=180s
 
       # ── Helm ─────────────────────────────────────────────────────────
       - name: Set up Helm

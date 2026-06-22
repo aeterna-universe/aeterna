@@ -126,13 +126,12 @@ async fn migration_025_runs_as_non_superuser() {
         .expect("pre-provision aeterna_admin");
 
     // Sanity: the app owner is NOT a superuser.
-    let owner_is_super: bool = sqlx::query(
-        "SELECT rolsuper FROM pg_roles WHERE rolname = 'aeterna'",
-    )
-    .fetch_one(&super_pool)
-    .await
-    .expect("query owner rolsuper")
-    .get("rolsuper");
+    let owner_is_super: bool =
+        sqlx::query("SELECT rolsuper FROM pg_roles WHERE rolname = 'aeterna'")
+            .fetch_one(&super_pool)
+            .await
+            .expect("query owner rolsuper")
+            .get("rolsuper");
     assert!(
         !owner_is_super,
         "precondition: the `aeterna` migration role must NOT be a superuser"
