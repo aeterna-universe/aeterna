@@ -29,6 +29,35 @@ spec:
       {{- toYaml . | nindent 6 }}
     {{- end }}
 
+  {{- /*
+     CNPG managed roles — provisioned by the operator, which runs as the
+     Postgres SUPERUSER. This is the only layer that can set the BYPASSRLS /
+     NOBYPASSRLS role attributes (issue #194). Migration 025
+     (storage/migrations/025_add_app_roles.sql) is superuser-aware and skips
+     BYPASSRLS-touching statements when run by a non-superuser, expecting these
+     roles to already exist. See:
+       openspec/changes/decide-rls-enforcement-model/proposal.md
+  */}}
+  managed:
+    roles:
+      {{- range $name, $spec := .Values.postgresql.managedRoles }}
+      - name: {{ $name | quote }}
+        login: {{ $spec.login }}
+        superuser: {{ $spec.superuser | default false }}
+        bypassrls: {{ $spec.bypassrls | default false }}
+        disablePassword: {{ $spec.disablePassword | default true }}
+        {{- if hasKey $spec "createrole" }}
+        createrole: {{ $spec.createrole }}
+        {{- end }}
+        {{- if hasKey $spec "createdb" }}
+        createdb: {{ $spec.createdb }}
+        {{- end }}
+        {{- if hasKey $spec "inherit" }}
+        inherit: {{ $spec.inherit }}
+        {{- end }}
+        comment: {{ $spec.comment | quote }}
+      {{- end }}
+
   storage:
     size: {{ .Values.postgresql.storage.size }}
     {{- if .Values.postgresql.storage.storageClass }}

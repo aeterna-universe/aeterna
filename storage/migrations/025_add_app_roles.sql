@@ -32,29 +32,87 @@
 -- =============================================================================
 
 -- --------------------------------------------------------------------------
--- 1. Role creation (idempotent)
+-- 1. Role creation (idempotent, superuser-aware)
+-- --------------------------------------------------------------------------
+--
+-- The BYPASSRLS / NOBYPASSRLS role attributes can ONLY be set by a
+-- SUPERUSER; CREATEROLE (which the CNPG-managed `aeterna` app role has) is
+-- insufficient. Running this migration as the non-superuser app role on a
+-- greenfield or DB-wipe deploy therefore used to stall with an error here,
+-- because every branch below touched a BYPASSRLS clause (issue #194).
+--
+-- Strategy (see issue #194 / decide-rls-enforcement-model proposal.md §A.2):
+--
+--   * The two login roles AND their BYPASSRLS/NOBYPASSRLS attributes are the
+--     responsibility of the **superuser prereqs layer** (CNPG `managed.roles`
+--     in charts/aeterna-prereqs). The operator runs as superuser, so the roles
+--     exist with the correct attributes before the app-user migration runs.
+--   * When this migration IS executed by a superuser (local dev with the
+--     `postgres` superuser, or an operator-initiated run) it still creates /
+--     repairs the roles itself for convenience and dev ergonomics — exactly the
+--     pre-#194 behaviour, gated on `current_user` actually being a superuser.
+--   * When executed by a non-superuser it skips the BYPASSRLS-touching
+--     statements with a WARNING (not an error): the roles are expected to be
+--     pre-provisioned by the prereqs layer. The subsequent GRANT / column / index
+--     statements below are unconditional and work fine for the app owner.
 -- --------------------------------------------------------------------------
 
 DO $mig$
+DECLARE
+    is_superuser BOOLEAN;
 BEGIN
+    SELECT rolsuper INTO is_superuser FROM pg_roles WHERE rolname = current_user;
+
+    -- ---------- aeterna_app ------------------------------------------------
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'aeterna_app') THEN
-        -- NOBYPASSRLS is the default for CREATE ROLE but stated explicitly
-        -- here so the intent is unmistakable to future readers.
-        CREATE ROLE aeterna_app LOGIN NOBYPASSRLS PASSWORD NULL;
-        RAISE NOTICE 'Created role aeterna_app (NOBYPASSRLS)';
+        IF is_superuser THEN
+            -- NOBYPASSRLS is the default for CREATE ROLE but stated explicitly
+            -- here so the intent is unmistakable to future readers.
+            CREATE ROLE aeterna_app LOGIN NOBYPASSRLS PASSWORD NULL;
+            RAISE NOTICE 'Created role aeterna_app (NOBYPASSRLS)';
+        ELSE
+            -- Cannot CREATE ROLE ... BYPASSRLS|NOBYPASSRLS without SUPERUSER.
+            -- The prereqs layer (CNPG managed.roles) must provision it.
+            RAISE WARNING
+                'Migration 025 (non-superuser run): role aeterna_app is missing. '
+                'It must be pre-provisioned by the superuser prereqs layer '
+                '(CNPG managed.roles in charts/aeterna-prereqs). Skipping '
+                'role creation; downstream GRANTs require it to already exist.';
+        END IF;
     ELSE
-        -- Defensive: some dev environments may have created the role with
-        -- BYPASSRLS by mistake. Force the correct state on every run.
-        ALTER ROLE aeterna_app NOBYPASSRLS;
-        RAISE NOTICE 'Role aeterna_app already exists; ensured NOBYPASSRLS';
+        IF is_superuser THEN
+            -- Defensive: some dev environments may have created the role with
+            -- BYPASSRLS by mistake. Force the correct state on every run.
+            ALTER ROLE aeterna_app NOBYPASSRLS;
+            RAISE NOTICE 'Role aeterna_app already exists; ensured NOBYPASSRLS';
+        ELSE
+            RAISE NOTICE
+                'Role aeterna_app already exists; skipping NOBYPASSRLS '
+                'enforcement (requires SUPERUSER — prereqs layer owns this)';
+        END IF;
     END IF;
 
+    -- ---------- aeterna_admin ----------------------------------------------
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'aeterna_admin') THEN
-        CREATE ROLE aeterna_admin LOGIN BYPASSRLS PASSWORD NULL;
-        RAISE NOTICE 'Created role aeterna_admin (BYPASSRLS)';
+        IF is_superuser THEN
+            CREATE ROLE aeterna_admin LOGIN BYPASSRLS PASSWORD NULL;
+            RAISE NOTICE 'Created role aeterna_admin (BYPASSRLS)';
+        ELSE
+            RAISE WARNING
+                'Migration 025 (non-superuser run): role aeterna_admin is missing. '
+                'It must be pre-provisioned by the superuser prereqs layer '
+                '(CNPG managed.roles in charts/aeterna-prereqs). Skipping '
+                'role creation; downstream GRANTs require it to already exist.';
+        END IF;
     ELSE
-        ALTER ROLE aeterna_admin BYPASSRLS;
-        RAISE NOTICE 'Role aeterna_admin already exists; ensured BYPASSRLS';
+        IF is_superuser THEN
+            ALTER ROLE aeterna_admin BYPASSRLS;
+            RAISE NOTICE 'Role aeterna_admin already exists; ensured BYPASSRLS';
+        ELSE
+            RAISE NOTICE
+                'Role aeterna_admin already exists; skipping BYPASSRLS '
+                'enforcement (requires SUPERUSER — prereqs layer owns this)';
+        END IF;
     END IF;
 END
 $mig$;
