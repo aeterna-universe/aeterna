@@ -1,0 +1,23 @@
+# kind cluster config for Aeterna local dev with Tilt.
+# Creates a 1-node cluster and maps the Aeterna HTTP/metrics ports so the
+# UI + API are reachable from the host without `kubectl port-forward`.
+#
+# Usage:
+#   kind create cluster --config deploy/tilt/kind-cluster.yaml
+#
+# Delete everything:
+#   kind delete cluster --name aeterna-dev
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: aeterna-dev
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # Aeterna HTTP (API + Admin UI)
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      # Aeterna Prometheus metrics
+      - containerPort: 30090
+        hostPort: 9090
+        protocol: TCP
