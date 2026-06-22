@@ -79,6 +79,14 @@ bootstrap_cmd = '\n'.join([
     'kubectl get namespace %s >/dev/null 2>&1 || kubectl create namespace %s' % (namespace, namespace),
 
     'echo "=== Bootstrap complete ==="',
+
+    # --- Dev secrets ---
+    'if ! kubectl -n %s get secret aeterna-knowledge-pem >/dev/null 2>&1; then' % namespace,
+    '  echo "Creating dev secrets from PEM files..."',
+    '  bash ~/projects/aeterna/deploy/tilt/create-dev-secrets.sh',
+    'else',
+    '  echo "Dev secrets already exist"',
+    'fi',
 ])
 
 local_resource(
@@ -158,10 +166,40 @@ main_values = [
     'vectorStore.host=aeterna-prereqs-qdrant',
     'vectorStore.port=6333',
 
+    # --- Knowledge repo (aeterna-universe/knowledge) ---
+    'knowledgeRepo.enabled=true',
+    'knowledgeRepo.remoteUrl=https://github.com/aeterna-universe/knowledge',
+    'knowledgeRepo.branch=main',
+    'knowledgeRepo.github.owner=aeterna-universe',
+    'knowledgeRepo.github.repo=knowledge',
+    'knowledgeRepo.github.appId=4119573',
+    'knowledgeRepo.github.installationId=141993686',
+    'knowledgeRepo.github.pemSecret=aeterna-knowledge-pem',
+
+    # --- OPAL policy repo (aeterna-universe/policies) ---
+    'opal.server.policyRepoUrl=https://github.com/aeterna-universe/policies',
+
+    # --- Git provider connections (platform-owned GitHub App connectivity) ---
+    # The knowledge app is wired via the knowledgeRepo block above; this adds
+    # it to the platform connection registry for tenant-scoped use.
+    'gitProviderConnections[0].id=aeterna-knowledge-app',
+    'gitProviderConnections[0].name=Aeterna Knowledge App',
+    'gitProviderConnections[0].providerKind=GitHubApp',
+    'gitProviderConnections[0].appId=4119573',
+    'gitProviderConnections[0].installationId=141993686',
+    'gitProviderConnections[0].pemSecret=aeterna-knowledge-pem/pem-key',
+
+    # --- GitHub Org sync (aeterna-universe) ---
+    'githubOrgSync.enabled=true',
+    'githubOrgSync.orgName=aeterna-universe',
+
+    # --- Plugin auth (local dev JWT) ---
+    'pluginAuth.enabled=true',
+    'pluginAuth.existingSecret=aeterna-plugin-auth',
+    'pluginAuth.github.clientId=dev-local-dummy',
+    'pluginAuth.github.clientSecret=dev-local-dummy',
+
     # Local dev: disable external integrations that need secrets
-    'pluginAuth.enabled=false',
-    'githubOrgSync.enabled=false',
-    'knowledgeRepo.enabled=false',
     'codesearch.enabled=false',
     'adminUi.enabled=true',
     'adminUi.path=/app/admin-ui/dist',
