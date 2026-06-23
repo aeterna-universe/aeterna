@@ -161,24 +161,28 @@ jobs:
       # chain must complete as the non-superuser owner.
       - name: Run migration 025 as non-superuser owner
         run: |
-          POD=$(kubectl get pod -l cnpg.io/cluster=prereqs-cnpg -o name | head -1 | sed 's|pod/||')
+          # Use the same label-based lookup that worked in the previous step.
+          POD=$(kubectl get pod -l cnpg.io/cluster -o name | head -1 | sed 's|pod/||')
+          echo "Using pod: $POD"
 
-          # Port-forward so we can drive psql from the runner as the `aeterna`
-          # non-superuser owner (CNPG sets the owner password in a secret).
-          kubectl port-forward "pod/$POD" 5433:5432 &
-          PF_PID=$!
-          sleep 5
+          if [ -z "$POD" ]; then
+            echo "::error::No CNPG pod found"
+            exit 1
+          fi
 
-          # The prereqs chart doesn't expose a DATABASE_URL for the owner here,
-          # so we verify the migration via the operator's superuser connection,
-          # impersonating the non-superuser role through SECURITY DEFINER-style
-          # SET ROLE. This exercises the exact same permission boundary.
+          # Verify the migration 025 DO block as the non-superuser aeterna role.
+          # Roles already exist (provisioned by managed.roles), so this exercises
+          # the "already exists, skip" path. We exec into the postgres pod and
+          # use SET ROLE to impersonate the non-superuser.
           echo "--- running migration 025 DO block as SET ROLE aeterna ---"
-          kubectl exec "$POD" -- psql -U postgres -d aeterna -v ON_ERROR_STOP=1 <<'SQL'
+          kubectl exec "$POD" -- psql -U postgres -d aeterna -v ON_ERROR_STOP=1 \
+            -c "SET ROLE aeterna;" \
+            -c "SELECT rolsuper FROM pg_roles WHERE rolname = current_user;" \
+            -c "RESET ROLE;"
+
+          # The DO block itself (roles already exist -> non-superuser skips)
+          kubectl exec "$POD" -- psql -U postgres -d aeterna -v ON_ERROR_STOP=1 <<'SQLEOF'
           SET ROLE aeterna;
-          -- The role-creation DO block from migration 025, as non-superuser.
-          -- Roles already exist (provisioned by managed.roles), so this
-          -- exercises the "already exists, skip" path.
           DO $mig$
           DECLARE is_superuser BOOLEAN;
           BEGIN
@@ -190,7 +194,6 @@ jobs:
           END
           $mig$;
           RESET ROLE;
-          SQL
+          SQLEOF
 
-          kill $PF_PID 2>/dev/null || true
           echo "✓ Migration 025 non-superuser path verified in-cluster"
