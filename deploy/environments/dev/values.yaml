@@ -1,0 +1,111 @@
+# Aeterna dev environment overlay
+#
+# This is the local dev / CI overlay. It points at prereqs-chart-deployed services
+# and uses the aeterna-universe GitHub Apps for authentication + knowledge sync.
+#
+# Policies are fetched at runtime by the OPAL fetcher from the policies repo —
+# NO inline Cedar policyText needed.
+
+deploymentMode: local
+
+# ── External services (deployed by aeterna-prereqs) ──────────────────────
+postgresql:
+  host: "aeterna-prereqs-cnpg-rw"
+  port: 5432
+  database: "aeterna"
+  username: "aeterna"
+  existingSecret: "aeterna-prereqs-cnpg-app"
+  passwordKey: "password"
+
+redis:
+  host: "aeterna-prereqs-dragonfly"
+  port: 6379
+
+vectorStore:
+  type: "qdrant"
+  host: "aeterna-prereqs-qdrant"
+  port: 6333
+
+# ── Application ──────────────────────────────────────────────────────────
+aeterna:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/aeterna-universe/aeterna
+    tag: "master"
+    pullPolicy: Always
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+# ── Authorization (OPAL + Cedar) ─────────────────────────────────────────
+# Policies come from the git repo — NO inline policyText needed.
+opal:
+  enabled: true
+  server:
+    replicaCount: 1
+    policyRepoUrl: "https://github.com/aeterna-universe/policies"
+  cedarAgent:
+    enabled: true
+
+# ── Knowledge repo ───────────────────────────────────────────────────────
+knowledgeRepo:
+  enabled: true
+  remoteUrl: "https://github.com/aeterna-universe/knowledge"
+  branch: "main"
+  github:
+    owner: "aeterna-universe"
+    repo: "knowledge"
+    appId: "4119573"
+    installationId: "141993686"
+    pemSecret: "aeterna-knowledge-pem"
+
+# ── GitHub Org sync ──────────────────────────────────────────────────────
+githubOrgSync:
+  enabled: true
+  orgName: "aeterna-universe"
+
+# ── Plugin auth ──────────────────────────────────────────────────────────
+pluginAuth:
+  enabled: true
+  existingSecret: "aeterna-plugin-auth"
+  github:
+    clientId: "dev-local-dummy"
+    clientSecret: "dev-local-dummy"
+
+# ── Git provider connections ─────────────────────────────────────────────
+gitProviderConnections:
+  - id: "aeterna-knowledge-app"
+    name: "Aeterna Knowledge App"
+    providerKind: GitHubApp
+    appId: "4119573"
+    installationId: "141993686"
+    pemSecretRef: "secret/aeterna-knowledge-pem/pem-key"
+    allowedTenantIds: []
+
+# ── KMS ──────────────────────────────────────────────────────────────────
+kms:
+  provider: local
+  local:
+    generate: true
+
+# ── Admin UI ─────────────────────────────────────────────────────────────
+adminUi:
+  enabled: true
+  path: "/app/admin-ui/dist"
+
+# ── Observability ────────────────────────────────────────────────────────
+observability:
+  logging:
+    level: debug
+    format: pretty
+
+# ── Disabled for local dev ───────────────────────────────────────────────
+codesearch:
+  enabled: false
+networkPolicy:
+  enabled: false

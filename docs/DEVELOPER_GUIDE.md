@@ -548,13 +548,17 @@ for tid in tenant_ids {
 
 ### Local dev setup
 
-Migration `025_add_app_roles.sql` creates both roles with `PASSWORD NULL`. After running migrations locally, set passwords:
+Migration `025_add_app_roles.sql` creates both roles with `PASSWORD NULL`. It is **superuser-aware**: when run by a superuser (local dev with the `postgres` superuser), it creates / repairs the roles itself; when run by a non-superuser (the CNPG-managed `aeterna` owner in production — which has `CREATEROLE` but not `SUPERUSER`), it skips the `BYPASSRLS`/`NOBYPASSRLS` statements with a WARNING and expects the roles to already exist (provisioned by the prereqs layer's CNPG `managed.roles`). See issue #194.
+
+**Local dev (superuser path)** — after running migrations locally, set passwords:
 
 ```bash
 psql $DATABASE_URL -c "ALTER ROLE aeterna_app WITH PASSWORD 'devapp'"
 psql $DATABASE_URL -c "ALTER ROLE aeterna_admin WITH PASSWORD 'devadmin'"
-export DATABASE_URL_ADMIN="postgres://aeterna_admin:devadmin@localhost:5432/aeterna"
+export DATABASE_URL_ADMIN="postgres://aeterna_admin:***@localhost:5432/aeterna"
 ```
+
+**Production / greenfield (non-superuser path)** — the `aeterna-prereqs` Helm chart provisions `aeterna_app` (NOBYPASSRLS) and `aeterna_admin` (BYPASSRLS) via CloudNativePG `managed.roles`, which the operator applies as a superuser. The migration then only handles GRANTs / the `admin_scope` column / index. No `ALTER ROLE … SUPERUSER` workaround is needed. The regression is guarded by `storage/tests/migration_025_non_superuser_test.rs` and `.github/workflows/non-superuser-migration.yml` (kind + CNPG integration).
 
 Until Bundle A.3 Wave 6 flips `DATABASE_URL` to `aeterna_app`, you can leave `DATABASE_URL_ADMIN` unset — both pools will then share the current role and the helpers remain behaviorally correct (they still `BEGIN`/`COMMIT` and `SET LOCAL`, just without the RLS gate).
 

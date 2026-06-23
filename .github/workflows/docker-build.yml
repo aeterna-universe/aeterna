@@ -1,0 +1,250 @@
+name: Docker Build
+
+# Multi-arch Docker image build using the "build outside Docker" strategy:
+#
+# 1. Rust binary is compiled on the GHA runner (Swatinem/rust-cache for caching)
+# 2. Admin UI is built on the runner (npm ci + npm run build)
+# 3. Dockerfile.runtime COPYs the pre-built artifacts → ~5 sec Docker build
+#
+# This eliminates the 40-minute cold Docker build by using Swatinem/rust-cache
+# (GitHub blob storage) instead of --mount=type=cache (ephemeral BuildKit volumes).
+#
+# Triggers:
+#   - On master push (always — seeds the image cache)
+#   - On PR when 'docker-build' label is added (opt-in, not every PR)
+#   - Manual dispatch
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'cli/**'
+      - 'memory/**'
+      - 'storage/**'
+      - 'knowledge/**'
+      - 'admin-ui/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'Dockerfile.runtime'
+      - '.github/workflows/docker-build.yml'
+  pull_request:
+    types: [labeled]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      build-strategy:
+        description: 'Build strategy: docker (compile in Docker) or native (compile on runner)'
+        type: choice
+        options: [native, docker]
+        default: native
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────
+  # Strategy: Build binaries on native runners, then package in Docker
+  # ──────────────────────────────────────────────────────────────────────
+  native-build:
+    name: native-build-${{ matrix.arch }}
+    # Run on: master push, manual dispatch (native), or PR with docker-build label
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'docker-build'))
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Free disk space (duckdb-sys vendor build is ~5GB) ──────────────
+      - name: Free runner disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          swap-storage: true
+
+      # ── Rust toolchain + cache ─────────────────────────────────────────
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-build-${{ matrix.arch }}
+
+      # ── Install fast linker ────────────────────────────────────────────
+      - name: Install fast linker
+        run: |
+          sudo apt-get update
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get install -y lld clang
+            echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+            echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
+          else
+            sudo apt-get install -y mold clang
+            echo '[target.x86_64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+            echo 'linker = "clang"' >> ~/.cargo/config.toml
+            echo 'rustflags = ["-C", "link-arg=-fuse-ld=mold"]' >> ~/.cargo/config.toml
+          fi
+
+      # ── Build admin UI ─────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+
+      - name: Build admin UI
+        working-directory: admin-ui
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+
+      # ── Build Rust binary ──────────────────────────────────────────────
+      - name: Build release binary
+        run: cargo build --release --package aeterna
+        env:
+          CARGO_INCREMENTAL: '0'
+
+      - name: Copy binary
+        run: cp target/release/aeterna aeterna-bin
+
+      # ── Build Docker image (trivial — just COPY pre-built artifacts) ───
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.runtime
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            BINARY_PATH=aeterna-bin
+            ADMIN_UI_DIST=admin-ui/dist
+            BUILD_DATE=${{ github.event.head_commit.timestamp || github.event.pull_request.updated_at }}
+            VCS_REF=${{ github.sha }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Merge per-arch images into a multi-arch manifest
+  # ──────────────────────────────────────────────────────────────────────
+  manifest:
+    name: docker multi-arch manifest
+    needs: native-build
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'docker-build'))
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: docker-digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create & push multi-arch manifest
+        working-directory: /tmp/digests
+        run: |
+          set -eo pipefail
+          # Determine tags
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAGS="-t ${REGISTRY}/${IMAGE_NAME}:sha-${GITHUB_SHA::7} -t ${REGISTRY}/${IMAGE_NAME}:master -t ${REGISTRY}/${IMAGE_NAME}:latest"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            TAGS="-t ${REGISTRY}/${IMAGE_NAME}:pr-${{ github.event.pull_request.number }}"
+          else
+            TAGS="-t ${REGISTRY}/${IMAGE_NAME}:manual-${GITHUB_SHA::7}"
+          fi
+
+          docker buildx imagetools create \
+            $TAGS \
+            $(printf "${REGISTRY}/${IMAGE_NAME}@sha256:%s " *)
+
+          echo "Pushed: $TAGS"
+
+      - name: Verify manifest lists both platforms
+        run: |
+          set -eo pipefail
+          tag="${REGISTRY}/${IMAGE_NAME}:latest"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            tag="${REGISTRY}/${IMAGE_NAME}:pr-${{ github.event.pull_request.number }}"
+          fi
+          platforms=$(docker buildx imagetools inspect "$tag" --raw \
+            | jq -r '.manifests[] | "\(.platform.os)/\(.platform.architecture)"' \
+            | sort -u)
+          echo "Manifest platforms:"
+          echo "$platforms"
+          echo "$platforms" | grep -qx 'linux/amd64'
+          echo "$platforms" | grep -qx 'linux/arm64'
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Cleanup: untag PR images when the PR closes
+  # ──────────────────────────────────────────────────────────────────────
+  cleanup:
+    name: cleanup PR image
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/delete-package-versions@v5
+        with:
+          package-name: aeterna
+          package-type: container
+          delete-untagged-versions: true

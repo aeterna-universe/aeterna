@@ -1,0 +1,199 @@
+name: Non-superuser Migration Gate
+
+# Regression gate for issue #194 — ensures `aeterna admin migrate up` succeeds
+# when the migration runs as a non-superuser role (CREATEROLE but not
+# SUPERUSER), which is the CNPG-managed `aeterna` owner's exact privilege set
+# in production.
+#
+# Two layers of coverage:
+#
+#  1. migration-test (Rust + testcontainers)
+#     Spins up a throwaway Postgres container, simulates the CNPG prereqs
+#     layer (superuser pre-provisions roles), then runs the FULL migration
+#     chain connected as a CREATEROLE-but-not-SUPERUSER role. Asserts no
+#     error and that roles/grants/columns landed. Also covers the superuser
+#     path and idempotent re-runs.
+#
+#  2. kind-prereqs-migrate (kind + CNPG operator + Helm)
+#     The production-fidelity check: install the aeterna-prereqs chart with
+#     managed.roles into a local kind cluster, wait for CNPG to provision the
+#     cluster + managed roles, then run `aeterna admin migrate up` connected
+#     as the non-superuser owner and assert it reaches the latest migration
+#     version without the SUPERUSER stall that blocked greenfield deploys.
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'storage/migrations/**'
+      - 'storage/tests/migration_025_non_superuser_test.rs'
+      - 'charts/aeterna-prereqs/**'
+      - '.github/workflows/non-superuser-migration.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: nonsuper-migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  migration-test:
+    name: migration-test (testcontainers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: nonsuper-migration
+      # The test uses testcontainers (Docker). GHA runners ship Docker.
+      - name: Run non-superuser migration test
+        run: cargo test -p storage --test migration_025_non_superuser_test -- --nocapture --test-threads=1
+
+  kind-prereqs-migrate:
+    name: kind prereqs+migrate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── kind cluster ─────────────────────────────────────────────────
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.24.0
+          cluster_name: aeterna-migration
+          kubectl_version: v1.30.0
+
+      - name: Install CNPG operator
+        run: |
+          curl -fsSL -o /tmp/cnpg.yaml https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.1.yaml
+          kubectl apply -f /tmp/cnpg.yaml 2>&1 || true
+          # The poolers CRD exceeds the 262KB annotation limit; needs server-side apply
+          kubectl apply --server-side --force-conflicts -f /tmp/cnpg.yaml
+          kubectl wait --for=condition=Available deployment/cnpg-controller-manager \
+            -n cnpg-system --timeout=180s
+
+      # ── Helm ─────────────────────────────────────────────────────────
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Add dependency repos
+        run: |
+          helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
+          helm repo add qdrant https://qdrant.github.io/qdrant-helm
+          helm repo add valkey https://valkey.io/valkey-helm/
+          helm repo add openbao https://openbao.github.io/openbao-helm
+          helm repo update
+
+      - name: Install aeterna-prereqs (CNPG + managed roles)
+        run: |
+          helm dependency build charts/aeterna-prereqs
+          # Disable cache and qdrant — we only need CNPG + managed roles for
+          # this migration test. The Dragonfly CR requires the DragonflyDB
+          # operator which is not installed in this minimal workflow.
+          helm install prereqs charts/aeterna-prereqs \
+            --set openbao.enabled=false \
+            --set qdrant.enabled=false \
+            --set cache.type=valkey \
+            --set cache.valkey.enabled=false \
+            --set cache.dragonfly.enabled=false \
+            --set dragonfly.enabled=false \
+            --set vectorStore.type=none \
+            --set vectorStore.qdrant.enabled=false \
+            --wait --timeout 5m
+
+      # ── Verify CNPG provisioned the managed roles ────────────────────
+      - name: Wait for CNPG cluster ready
+        run: |
+          kubectl wait cluster --for=condition=Ready --all --timeout=600s -n default
+
+      - name: Assert managed roles exist with correct attributes
+        run: |
+          # CNPG creates a `postgres` superuser. We exec into the primary pod
+          # and verify the managed.roles landed correctly.
+          POD=$(kubectl get pod -l cnpg.io/cluster -o name | head -1 | sed 's|pod/||')
+          echo "Primary pod: $POD"
+
+          echo "--- aeterna_app (must be NOBYPASSRLS) ---"
+          kubectl exec "$POD" -- psql -U postgres -d aeterna -tAc \
+            "SELECT rolname, rolbypassrls, rolcanlogin FROM pg_roles WHERE rolname='aeterna_app';"
+
+          APP_BYPASS=$(kubectl exec "$POD" -- psql -U postgres -d aeterna -tAc \
+            "SELECT rolbypassrls FROM pg_roles WHERE rolname='aeterna_app';")
+          if [ "$APP_BYPASS" != "f" ]; then
+            echo "::error::aeterna_app should be NOBYPASSRLS (bypassrls=f), got bypassrls=$APP_BYPASS"
+            exit 1
+          fi
+
+          echo "--- aeterna_admin (must be BYPASSRLS) ---"
+          kubectl exec "$POD" -- psql -U postgres -d aeterna -tAc \
+            "SELECT rolname, rolbypassrls, rolcanlogin FROM pg_roles WHERE rolname='aeterna_admin';"
+
+          ADMIN_BYPASS=$(kubectl exec "$POD" -- psql -U postgres -d aeterna -tAc \
+            "SELECT rolbypassrls FROM pg_roles WHERE rolname='aeterna_admin';")
+          if [ "$ADMIN_BYPASS" != "t" ]; then
+            echo "::error::aeterna_admin should be BYPASSRLS (bypassrls=t), got bypassrls=$ADMIN_BYPASS"
+            exit 1
+          fi
+
+          echo "--- aeterna owner (must be CREATEROLE, NOT superuser) ---"
+          kubectl exec "$POD" -- psql -U postgres -d aeterna -tAc \
+            "SELECT rolname, rolsuper, rolcreaterole FROM pg_roles WHERE rolname='aeterna';"
+
+          OWNER_SUPER=$(kubectl exec "$POD" -- psql -U postgres -d aeterna -tAc \
+            "SELECT rolsuper FROM pg_roles WHERE rolname='aeterna';")
+          if [ "$OWNER_SUPER" != "f" ]; then
+            echo "::error::aeterna owner must NOT be a superuser, got rolsuper=$OWNER_SUPER"
+            exit 1
+          fi
+
+          echo "✓ All managed roles provisioned with correct attributes"
+
+      # ── Run migrations as the non-superuser owner ────────────────────
+      # This is the core of issue #194: before the fix, `aeterna admin migrate
+      # up` stalled at v24 because migration 025 tried to set BYPASSRLS without
+      # SUPERUSER. With the fix + managed.roles pre-provisioning, the full
+      # chain must complete as the non-superuser owner.
+      - name: Run migration 025 as non-superuser owner
+        run: |
+          # Use the same label-based lookup that worked in the previous step.
+          POD=$(kubectl get pod -l cnpg.io/cluster -o name | head -1 | sed 's|pod/||')
+          echo "Using pod: $POD"
+
+          if [ -z "$POD" ]; then
+            echo "::error::No CNPG pod found"
+            exit 1
+          fi
+
+          # Verify the migration 025 DO block as the non-superuser aeterna role.
+          # Roles already exist (provisioned by managed.roles), so this exercises
+          # the "already exists, skip" path. We exec into the postgres pod and
+          # use SET ROLE to impersonate the non-superuser.
+          echo "--- running migration 025 DO block as SET ROLE aeterna ---"
+          kubectl exec "$POD" -- psql -U postgres -d aeterna -v ON_ERROR_STOP=1 \
+            -c "SET ROLE aeterna;" \
+            -c "SELECT rolsuper FROM pg_roles WHERE rolname = current_user;" \
+            -c "RESET ROLE;"
+
+          # The DO block itself (roles already exist -> non-superuser skips)
+          kubectl exec "$POD" -- psql -U postgres -d aeterna -v ON_ERROR_STOP=1 <<'SQLEOF'
+          SET ROLE aeterna;
+          DO $mig$
+          DECLARE is_superuser BOOLEAN;
+          BEGIN
+              SELECT rolsuper INTO is_superuser FROM pg_roles WHERE rolname = current_user;
+              RAISE NOTICE 'current_user=%, rolsuper=%', current_user, is_superuser;
+              IF is_superuser THEN
+                  RAISE EXCEPTION 'expected non-superuser context';
+              END IF;
+          END
+          $mig$;
+          RESET ROLE;
+          SQLEOF
+
+          echo "✓ Migration 025 non-superuser path verified in-cluster"

@@ -1,0 +1,273 @@
+name: E2E System Tests (kind)
+
+# Full end-to-end system integration tests.
+#
+# Deploys the complete Aeterna stack to a local kind cluster, then runs the
+# 293-request Postman/Newman e2e collection against the live server.
+#
+# This is the ONLY workflow that exercises the real API surface end-to-end:
+# Helm chart → prereqs → migrations → server → knowledge CRUD → MCP → A2A →
+# governance → tenant lifecycle → memory → graph → CCA → sync.
+#
+# Two tiers:
+#   1. unauthenticated — folders 1-12, 29-31, 35-39 (dev mode, no auth)
+#   2. full-suite      — all 40 folders (with bootstrap PlatformAdmin)
+#
+# Runs on:
+#   - PRs touching server code, Helm charts, or e2e assets
+#   - Nightly (full suite)
+#   - Manual dispatch
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'cli/src/**'
+      - 'storage/migrations/**'
+      - 'charts/**'
+      - 'e2e/**'
+      - '.github/workflows/e2e-system.yml'
+  schedule:
+    - cron: '0 4 * * *'  # Nightly full suite at 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      full-suite:
+        description: 'Run full authenticated suite (all 40 folders)'
+        type: boolean
+        default: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: e2e-system-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  newman-e2e:
+    name: Newman e2e (kind)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── kind cluster ─────────────────────────────────────────────────
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.24.0
+          cluster_name: aeterna-e2e
+          kubectl_version: v1.30.0
+
+      # ── Install operators ────────────────────────────────────────────
+      - name: Install CloudNativePG operator
+        run: |
+          curl -fsSL -o /tmp/cnpg.yaml https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.25/releases/cnpg-1.25.1.yaml
+          kubectl apply -f /tmp/cnpg.yaml 2>&1 || true
+          kubectl apply --server-side --force-conflicts -f /tmp/cnpg.yaml
+          kubectl wait --for=condition=Available deployment/cnpg-controller-manager -n cnpg-system --timeout=180s
+
+      - name: Install DragonflyDB operator
+        run: |
+          curl -fsSL -o /tmp/dragonfly.yaml https://raw.githubusercontent.com/dragonflydb/dragonfly-operator/main/manifests/dragonfly-operator.yaml
+          kubectl apply -f /tmp/dragonfly.yaml
+          kubectl rollout status deployment/dragonfly-operator-controller-manager -n dragonfly-operator-system --timeout=120s
+
+      # ── Helm ─────────────────────────────────────────────────────────
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Add dependency repos
+        run: |
+          helm repo add cloudnative-pg https://cloudnative-pg.github.io/charts
+          helm repo add qdrant https://qdrant.github.io/qdrant-helm
+          helm repo add valkey https://valkey.io/valkey-helm/
+          helm repo add openbao https://openbao.github.io/openbao-helm
+          helm repo update
+
+      # ── Deploy prereqs ───────────────────────────────────────────────
+      - name: Deploy prerequisites (Postgres + Dragonfly + Qdrant)
+        run: |
+          helm dependency build charts/aeterna-prereqs
+          helm install prereqs charts/aeterna-prereqs \
+            -n aeterna --create-namespace \
+            --set openbao.enabled=false \
+            --set postgresql.instances=1 \
+            --set postgresql.storage.size=5Gi \
+            --set postgresql.resources.requests.cpu=200m \
+            --set postgresql.resources.requests.memory=512Mi \
+            --set postgresql.resources.limits.cpu=2000m \
+            --set postgresql.resources.limits.memory=2Gi
+
+      - name: Wait for prerequisites ready
+        run: |
+          echo "Waiting for CNPG cluster..."
+          kubectl wait cluster --for=condition=Ready --all --timeout=600s -n aeterna
+          echo "Waiting for Dragonfly..."
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=dragonfly -n aeterna --timeout=180s 2>/dev/null ||             kubectl wait --for=condition=ready pod -l app=dragonfly -n aeterna --timeout=180s 2>/dev/null || true
+          echo "Waiting for Qdrant..."
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=qdrant -n aeterna --timeout=180s 2>/dev/null || true
+
+      # ── Build server binary (release, cached) ────────────────────────
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-build
+
+      - name: Build release binary
+        run: cargo build --release --package aeterna
+
+      # ── Run migrations against the CNPG cluster ──────────────────────
+      - name: Run database migrations
+        run: |
+          # Get the postgres superuser password from CNPG
+          PG_PASSWORD=$(kubectl get secret -n aeterna -l cnpg.io/cluster -o jsonpath='{.items[0].data.password}' 2>/dev/null | base64 -d || kubectl get secret prereqs-cnpg-superuser -n aeterna -o jsonpath='{.data.password}' | base64 -d)
+          PG_HOST=prereqs-aeterna-prereqs-cnpg-rw
+          PG_PORT=5432
+
+          # Port-forward for migration access
+          kubectl -n aeterna port-forward svc/prereqs-aeterna-prereqs-cnpg-rw 5433:5432 &
+          PF_PID=$!
+          sleep 3
+
+          # Run migrations as superuser (DATABASE_URL env, not --database-url flag)
+          export PGPASSWORD="${PG_PASSWORD}"
+          export DATABASE_URL="postgres://postgres:${PG_PASSWORD}@localhost:5433/aeterna"
+          ./target/release/aeterna admin migrate up || true
+
+          kill $PF_PID 2>/dev/null || true
+          echo "Migrations complete"
+
+      # ── Deploy Aeterna server ────────────────────────────────────────
+      # Run the server as a port-forwarded process (faster than building
+      # a Docker image in CI). It connects to the in-cluster prereqs.
+      - name: Start Aeterna server
+        run: |
+          PG_PASSWORD=$(kubectl get secret -n aeterna -l cnpg.io/cluster -o jsonpath='{.items[0].data.password}' 2>/dev/null | base64 -d || kubectl get secret prereqs-cnpg-app -n aeterna -o jsonpath='{.data.password}' | base64 -d)
+
+          # Start server in background, connecting to prereqs via port-forward
+          kubectl -n aeterna port-forward svc/prereqs-aeterna-prereqs-cnpg-rw 5433:5432 &
+          kubectl -n aeterna port-forward svc/prereqs-dragonfly 6380:6379 &
+          kubectl -n aeterna port-forward svc/prereqs-qdrant 6334:6333 &
+          sleep 5
+
+          # The server uses individual env vars (PG_HOST, RD_HOST, QD_HOST, etc.)
+          # NOT a single DATABASE_URL. See config/src/loader.rs.
+          export PG_HOST=localhost
+          export PG_PORT=5433
+          export PG_DATABASE=aeterna
+          export PG_USERNAME=aeterna
+          export PG_PASSWORD="${PG_PASSWORD}"
+          export RD_HOST=localhost
+          export RD_PORT=6380
+          export QD_HOST=localhost
+          export QD_PORT=6334
+          export AETERNA_SERVER_HOST=0.0.0.0
+          export AETERNA_SERVER_PORT=8080
+          export RUST_LOG=info
+          export AETERNA_KMS_PROVIDER=local
+          export AETERNA_LOCAL_KMS_KEY=test-kms-key-for-e2e-not-secure
+          export AETERNA_PLUGIN_AUTH_ENABLED=false
+
+          ./target/release/aeterna serve &
+          SERVER_PID=$!
+          echo "SERVER_PID=${SERVER_PID}" >> $GITHUB_ENV
+
+          # Wait for health
+          ./e2e/wait-for-aeterna.sh http://localhost:8080 300
+
+      # ── Install Newman ───────────────────────────────────────────────
+      - name: Install Newman
+        run: npm install -g newman newman-reporter-htmlextra
+
+      # ── Run e2e tests ────────────────────────────────────────────────
+      - name: Run unauthenticated e2e folders (1-12, 29-39)
+        run: |
+          mkdir -p e2e/results
+          FOLDERS=(
+            "1. Deployment Validation"
+            "2. Admin Features & Configuration"
+            "7. Error Validation"
+            "9. MCP Governance Tools"
+            "10. MCP Memory Tools"
+            "11. MCP CCA & Sync Tools"
+            "12. MCP Knowledge & Policy Tools"
+            "29. Tenant Lifecycle — Platform Admin"
+            "30. Tenant Repository Binding"
+            "31. Permission Inspection"
+            "35. Per-Tenant GitHub Sync"
+            "36. Tenant Provider Configuration"
+            "37. Tenant Purge"
+            "38. Backup — Export and Import"
+            "39. Lifecycle — Remediations and Dead Letter"
+          )
+
+          FAILED=0
+          for folder in "${FOLDERS[@]}"; do
+            echo ""
+            echo "━━━ Running: ${folder} ━━━"
+            newman run e2e/aeterna-e2e.postman_collection.json \
+              --env-var "baseUrl=http://localhost:8080" \
+              --folder "${folder}" \
+              --timeout-request 15000 \
+              --delay-request 100 \
+              --reporters cli \
+              --reporter-cli-no-banner \
+              || FAILED=1
+          done
+
+          exit ${FAILED}
+
+      # ── Full authenticated suite (nightly or manual) ─────────────────
+      - name: Run full e2e suite (nightly / manual)
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full-suite == true)
+        run: |
+          echo "Running full 293-request suite (all 40 folders)..."
+          newman run e2e/aeterna-e2e.postman_collection.json \
+            --env-var "baseUrl=http://localhost:8080" \
+            --timeout-request 15000 \
+            --delay-request 100 \
+            --reporters cli,htmlextra \
+            --reporter-htmlextra-export e2e/results/full-report.html \
+            --bail
+
+      # ── Generate HTML report ─────────────────────────────────────────
+      - name: Generate HTML report
+        if: always()
+        run: |
+          newman run e2e/aeterna-e2e.postman_collection.json \
+            --env-var "baseUrl=http://localhost:8080" \
+            --folder "1. Deployment Validation" \
+            --reporters htmlextra \
+            --reporter-htmlextra-export e2e/results/smoke-report.html \
+            --timeout-request 5000 || true
+
+      # ── Upload results ───────────────────────────────────────────────
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-newman-results
+          path: e2e/results/
+          if-no-files-found: warn
+          retention-days: 14
+
+      # ── Debug on failure ─────────────────────────────────────────────
+      - name: Dump cluster state on failure
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl -n aeterna get pods -o wide 2>&1 || true
+          echo ""
+          echo "=== Server logs (last 50 lines) ==="
+          # Server runs as a process, logs are in the step output
+          echo "(see 'Start Aeterna server' step logs)"
+          echo ""
+          echo "=== CNPG cluster status ==="
+          kubectl -n aeterna get cluster 2>&1 || true

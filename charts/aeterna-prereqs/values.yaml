@@ -33,6 +33,39 @@ postgresql:
   parameters: {}
   ## Custom pg_hba entries
   pg_hba: []
+
+  ## @param postgresql.managedRoles Application login roles provisioned by the
+  ## CloudNativePG operator (which runs as Postgres SUPERUSER).
+  ##
+  ## These roles MUST be created by the operator and not by the application
+  ## migration, because the BYPASSRLS / NOBYPASSRLS attributes require
+  ## SUPERUSER and the CNPG-managed app role only has CREATEROLE (issue #194).
+  ##
+  ## Migration 025 (storage/migrations/025_add_app_roles.sql) is
+  ## superuser-aware: when run as a non-superuser it skips BYPASSRLS-touching
+  ## statements with a WARNING, expecting these roles to already exist.
+  ##
+  ## See: openspec/changes/decide-rls-enforcement-model/proposal.md
+  managedRoles:
+    ## aeterna_app — NOBYPASSRLS, runs ~99% of traffic. Every query it issues
+    ## against an RLS-protected table is filtered by the tenant_id policy.
+    aeterna_app:
+      login: true
+      superuser: false
+      bypassrls: false
+      disablePassword: true
+      inherit: false
+      comment: "Aeterna application role — NOBYPASSRLS, tenant-scoped RLS traffic"
+    ## aeterna_admin — BYPASSRLS, used narrowly for PlatformAdmin cross-tenant
+    ## list endpoints, scheduled cross-tenant maintenance, and the migration runner.
+    aeterna_admin:
+      login: true
+      superuser: false
+      bypassrls: true
+      disablePassword: true
+      inherit: false
+      comment: "Aeterna admin role — BYPASSRLS, PlatformAdmin cross-tenant access"
+
   ## Backup configuration (CloudNativePG native)
   backup:
     ## @param postgresql.backup.enabled Enable CNPG native backup
