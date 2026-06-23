@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# Dockerfile.runtime — Packaging-only Dockerfile for pre-built binaries
+# ---------------------------------------------------------------------------
+#
+# Used by the "build outside Docker" CI strategy (Task 4):
+#   1. Rust binary is compiled on the GHA runner using Swatinem/rust-cache
+#   2. This Dockerfile just COPYs the binary + admin-ui assets into a runtime image
+#
+# Usage:
+#   docker build -f Dockerfile.runtime \
+#     --build-arg BINARY_PATH=target/release/aeterna \
+#     --build-arg ADMIN_UI_DIST=admin-ui/dist \
+#     -t aeterna .
+#
+# This makes the Docker build trivial (~5 seconds) instead of ~40 minutes.
+# ---------------------------------------------------------------------------
+
+ARG DEBIAN_VERSION=bookworm-slim
+
+FROM debian:${DEBIAN_VERSION} AS runtime
+
+ARG BUILD_DATE
+ARG VCS_REF
+
+LABEL org.opencontainers.image.title="Aeterna"
+LABEL org.opencontainers.image.description="Universal Memory & Knowledge Framework for Enterprise AI Agent Systems"
+LABEL org.opencontainers.image.source="https://github.com/aeterna-universe/aeterna"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${VCS_REF}"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -u 1000 -s /bin/bash aeterna
+
+WORKDIR /app
+
+# Pre-built binary from the CI runner (not compiled inside Docker)
+ARG BINARY_PATH=target/release/aeterna
+COPY ${BINARY_PATH} /usr/local/bin/aeterna
+
+# Admin UI assets (built in a separate stage or pre-built)
+ARG ADMIN_UI_DIST=admin-ui/dist
+COPY ${ADMIN_UI_DIST} /app/admin-ui/dist
+
+RUN chown -R aeterna:aeterna /app
+
+USER aeterna
+
+ENV RUST_LOG=info
+ENV AETERNA_CONFIG_PATH=/app/config
+ENV AETERNA_ADMIN_UI_PATH=/app/admin-ui/dist
+
+EXPOSE 8080
+EXPOSE 9090
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["curl", "--fail", "--silent", "http://localhost:8080/health"] || exit 1
+
+ENTRYPOINT ["/usr/local/bin/aeterna"]
+CMD ["serve"]

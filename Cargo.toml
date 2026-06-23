@@ -246,3 +246,17 @@ hyper = { version = "1.6", features = ["full"] }
 [workspace.metadata.mutants]
 timeout = 30
 jobs = 4
+
+# ---------------------------------------------------------------------------
+# Build profiles — optimized for CI speed
+# ---------------------------------------------------------------------------
+# debug=0:        no debug info → faster compile, smaller binary
+# lto=thin:       faster than "fat" while keeping good optimization
+# codegen-units:  more parallelism during codegen (faster, slightly larger binary)
+# strip:          remove symbols from release binary
+# CARGO_INCREMENTAL=0 is set in the Dockerfile/CI env (useless on ephemeral runners)
+[profile.release]
+debug = 0
+lto = "thin"
+codegen-units = 16
+strip = true

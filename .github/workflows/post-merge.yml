@@ -18,8 +18,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Multi-arch Docker build & push. This is the ONLY thing that rebuilds on
-  # master push. Tests, clippy, fmt were already verified on the PR.
+  # Multi-arch Docker build & push using the "build outside Docker" strategy.
+  # See .github/workflows/docker-build.yml for the full implementation.
+  # This is the ONLY thing that rebuilds on master push. Tests, clippy, fmt
+  # were already verified on the PR.
   docker-publish:
     name: docker multi-arch publish
     runs-on: ${{ matrix.runner }}
@@ -29,37 +31,90 @@ jobs:
         include:
           - platform: linux/amd64
             runner: ubuntu-latest
+            arch: amd64
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
+            arch: arm64
     steps:
       - uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          swap-storage: true
+
+      # ── Rust toolchain + Swatinem cache ───────────────────────────────
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: docker-publish-${{ matrix.arch }}
+
+      # ── Install fast linker ───────────────────────────────────────────
+      - name: Install fast linker
+        run: |
+          sudo apt-get update
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get install -y lld clang
+            mkdir -p ~/.cargo
+            echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+            echo 'rustflags = ["-C", "link-arg=-fuse-ld=lld"]' >> ~/.cargo/config.toml
+          else
+            sudo apt-get install -y mold clang
+            mkdir -p ~/.cargo
+            echo '[target.x86_64-unknown-linux-gnu]' >> ~/.cargo/config.toml
+            echo 'linker = "clang"' >> ~/.cargo/config.toml
+            echo 'rustflags = ["-C", "link-arg=-fuse-ld=mold"]' >> ~/.cargo/config.toml
+          fi
+
+      # ── Build admin UI ────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+      - name: Build admin UI
+        working-directory: admin-ui
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+
+      # ── Build Rust binary (cached by Swatinem) ────────────────────────
+      - name: Build release binary
+        run: cargo build --release --package aeterna
+        env:
+          CARGO_INCREMENTAL: '0'
+
+      - name: Copy binary
+        run: cp target/release/aeterna aeterna-bin
+
+      # ── Package Docker image (trivial — COPY pre-built artifacts) ─────
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
       - name: Build & push by digest
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile.runtime
           platforms: ${{ matrix.platform }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # Registry-scoped buildx cache. Durable across runs (unlike GHA
-          # cache quota). pr-integration.yml reads from this same scope —
-          # every merge seeds PR builds, slashing the 40-min cold rebuild.
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-cache:buildcache-master-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-cache:buildcache-master-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max,image-manifest=true,oci-mediatypes=true
           build-args: |
-            RUST_VERSION=1.93
+            BINARY_PATH=aeterna-bin
+            ADMIN_UI_DIST=admin-ui/dist
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VCS_REF=${{ github.sha }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
