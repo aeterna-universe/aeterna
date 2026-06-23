@@ -92,7 +92,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: docker-native-${{ matrix.arch }}
+          shared-key: release-build-${{ matrix.arch }}
 
       # ── Install fast linker ────────────────────────────────────────────
       - name: Install fast linker

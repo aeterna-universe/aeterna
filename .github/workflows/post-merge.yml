@@ -52,7 +52,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: docker-publish-${{ matrix.arch }}
+          shared-key: release-build-${{ matrix.arch }}
 
       # ── Install fast linker ───────────────────────────────────────────
       - name: Install fast linker

@@ -118,7 +118,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: e2e-system
+          shared-key: release-build
 
       - name: Build release binary
         run: cargo build --release --package aeterna

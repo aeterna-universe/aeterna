@@ -48,7 +48,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: pr-shipped-smoke
+          shared-key: release-build
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
