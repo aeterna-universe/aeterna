@@ -157,9 +157,17 @@ jobs:
           kubectl -n aeterna port-forward svc/prereqs-qdrant 6334:6333 &
           sleep 5
 
-          export DATABASE_URL="postgres://aeterna:${PG_PASSWORD}@localhost:5433/aeterna"
-          export AETERNA_REDIS_URL="redis://localhost:6380"
-          export AETERNA_QDRANT_URL="http://localhost:6334"
+          # The server uses individual env vars (PG_HOST, RD_HOST, QD_HOST, etc.)
+          # NOT a single DATABASE_URL. See config/src/loader.rs.
+          export PG_HOST=localhost
+          export PG_PORT=5433
+          export PG_DATABASE=aeterna
+          export PG_USERNAME=aeterna
+          export PG_PASSWORD="${PG_PASSWORD}"
+          export RD_HOST=localhost
+          export RD_PORT=6380
+          export QD_HOST=localhost
+          export QD_PORT=6334
           export AETERNA_SERVER_HOST=0.0.0.0
           export AETERNA_SERVER_PORT=8080
           export RUST_LOG=info
