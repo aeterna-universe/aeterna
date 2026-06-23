@@ -93,24 +93,30 @@ jobs:
       - name: Install aeterna-prereqs (CNPG + managed roles)
         run: |
           helm dependency build charts/aeterna-prereqs
+          # Disable cache and qdrant — we only need CNPG + managed roles for
+          # this migration test. The Dragonfly CR requires the DragonflyDB
+          # operator which is not installed in this minimal workflow.
           helm install prereqs charts/aeterna-prereqs \
             --set openbao.enabled=false \
             --set qdrant.enabled=false \
-            --set dragonfly.enabled=false \
             --set cache.type=valkey \
             --set cache.valkey.enabled=false \
+            --set cache.dragonfly.enabled=false \
+            --set dragonfly.enabled=false \
+            --set vectorStore.type=none \
+            --set vectorStore.qdrant.enabled=false \
             --wait --timeout 5m
 
       # ── Verify CNPG provisioned the managed roles ────────────────────
       - name: Wait for CNPG cluster ready
         run: |
-          kubectl wait cluster/prereqs-cnpg --for=condition=Ready --timeout=600s
+          kubectl wait cluster --for=condition=Ready --all --timeout=600s -n default
 
       - name: Assert managed roles exist with correct attributes
         run: |
           # CNPG creates a `postgres` superuser. We exec into the primary pod
           # and verify the managed.roles landed correctly.
-          POD=$(kubectl get pod -l cnpg.io/cluster=prereqs-cnpg -o name | head -1 | sed 's|pod/||')
+          POD=$(kubectl get pod -l cnpg.io/cluster -o name | head -1 | sed 's|pod/||')
           echo "Primary pod: $POD"
 
           echo "--- aeterna_app (must be NOBYPASSRLS) ---"

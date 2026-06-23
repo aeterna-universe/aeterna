@@ -136,10 +136,10 @@ jobs:
           PF_PID=$!
           sleep 3
 
-          # Run migrations as superuser (password from env var, not inline)
+          # Run migrations as superuser (DATABASE_URL env, not --database-url flag)
           export PGPASSWORD="${PG_PASSWORD}"
-          PGURL="postgres://postgres:${PG_PASSWORD}@localhost:5433/aeterna"
-          ./target/release/aeterna admin migrate up --database-url "${PGURL}" || true
+          export DATABASE_URL="postgres://postgres:${PG_PASSWORD}@localhost:5433/aeterna"
+          ./target/release/aeterna admin migrate up || true
 
           kill $PF_PID 2>/dev/null || true
           echo "Migrations complete"

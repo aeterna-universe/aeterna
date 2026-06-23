@@ -102,6 +102,14 @@ async fn migration_025_runs_as_non_superuser() {
         .execute(&super_pool)
         .await
         .expect("grant schema public");
+
+    // pgcrypto extension (needed by initialize_schema for gen_random_uuid).
+    // Must be created by the superuser — non-superusers can't CREATE EXTENSION.
+    sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+        .execute(&super_pool)
+        .await
+        .expect("create pgcrypto extension");
+
     // Existing objects (none yet, but be safe): transfer ownership.
     sqlx::query(
         "DO $g$ BEGIN \
@@ -238,6 +246,14 @@ async fn migration_025_creates_roles_as_superuser() {
         .connect(&super_url)
         .await
         .expect("superuser pool");
+
+    // Migration 025 references `ALTER DEFAULT PRIVILEGES FOR ROLE aeterna`.
+    // The testcontainers default user is `testuser`, so pre-create `aeterna`
+    // to match the migration's expectation.
+    sqlx::query("CREATE ROLE aeterna LOGIN PASSWORD 'testpass'")
+        .execute(&super_pool)
+        .await
+        .ok();
 
     let backend = storage::postgres::PostgresBackend::new(&super_url)
         .await
