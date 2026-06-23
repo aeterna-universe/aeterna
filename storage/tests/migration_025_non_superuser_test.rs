@@ -277,10 +277,22 @@ async fn migration_025_creates_roles_as_superuser() {
     assert!(role_exists(&super_pool, "aeterna_admin").await);
     assert!(role_bypassrls(&super_pool, "aeterna_admin").await);
 
-    // Re-running (idempotent path) must not error and must keep attributes.
-    storage::migrations::apply_all(&super_pool)
+    // Re-running JUST migration 025 (idempotent path) must not error.
+    // We don't re-run the full chain because later migrations (039+)
+    // drop objects that earlier migrations reference, making a full
+    // re-apply unsafe. Migration 025 itself is idempotent by design.
+    let m025 = storage::migrations::MIGRATIONS
+        .iter()
+        .find(|m| m.version == 25)
+        .expect("migration 025 registered");
+    let mut tx = super_pool.begin().await.expect("begin tx");
+    sqlx::raw_sql(m025.sql)
+        .execute(&mut *tx)
         .await
-        .expect("re-apply migrations as superuser (idempotent)");
+        .expect("re-apply migration 025 as superuser (idempotent)");
+    tx.commit().await.expect("commit");
+
+    // Attributes unchanged after re-run.
     assert!(!role_bypassrls(&super_pool, "aeterna_app").await);
     assert!(role_bypassrls(&super_pool, "aeterna_admin").await);
 
